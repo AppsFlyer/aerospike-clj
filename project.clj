@@ -1,5 +1,6 @@
 (defproject aerospike-clj "0.1.0-SNAPHOT"
   :description "An Aerospike Clojure client."
+  :url "https://github.com/AppsFlyer/aerospike-clj"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[com.aerospike/aerospike-client "4.2.3"]
