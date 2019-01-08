@@ -163,9 +163,9 @@
         (set! (.timeoutDelay default-write-policy) 3000)
         default-write-policy))))
 
-(defn get-single-with-meta
+(defn get-single
   "returns: (transcoder {:payload record-value, :gen generation, :ttl ttl})."
-  ([db index set-name] (get-single-with-meta db index set-name {}))
+  ([db index set-name] (get-single db index set-name {}))
   ([db index set-name conf]
    (let [client (get-client db index)
          op-future (d/deferred)]
@@ -186,7 +186,7 @@
    (get-multiple db indices sets identity))
   ([db indices sets transcoder]
    (apply d/zip'
-          (map (fn [[index set-name]] (get-single-with-meta db index set-name {:transcoder transcoder}))
+          (map (fn [[index set-name]] (get-single db index set-name {:transcoder transcoder}))
                (map vector indices sets)))))
 
 (defn exists?
@@ -202,10 +202,10 @@
               (create-key (:dbns db) set-name index))
      (register-events op-future db "exists" index (System/nanoTime)))))
 
-(defn get-single
+(defn get-single-no-meta
   "returns record-value only."
   [db index set-name]
-  (get-single-with-meta db index set-name {:transcoder :payload}))
+  (get-single db index set-name {:transcoder :payload}))
 
 ;; put
 
@@ -337,8 +337,8 @@
     (try
       @(create db k set-name v ttl)
       (= v
-         @(get-single-with-meta db k set-name {:transcoder :payload
-                                               :policy read-policy}))
+         @(get-single db k set-name {:transcoder :payload
+                                     :policy read-policy}))
       (catch Exception ex
         false))))
 

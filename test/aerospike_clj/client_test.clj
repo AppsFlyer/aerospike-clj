@@ -54,24 +54,24 @@
 (deftest get-record
   (let [data (rand-int 1000)]
     (is (true? @(client/create *c* K _set data 100)))
-    (let [{:keys [payload gen] } @(client/get-single-with-meta *c* K _set)]
+    (let [{:keys [payload gen] } @(client/get-single *c* K _set)]
       (is (= data payload))
       (is (= 1 gen)))))
 
 (deftest get-miss
-  (let [{:keys [payload gen] } @(client/get-single-with-meta *c* K _set)]
+  (let [{:keys [payload gen] } @(client/get-single *c* K _set)]
     (is (nil? payload))
     (is (nil? gen))))
 
 (deftest get-single
   (let [data (rand-int 1000)]
     (is (true? @(client/create *c* K _set data 100)))
-    (is (= data @(client/get-single *c* K _set)))))
+    (is (= data @(client/get-single-no-meta *c* K _set)))))
 
 (deftest update-test
   (is (true? @(client/create *c* K _set 16 100)))
   (is (true? @(client/update *c* K _set 17 1 100)))
-  (let [{:keys [:payload :gen]} @(client/get-single-with-meta *c* K _set)]
+  (let [{:keys [payload gen]} @(client/get-single *c* K _set)]
     (is (= 17 payload))
     (is (= 2 gen))))
 
@@ -83,7 +83,7 @@
 (deftest update-with-wrong-gen
   (let [data (rand-int 1000)]
     (is (true? @(client/create *c* K _set data 100)))
-    (let [{:keys [payload gen]} @(client/get-single-with-meta *c* K _set)]
+    (let [{:keys [payload gen]} @(client/get-single *c* K _set)]
       (is (= data payload))
       (is (= 1 gen))
       (is (thrown-with-msg? AerospikeException #"Generation error"
@@ -98,7 +98,7 @@
   (is (true? @(client/put *c* K _set 1 100)))
   (is (true? @(client/delete *c* K _set)))
   (is (false? @(client/delete *c* K _set)))
-  (is (nil? @(client/get-single-with-meta *c* K _set))))
+  (is (nil? @(client/get-single *c* K _set))))
 
 (deftest get-multiple
   (let [data [(rand-int 1000) (rand-int 1000)]
@@ -134,15 +134,15 @@
 
 (deftest touch
   (is (true? @(client/create *c* K _set 1 100)))
-  (let [{:keys [ttl]} @(client/get-single-with-meta *c* K _set)]
+  (let [{:keys [ttl]} @(client/get-single *c* K _set)]
     (is (true? @(client/touch *c* K _set 1000)))
-    (let [{new-ttl :ttl} @(client/get-single-with-meta *c* K _set)]
+    (let [{new-ttl :ttl} @(client/get-single *c* K _set)]
       (is (< ttl new-ttl)))))
 
 (deftest transcoder-failure
   (is (true? @(client/create *c* K _set 1 100)))
   (let [transcoder (fn [_] (throw (Exception. "oh-no")))]
-    (is (thrown-with-msg? Exception #"oh-no" @(client/get-single-with-meta *c* K _set {:transcoder transcoder})))))
+    (is (thrown-with-msg? Exception #"oh-no" @(client/get-single *c* K _set {:transcoder transcoder})))))
 
 (deftest operations-lists
   (let [result1 @(client/operate *c* K _set 100 :update
@@ -169,7 +169,7 @@
                                                                               ListWriteFlags/NO_FAIL))
                                      ""
                                      [(Value/get "bar") (Value/get "baz")]))
-          result4 @(client/get-single-with-meta *c* K _set)]
+          result4 @(client/get-single *c* K _set)]
       (is (= 1 (:payload result1)))
       (is (= 2 (:payload result2)))
       (is (= 3 (:payload result3)))
@@ -204,7 +204,7 @@
                                      ""
                                      {(Value/get "foo") (Value/get "foo2")
                                       (Value/get "baz") (Value/get "baz1")}))
-          result4 @(client/get-single-with-meta *c* K _set)]
+          result4 @(client/get-single *c* K _set)]
       (is (= 1 (:payload result1)))
       (is (= 2 (:payload result2)))
       (is (= 3 (:payload result3)))
@@ -230,7 +230,7 @@
             (letfn [(->set [res] (->> ^HashMap (:payload res)
                                       .keySet
                                       (into #{})))]
-              @(client/get-single-with-meta *c* K _set {:transcoder ->set})))
+              @(client/get-single *c* K _set {:transcoder ->set})))
           (set-size []
             (client/operate *c* K _set 100 :update
                             (MapOperation/size
@@ -263,7 +263,7 @@
                               ListReturnType/VALUE)))
           (set-getall []
             (letfn [(->set [res] (->> res :payload (into #{})))]
-              @(client/get-single-with-meta *c* K _set {:transcoder ->set})))
+              @(client/get-single *c* K _set {:transcoder ->set})))
           (set-size []
             (client/operate *c* K _set 100 :update
                             (ListOperation/size
