@@ -120,8 +120,9 @@
     (is (true? @(put-json K2 (second data))))
     (let [[{d1 :payload g1 :gen}
            {d2 :payload g2 :gen}]
-          @(client/get-multiple *c* ks (repeat _set) (fn [res]
-                                                       (update res :payload #(json/parse-string % keyword))))]
+          @(client/get-multiple *c* ks (repeat _set)
+                                {:transcoder (fn [res]
+                                               (update res :payload #(json/parse-string % keyword)))})]
       (is (= d1 (first data)))
       (is (= d2 (second data)))
       (is (= 1 g1 g2)))))

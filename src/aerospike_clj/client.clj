@@ -190,10 +190,10 @@
   "returns a (future) sequence of AerospikeRecords returned by get-single
   with records in corresponding places to the required keys. Indices and sets should be sequences"
   ([db indices sets]
-   (get-multiple db indices sets identity))
-  ([db indices sets transcoder]
+   (get-multiple db indices sets {}))
+  ([db indices sets conf]
    (apply d/zip'
-          (map (fn [[index set-name]] (get-single db index set-name {:transcoder transcoder}))
+          (map (fn [[index set-name]] (get-single db index set-name conf))
                (map vector indices sets)))))
 
 (defn exists?
@@ -222,7 +222,7 @@
    :update RecordExistsAction/UPDATE})
 
 (defn ^WritePolicy write-policy
-  "Create a write policy to be passed to put methods via {:write-policy wp} or just pass {:record-exists-action rea} to create one for you."
+  "Create a write policy to be passed to put methods via {:policy wp} or just pass {:record-exists-action rea} to create one for you."
   [expiry record-exists-action]
   (let [wp (WritePolicy.)]
     (set! (.timeoutDelay wp) 3000)
@@ -257,8 +257,8 @@
    (_put db
          index
          ((:transcoder conf identity) data)
-         (:write-policy conf
-                        (write-policy expiry (:record-exists-action conf :replace)))
+         (:policy conf
+                  (write-policy expiry (:record-exists-action conf :replace)))
          set-name)))
 
 (defn create
