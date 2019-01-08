@@ -29,7 +29,7 @@
                   "test"
                   {:enable-logging true})]
     (f)
-    (client/stop-aerospike-clients *c*)))
+    (client/stop-aerospike-client *c*)))
 
 (use-fixtures :each test-fixture)
 (use-fixtures :once db-connection)

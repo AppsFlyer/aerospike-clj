@@ -79,7 +79,8 @@
                                   :logging? (:enable-logging conf)
                                   :client-events (:client-events conf)}))))
 
-(defn stop-aerospike-clients [db]
+(defn stop-aerospike-client [db]
+  "gracefully stop a client, waiting until all async operations finish."
   (println ";; Stopping aerospike clients")
   (doseq [^AerospikeClient client (get-all-clients db)]
     (.close client))

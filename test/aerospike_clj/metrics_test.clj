@@ -13,5 +13,5 @@
              ["nodes.127-0-0-1.async.in-pool" 0]
              ["nodes.127-0-0-1.async.in-use" 0]]]
            (client/get-cluster-stats c)))
-    (client/stop-aerospike-clients c)))
+    (client/stop-aerospike-client c)))
 
