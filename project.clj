@@ -5,7 +5,6 @@
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[com.aerospike/aerospike-client "4.2.3"]
                  [manifold "0.1.8"]
-                 [commons-io/commons-io "2.6"]
                  [com.taoensso/timbre "4.10.0"]]
   :profiles {:dev {:dependencies [[org.clojure/clojure "1.10.0"]
                                   [criterium "0.4.4"]
