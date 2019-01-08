@@ -29,19 +29,6 @@
   (get-client-policy ^ClientPolicy [_] cp)
   (get-all-clients [_] [ac]))
 
-(defrecord ShardedAerospikeClient [^"[Lcom.aerospike.client.AerospikeClient;" acs
-                                   ^int shards
-                                   ^EventLoop el
-                                   ^ClientPolicy cp
-                                   ^String dbns
-                                   ^String cluster-name
-                                   ^boolean logging?
-                                   client-events]
-  IAerospikeClient
-  (get-client ^AerospikeClient [_ index] (get acs (mod (hash index) shards)))
-  (get-client-policy ^ClientPolicy [_] cp)
-  (get-all-clients [_] acs))
-
 (defn- create-client-policy [event-loops conf]
   (let [policy (ClientPolicy.)
         {:keys [username password]} conf]
@@ -116,9 +103,6 @@
         (d/catch' (fn [op-exception]
                     (on-failure client-events op-name op-exception index op-start-time db))))
     op-future))
-
-(defn micros-from [start-time-nanos]
-  (long (/ (- (System/nanoTime) start-time-nanos) 1000)))
 
 (defn- ^ExistsListener reify-exists-listener [op-future]
   (reify ExistsListener
