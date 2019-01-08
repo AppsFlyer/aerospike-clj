@@ -179,11 +179,11 @@
                        (:transcoder conf identity))]
        (register-events d db "read" index (System/nanoTime))))))
 
-(defn get-multiple-with-meta
+(defn get-multiple
   "returns a sequence of maps returned by et-single-with-meta
   with records in corresponding places to the required keys. Indices should be a sequence"
   ([db indices sets]
-   (get-multiple-with-meta db indices sets identity))
+   (get-multiple db indices sets identity))
   ([db indices sets transcoder]
    (apply d/zip'
           (map (fn [[index set-name]] (get-single-with-meta db index set-name {:transcoder transcoder}))

@@ -105,7 +105,7 @@
         ks [K K2 "not-there"]]
     (is (true? @(client/create *c* K _set (first data) 100)))
     (is (true? @(client/create *c* K2 _set (second data) 100)))
-    (let [[{d1 :payload g1 :gen} {d2 :payload g2 :gen} {d3 :payload g3 :gen}] @(client/get-multiple-with-meta *c* ks (repeat _set))]
+    (let [[{d1 :payload g1 :gen} {d2 :payload g2 :gen} {d3 :payload g3 :gen}] @(client/get-multiple *c* ks (repeat _set))]
       (is (= d1 (first data)))
       (is (= d2 (second data)))
       (is (= 1 g1 g2))
@@ -120,8 +120,8 @@
     (is (true? @(put-json K2 (second data))))
     (let [[{d1 :payload g1 :gen}
            {d2 :payload g2 :gen}]
-          @(client/get-multiple-with-meta *c* ks (repeat _set) (fn [res]
-                                                                 (update res :payload #(json/parse-string % keyword))))]
+          @(client/get-multiple *c* ks (repeat _set) (fn [res]
+                                                       (update res :payload #(json/parse-string % keyword))))]
       (is (= d1 (first data)))
       (is (= d2 (second data)))
       (is (= 1 g1 g2)))))
