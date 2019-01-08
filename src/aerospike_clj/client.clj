@@ -9,7 +9,9 @@
            [com.aerospike.client.listener RecordListener WriteListener DeleteListener ExistsListener]
            [com.aerospike.client.policy Policy ClientPolicy WritePolicy RecordExistsAction GenerationPolicy]))
 
-(def EPOCH (.getEpochSecond (java.time.Instant/parse "2010-01-01T00:00:00Z")))
+(def EPOCH
+  ^{:doc "The 0 date reference for returned record TTL"}
+  (.getEpochSecond (java.time.Instant/parse "2010-01-01T00:00:00Z")))
 (def MAX_KEY_LENGTH (dec (bit-shift-left 1 13)))
 
 (defprotocol IAerospikeClient
@@ -45,7 +47,9 @@
                                      ^Host (Host. h 3000)))]
     (AerospikeClient. ^ClientPolicy client-policy ^"[Lcom.aerospike.client.Host;" hosts-arr)))
 
-(defn create-event-loops [conf]
+(defn create-event-loops
+  "Called internally to create the event loops of for the client. Can also be used to share event loops between several clients"
+  [conf]
   (let [event-policy (EventPolicy.)
         max-commands-in-process (:max-commands-in-process conf 0)
         max-commands-in-queue (:max-commands-in-queue conf 0)]
@@ -96,7 +100,7 @@
   (on-failure [_ op-name op-ex     index op-start-time db]
               "A continuation function. Registered on the operation future and called when operations fails."))
 
-(defn register-events [op-future db op-name index op-start-time]
+(defn- register-events [op-future db op-name index op-start-time]
   (if-let [client-events (:client-events db)]
     (-> op-future
         (d/chain' (fn [op-result]
@@ -112,7 +116,7 @@
     (^void onSuccess [this ^Key k ^boolean exists]
       (d/success! op-future exists))))
 
-(defn ^DeleteListener reify-delete-listener [op-future]
+(defn- ^DeleteListener reify-delete-listener [op-future]
   (reify
     DeleteListener
     (^void onSuccess [this ^Key k ^boolean existed]
@@ -120,7 +124,7 @@
     (^void onFailure [this ^AerospikeException ex]
       (d/error! op-future ex))))
 
-(defn ^WriteListener reify-write-listener [op-future]
+(defn- ^WriteListener reify-write-listener [op-future]
   (reify
     WriteListener
     (^void onSuccess [this ^Key _]
@@ -167,7 +171,7 @@
         default-write-policy))))
 
 (defn get-single
-  "returns: (transcoder {:payload record-value, :gen generation, :ttl ttl})."
+  "returns: (transcoder AerospikeRecord)."
   ([db index set-name] (get-single db index set-name {}))
   ([db index set-name conf]
    (let [client (get-client db index)
@@ -183,8 +187,8 @@
        (register-events d db "read" index (System/nanoTime))))))
 
 (defn get-multiple
-  "returns a sequence of maps returned by et-single-with-meta
-  with records in corresponding places to the required keys. Indices should be a sequence"
+  "returns a (future) sequence of AerospikeRecords returned by get-single
+  with records in corresponding places to the required keys. Indices and sets should be sequences"
   ([db indices sets]
    (get-multiple db indices sets identity))
   ([db indices sets transcoder]
@@ -206,21 +210,24 @@
      (register-events op-future db "exists" index (System/nanoTime)))))
 
 (defn get-single-no-meta
-  "returns record-value only."
+  "returns record payload only."
   [db index set-name]
   (get-single db index set-name {:transcoder :payload}))
 
 ;; put
+(def write-policies
+  {:replace RecordExistsAction/REPLACE
+   :create-only RecordExistsAction/CREATE_ONLY
+   :update-only RecordExistsAction/UPDATE_ONLY
+   :update RecordExistsAction/UPDATE})
 
-(defn ^WritePolicy write-policy [expiry record-exists-action]
+(defn ^WritePolicy write-policy
+  "Create a write policy to be passed to put methods via {:write-policy wp} or just pass {:record-exists-action rea} to create one for you."
+  [expiry record-exists-action]
   (let [wp (WritePolicy.)]
     (set! (.timeoutDelay wp) 3000)
     (set! (.expiration wp) expiry)
-    (set! (.recordExistsAction wp) (case record-exists-action
-                                     :replace RecordExistsAction/REPLACE
-                                     :create-only RecordExistsAction/CREATE_ONLY
-                                     :update-only RecordExistsAction/UPDATE_ONLY
-                                     :update RecordExistsAction/UPDATE))
+    (set! (.recordExistsAction wp) (write-policies record-exists-action))
     wp))
 
 (defn- update-policy [generation new-expiry]
@@ -250,10 +257,13 @@
    (_put db
          index
          ((:transcoder conf identity) data)
-         (write-policy expiry (:record-exists-action conf :replace))
+         (:write-policy conf
+                        (write-policy expiry (:record-exists-action conf :replace)))
          set-name)))
 
-(defn create [db index set-name data expiry]
+(defn create
+  "put with a create-only policy"
+  [db index set-name data expiry]
   (put db index set-name data expiry {:record-exists-action :create-only}))
 
 
@@ -284,7 +294,7 @@
 ;; delete
 
 (defn delete
-  "deletes the record stored for key <index>."
+  "deletes the record stored for key <index>. Returns async true/false for deletion success (hit)"
   [db index set-name]
   (let [client (get-client db index)
         op-future (d/deferred)]

@@ -9,4 +9,5 @@
   :profiles {:dev {:dependencies [[org.clojure/clojure "1.10.0"]
                                   [criterium "0.4.4"]
                                   [cheshire "5.8.1"]]
-                   :global-vars {*warn-on-reflection* true}}})
+                   :global-vars {*warn-on-reflection* true}
+                   :plugins [[lein-codox "0.10.5"]]}})
