@@ -10,7 +10,7 @@ An opinionated Clojure library wrapping Aerospike Java Client.
 
 # Features:
 - Converts Java client's callback model into a future (manifold/deferred) based API.
-- Expose passing functional transdcoders over payloads (both put/get).
+- Expose passing functional transcoders over payloads (both put/get).
 - Health-check utility.
 - Functions return Clojure maps.
 
@@ -74,6 +74,24 @@ Aerospike returns a TTL on the queried records that is Epoch style, but with a d
     (let [{:keys [payload gen]} @(client/get-single-with-meta db "another-key" "a-set")]
       (is (= data payload))
       (is (= 1 gen))))
+```
+
+### Creating additional clients
+Implement `IAerospikeClient`. For example, creating a client that is sharding reads and writes between several clients:
+
+```clojure
+(defrecord ShardedAerospikeClient [^"[Lcom.aerospike.client.AerospikeClient;" acs
+                                   ^int shards
+                                   ^EventLoop el
+                                   ^ClientPolicy cp
+                                   ^String dbns
+                                   ^String cluster-name
+                                   ^boolean logging?
+                                   client-events]
+  IAerospikeClient
+  (get-client ^AerospikeClient [_ index] (get acs (mod (hash index) shards)))
+  (get-client-policy ^ClientPolicy [_] cp)
+  (get-all-clients [_] acs))
 ```
 
 ## License
