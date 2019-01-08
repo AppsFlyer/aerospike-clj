@@ -1,12 +1,13 @@
-(ns aerospike-clj.utils)
+(ns aerospike-clj.utils
+  (:require [clojure.string :as s]))
 
 (defn- hosts->cluster [hosts]
   (or
-    (get (clojure.string/split (first hosts) #"-") 2)
-    (get (clojure.string/split (first hosts) #"-|\.") 1)
+    (get (s/split (first hosts) #"-") 2)
+    (get (s/split (first hosts) #"-|\.") 1)
     (first hosts)))
 
 (defn cluster-name [hosts]
   (-> (hosts->cluster hosts)
-      (clojure.string/split  #"\.")
+      (s/split  #"\.")
       first))

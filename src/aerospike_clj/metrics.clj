@@ -1,11 +1,12 @@
 (ns aerospike-clj.metrics
-  (:require [taoensso.timbre :refer [info warn error spy]])
+  (:require [clojure.string :as s]
+            [taoensso.timbre :refer [info warn error spy]])
   (:import [com.aerospike.client.cluster ClusterStats NodeStats Node]
            [com.aerospike.client AerospikeClient AerospikeException]
            [com.aerospike.client.async EventLoopStats]))
 
 (defn node-ip [^Node node]
-  (clojure.string/replace (.. node (getAddress) (getAddress) (getHostAddress)) "." "-"))
+  (s/replace (.. node (getAddress) (getAddress) (getHostAddress)) "." "-"))
 
 (defn construct-node-stats [^NodeStats raw-node-stats]
   {:node (node-ip (.node raw-node-stats))
@@ -27,12 +28,12 @@
   (->> (for [node (:nodes cluster-metrics)
              conn-type [:sync :async]
              metric [:in-pool :in-use]]
-         [(clojure.string/join "." ["nodes" (:node node) (name conn-type) (name metric)])
+         [(s/join "." ["nodes" (:node node) (name conn-type) (name metric)])
           (get-in node [conn-type metric])])
        (concat [["threads-in-use" (:threads-in-use cluster-metrics)]])
        (concat
          (for [[i el] (map-indexed vector (:event-loops cluster-metrics))
                stage [:in-process :in-queue]]
-           [(clojure.string/join "." ["event-loops" i (name stage)]) (stage el)]))
+           [(s/join "." ["event-loops" i (name stage)]) (stage el)]))
        vec))
 
