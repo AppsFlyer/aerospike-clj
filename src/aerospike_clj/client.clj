@@ -140,12 +140,14 @@
   (Key. aero-namespace set-name k))
 
 ;; get
+(defrecord AerospikeRecord [payload ^Integer gen ^Integer ttl])
 
 (defn- record->map [^Record record]
   (and record
-       {:payload (get (.bins ^Record record) "")
-        :gen ^Integer (.generation ^Record record)
-        :ttl ^Integer (.expiration ^Record record)}))
+       (->AerospikeRecord
+         (get (.bins ^Record record) "")
+         ^Integer (.generation ^Record record)
+         ^Integer (.expiration ^Record record))))
 
 (def ^Policy get-default-read-policy
   (memoize
