@@ -31,7 +31,7 @@
   (get-client-policy ^ClientPolicy [_] cp)
   (get-all-clients [_] [ac]))
 
-(defn- create-client-policy [event-loops conf]
+(defn create-client-policy [event-loops conf]
   (let [policy (ClientPolicy.)
         {:keys [username password]} conf]
     (when (and username password)
@@ -42,7 +42,7 @@
     (set! (.eventLoops policy) event-loops)
     policy))
 
-(defn- create-client [hosts client-policy]
+(defn create-client [hosts client-policy]
   (let [hosts-arr (into-array Host (for [h hosts]
                                      ^Host (Host. h 3000)))]
     (AerospikeClient. ^ClientPolicy client-policy ^"[Lcom.aerospike.client.Host;" hosts-arr)))
