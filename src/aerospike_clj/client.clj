@@ -66,8 +66,10 @@
 
 (defn init-simple-aerospike-client
   "hosts should be a seq of known hosts to bootstrap from
-  supported config: {username: string password: string event-loops: com.aerospike.client.async.NioEventLoops
-  max-commands-in-process: int max-commands-in-queue: int enable-logging: true (default)}"
+  supported config: 
+  ```clojure
+  {username: string password: string event-loops: com.aerospike.client.async.NioEventLoops
+  max-commands-in-process: int max-commands-in-queue: int enable-logging: true (default)}```"
   ([hosts aero-ns]
    (init-simple-aerospike-client hosts aero-ns {:enable-logging true}))
   ([hosts aero-ns conf]
@@ -93,7 +95,7 @@
 ;; listeners
 (defprotocol ClientEvents
   "Continuation functions that are registered when an async DB operation is called.
-  The DB passed is IAerospikeClient.
+  The DB passed is an `IAerospikeClient` instance.
   The value returned from those function will be the value of the returned deferred from the async operation."
   (on-success [_ op-name op-result index op-start-time db]
               "A continuation function. Registered on the operation future and called when operations succeeds.")
