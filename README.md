@@ -4,6 +4,9 @@ An opinionated Clojure library wrapping Aerospike Java Client.
 
 ![](https://clojars.org/aerospike-clj/latest-version.svg)
 
+# Docs:
+[Generated docs](https://appsflyer.github.io/aerospike-clj/)
+
 # Requirements:
 - Java 8
 - Clojure 1.8
