@@ -95,6 +95,17 @@ Implement `IAerospikeClient`. For example, creating a client that is sharding re
   (get-all-clients [_] acs))
 ```
 
+## Testing
+Testing is performed against a local Aerospike running in the latest docker
+
+```shell
+$ sudo docker run -d --name aerospike -p 3000:3000 -p 3001:3001 -p 3002:3002 -p 3003:3003 aerospike
+$ lein test
+```
+
+## Contributing
+PRs are welcome!
+
 ## License
 
 Distributed under the Eclipse Public License either version 1.0 or (at
