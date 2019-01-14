@@ -1,92 +1,72 @@
 (ns aerospike-clj.client
   (:refer-clojure :exclude [update])
-  (:require [aerospike-clj.utils :as utils]
+  (:require [aerospike-clj.policy :as policy]
+            [aerospike-clj.utils :as utils]
             [aerospike-clj.metrics :as metrics]
-            [manifold.deferred :as d]
-            [taoensso.timbre :refer [info error spy]])
+            [manifold.deferred :as d])
   (:import [com.aerospike.client AerospikeClient Host Key Bin Record AerospikeException Operation]
-           [com.aerospike.client.async EventLoop EventPolicy NioEventLoops]
+           [com.aerospike.client.async EventLoop NioEventLoops]
            [com.aerospike.client.listener RecordListener WriteListener DeleteListener ExistsListener]
-           [com.aerospike.client.policy Policy ClientPolicy WritePolicy RecordExistsAction GenerationPolicy]))
+           [com.aerospike.client.policy Policy ClientPolicy RecordExistsAction]))
 
 (def EPOCH
   ^{:doc "The 0 date reference for returned record TTL"}
   (.getEpochSecond (java.time.Instant/parse "2010-01-01T00:00:00Z")))
+
 (def MAX_KEY_LENGTH (dec (bit-shift-left 1 13)))
 
 (defprotocol IAerospikeClient
-  (get-client [ac index] "Returns the relevant AerospikeClient object for the specific shard")
-  (get-client-policy [_] "Returns the ClientPolicy used by the AerospikeClient")
+  (get-client [ac] [ac index] "Returns the relevant AerospikeClient object for the specific shard")
   (get-all-clients [_] "Returns all AerospikeClient objects"))
 
 (defrecord SimpleAerospikeClient [^AerospikeClient ac
-                                  ^EventLoop el
-                                  ^ClientPolicy cp
+                                  ^NioEventLoops el
                                   ^String dbns
                                   ^String cluster-name
                                   ^boolean logging?
                                   client-events]
   IAerospikeClient
   (get-client ^AerospikeClient [_ _] ac)
-  (get-client-policy ^ClientPolicy [_] cp)
+  (get-client ^AerospikeClient [_] ac)
   (get-all-clients [_] [ac]))
 
-(defn create-client-policy [event-loops conf]
-  (let [policy (ClientPolicy.)
-        {:keys [username password]} conf]
-    (when (and username password)
-      (set! (.user policy) username)
-      (set! (.password policy) password))
-    (when (nil? event-loops)
-      (throw (ex-info "cannot use nil for event-loops" {:conf conf})))
-    (set! (.eventLoops policy) event-loops)
-    policy))
-
-(defn create-client [hosts client-policy]
+(defn create-client
+  "Returns the Java `AerospikeClient` instance. To build the Clojure `IAerospikeClient` one,
+  use `init-simple-aerospike-client`."
+  [hosts client-policy]
   (let [hosts-arr (into-array Host (for [h hosts]
                                      ^Host (Host. h 3000)))]
     (AerospikeClient. ^ClientPolicy client-policy ^"[Lcom.aerospike.client.Host;" hosts-arr)))
 
 (defn create-event-loops
-  "Called internally to create the event loops of for the client. Can also be used to share event loops between several clients"
+  "Called internally to create the event loops of for the client.
+  Can also be used to share event loops between several clients."
   [conf]
-  (let [event-policy (EventPolicy.)
-        max-commands-in-process (:max-commands-in-process conf 0)
-        max-commands-in-queue (:max-commands-in-queue conf 0)]
-    (when (and (pos? max-commands-in-process)
-               (zero? max-commands-in-queue))
-      (throw (ex-info "setting maxCommandsInProcess>0 and maxCommandsInQueue=0 creates an unbounded delay queue"
-                      {:max-commands-in-process max-commands-in-process
-                       :max-commands-in-queue max-commands-in-queue})))
-    (println (format "event-policy config: max-commands-in-process: %s, max-commands-in-queue: %s"
-                     max-commands-in-process max-commands-in-queue))
-    (set! (.maxCommandsInProcess event-policy) (int max-commands-in-process))
-    (set! (.maxCommandsInQueue event-policy) (int max-commands-in-queue))
-    (NioEventLoops. event-policy 1)))
+  (let [elp (policy/map->event-policy conf)]
+    (NioEventLoops. elp 1)))
 
 (defn init-simple-aerospike-client
   "hosts should be a seq of known hosts to bootstrap from
-  supported config: 
-  ```clojure
-  {username: string password: string event-loops: com.aerospike.client.async.NioEventLoops
+  supported config:
+  ```{username: string password: string event-loops: com.aerospike.client.async.NioEventLoops
   max-commands-in-process: int max-commands-in-queue: int enable-logging: true (default)}```"
   ([hosts aero-ns]
    (init-simple-aerospike-client hosts aero-ns {:enable-logging true}))
   ([hosts aero-ns conf]
    (let [cluster-name (utils/cluster-name hosts)
          event-loops (:event-loops conf (create-event-loops conf))
-         client-policy (create-client-policy event-loops conf)]
+         client-policy (:client-policy conf (policy/create-client-policy event-loops conf))]
      (println (format ";; Starting aerospike clients for clusters %s with username %s" cluster-name (:username conf)))
      (map->SimpleAerospikeClient {:ac (create-client hosts client-policy)
                                   :el event-loops
-                                  :cp client-policy
                                   :dbns aero-ns
                                   :cluster-name cluster-name
-                                  :logging? (:enable-logging conf)
+                                  :logging? (:enable-logging conf false)
                                   :client-events (:client-events conf)}))))
 
-(defn stop-aerospike-client [db]
+(defn stop-aerospike-client
   "gracefully stop a client, waiting until all async operations finish."
+  [db]
   (println ";; Stopping aerospike clients")
   (doseq [^AerospikeClient client (get-all-clients db)]
     (.close client))
@@ -156,22 +136,6 @@
          ^Integer (.generation ^Record record)
          ^Integer (.expiration ^Record record))))
 
-(def ^Policy get-default-read-policy
-  (memoize
-    (fn [db]
-      (let [client (get-client db 1)
-            default-read-policy (.getReadPolicyDefault ^AerospikeClient client)]
-        (set! (.timeoutDelay default-read-policy) 3000)
-        default-read-policy))))
-
-(def ^Policy get-default-write-policy
-  (memoize
-    (fn [db]
-      (let [client (get-client db 1)
-            default-write-policy (.getWritePolicyDefault ^AerospikeClient client)]
-        (set! (.timeoutDelay default-write-policy) 3000)
-        default-write-policy))))
-
 (defn get-single
   "returns: (transcoder AerospikeRecord)."
   ([db index set-name] (get-single db index set-name {}))
@@ -181,7 +145,7 @@
      (.get ^AerospikeClient client
            ^EventLoop (.next ^NioEventLoops (:el db))
            (reify-record-listener op-future)
-           ^Policy (:policy conf (get-default-read-policy db))
+           ^Policy (:policy conf)
            (create-key (:dbns db) set-name index))
      (let [d (d/chain' op-future
                        record->map
@@ -207,7 +171,7 @@
      (.exists ^AerospikeClient client
               ^EventLoop (.next ^NioEventLoops (:el db))
               (reify-exists-listener op-future)
-              ^Policy (:policy conf (get-default-read-policy db))
+              ^Policy (:policy conf)
               (create-key (:dbns db) set-name index))
      (register-events op-future db "exists" index (System/nanoTime)))))
 
@@ -217,27 +181,6 @@
   (get-single db index set-name {:transcoder :payload}))
 
 ;; put
-(def write-policies
-  {:replace RecordExistsAction/REPLACE
-   :create-only RecordExistsAction/CREATE_ONLY
-   :update-only RecordExistsAction/UPDATE_ONLY
-   :update RecordExistsAction/UPDATE})
-
-(defn ^WritePolicy write-policy
-  "Create a write policy to be passed to put methods via {:policy wp} or just pass {:record-exists-action rea} to create one for you."
-  [expiry record-exists-action]
-  (let [wp (WritePolicy.)]
-    (set! (.timeoutDelay wp) 3000)
-    (set! (.expiration wp) expiry)
-    (set! (.recordExistsAction wp) (write-policies record-exists-action))
-    wp))
-
-(defn- update-policy [generation new-expiry]
-  (let [wp (write-policy new-expiry :replace)]
-    (set! (.generation wp) generation)
-    (set! (.generationPolicy wp) GenerationPolicy/EXPECT_GEN_EQUAL)
-    wp))
-
 (defn- _put [db index data policy set-name]
   (let [client (get-client db index)
         bins (into-array Bin [^Bin (Bin. "" data)])
@@ -251,45 +194,49 @@
     (register-events op-future db "write" index (System/nanoTime))))
 
 (defn put
-  "Writes <data> into a record with the key <index>, with the ttl of <expiry> seconds.
+  "Writes `data` into a record with the key `index`, with the ttl of `expiration` seconds.
   Data should be string.
   "
-  ([db index set-name data expiry] (put db index set-name data expiry {}))
-  ([db index set-name data expiry conf]
+  ([db index set-name data expiration] (put db index set-name data expiration {}))
+  ([db index set-name data expiration conf]
    (_put db
          index
          ((:transcoder conf identity) data)
-         (:policy conf
-                  (write-policy expiry (:record-exists-action conf :replace)))
+         (:policy conf (policy/write-policy (get-client db) expiration))
          set-name)))
 
 (defn create
   "put with a create-only policy"
-  [db index set-name data expiry]
-  (put db index set-name data expiry {:record-exists-action :create-only}))
-
+  ([db index set-name data expiration]
+   (create db index set-name data expiration {}))
+  ([db index set-name data expiration conf]
+   (_put db
+         index
+         ((:transcoder conf identity) data)
+         (policy/create-only-policy (get-client db) expiration)
+         set-name)))
 
 (defn update
-  "Writing a new value for the key <index>.
+  "Writing a new value for the key `index`.
   Generation: the expected modification count of the record (i.e. how many times was it modified before my current action).  "
-  ([db index set-name new-record generation new-expiry]
-   (update db index set-name new-record generation new-expiry {}))
-  ([db index set-name new-record generation new-expiry conf]
+  ([db index set-name new-record generation new-expiration]
+   (update db index set-name new-record generation new-expiration {}))
+  ([db index set-name new-record generation new-expiration conf]
    (_put db
          index
          ((:transcoder conf identity) new-record)
-         (update-policy generation new-expiry)
+         (policy/update-policy (get-client db) generation new-expiration)
          set-name)))
 
 (defn touch
-  "updates the ttl of the record stored under the key of <index> to <expiry> seconds from now."
-  [db index set-name expiry]
+  "updates the ttl of the record stored under the key of `index` to `expiration` seconds from now."
+  [db index set-name expiration]
   (let [client (get-client db index)
         op-future (d/deferred)]
     (.touch ^AerospikeClient client
             ^EventLoop (.next ^NioEventLoops (:el db))
             ^WriteListener (reify-write-listener op-future)
-            ^WritePolicy (write-policy expiry :update-only)
+            ^WritePolicy (policy/write-policy client expiration RecordExistsAction/UPDATE_ONLY)
             (create-key (:dbns db) set-name index))
     (register-events op-future db "touch" index (System/nanoTime))))
 
@@ -297,15 +244,17 @@
 
 (defn delete
   "deletes the record stored for key <index>. Returns async true/false for deletion success (hit)"
-  [db index set-name]
-  (let [client (get-client db index)
-        op-future (d/deferred)]
-    (.delete ^AerospikeClient client
-             ^EventLoop (.next ^NioEventLoops (:el db))
-             ^DeleteListener (reify-delete-listener op-future)
-             ^WritePolicy (.getWritePolicyDefault ^AerospikeClient client)
-             (create-key (:dbns db) set-name index))
-    (register-events op-future db "delete" index (System/nanoTime))))
+  ([db index set-name]
+   (delete db index set-name {}))
+  ([db index set-name conf]
+   (let [client (get-client db index)
+         op-future (d/deferred)]
+     (.delete ^AerospikeClient client
+              ^EventLoop (.next ^NioEventLoops (:el db))
+              ^DeleteListener (reify-delete-listener op-future)
+              ^WritePolicy (:policy conf)
+              (create-key (:dbns db) set-name index))
+     (register-events op-future db "delete" index (System/nanoTime)))))
 
 ;; operate
 
@@ -313,18 +262,20 @@
   "Asynchronously perform multiple read/write operations on a single key in one batch call.
   This method registers the command with an event loop and returns. The event loop thread
   will process the command and send the results to the listener."
-  [db index set-name expiry record-exists-action & operations]
-  (if-not (seq operations)
-    (d/success-deferred nil)
-    (let [client (get-client db index)
-          op-future (d/deferred)]
-      (.operate ^AerospikeClient client
-                ^EventLoop (.next^NioEventLoops (:el db))
-                ^RecordListener (reify-record-listener op-future)
-                ^WritePolicy (write-policy expiry record-exists-action)
-                (create-key (:dbns db) set-name index)
-                (into-array Operation operations))
-      (register-events (d/chain' op-future record->map) db "operate" index (System/nanoTime)))))
+  ([db index set-name expiration operations]
+   (operate db index set-name expiration operations {}))
+  ([db index set-name expiration operations conf]
+   (if (empty? operations)
+     (d/success-deferred nil)
+     (let [client (get-client db index)
+           op-future (d/deferred)]
+       (.operate ^AerospikeClient client
+                 ^EventLoop (.next^NioEventLoops (:el db))
+                 ^RecordListener (reify-record-listener op-future)
+                 ^WritePolicy (:policy conf (policy/write-policy client expiration RecordExistsAction/UPDATE))
+                 (create-key (:dbns db) set-name index)
+                 (into-array Operation operations))
+       (register-events (d/chain' op-future record->map) db "operate" index (System/nanoTime))))))
 
 ;; metrics
 (defn get-cluster-stats
@@ -342,7 +293,7 @@
 (defn healty?
   "Returns true iff the cluster is reachable and can take reads and writes. Uses __health-check set to avoid data collisions. `operation-timeout-ms` is for total timeout of reads (including 2 retries so an small over estimation is advised to avoid false negatives."
   [db operation-timeout-ms]
-  (let [read-policy (let [p (Policy.)]
+  (let [read-policy (let [p (.readPolicyDefault ^AerospikeClient (get-client db ""))]
                       (set! (.totalTimeout p) operation-timeout-ms)
                       p)
         k (str "__health__" (rand-int 1000))
