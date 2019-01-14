@@ -15,7 +15,7 @@ An opinionated Clojure library wrapping Aerospike Java Client.
 - Converts Java client's callback model into a future (manifold/deferred) based API.
 - Expose passing functional transcoders over payloads (both put/get).
 - Health-check utility.
-- Functions return Clojure maps.
+- Functions return Clojure records.
 
 # Opinionated:
 - Non blocking only: Expose only the non-blocking API. Block with `deref` if you like.
@@ -29,7 +29,6 @@ If a synchronous behaviour is still desired, the calling code can still deref (`
 # Limitations/ caveats
 - Currently supports only single bin records.
 - Does not expose batch operations.
-- Does not support passing all Policy flags as Clojure keywords yet (WIP).
 
 # TBD
 - use batch asynchronous APIs
@@ -37,16 +36,16 @@ If a synchronous behaviour is still desired, the calling code can still deref (`
 ## Usage:
 #### Most of the time just create a simple client (single cluster)
 ```clojure
-(require '[aerospike-clj.client :as client)
+(require '[aerospike-clj.client :as aero])
 
-(def db (client/init-simple-aerospike-client
+(def db (aero/init-simple-aerospike-client
           ["aerospike-001.com", "aerospik-002.com"] "my-ns" {:enable-logging true}))
 ```
 
 #### It is possible to inject additional asynchronous user-defined behaviour. To do that add an instance of ClientEvents. Some useful info is passed in in-order to support metering and to read client configuration. `op-start-time` is `(System/nanoTime)`.
 
 ```clojure
-(let [c (client/init-simple-aerospike-client
+(let [c (aero/init-simple-aerospike-client
           ["localhost"]
           "test"
           {:client-events (reify ClientEvents
@@ -56,47 +55,45 @@ If a synchronous behaviour is still desired, the calling code can still deref (`
                             (on-failure [_  op-name op-ex index op-start-time db]
                               (println "oh-no" op-name "failed on index" index)))})]
 
-  (get-single-with-meta c "index" "set-name"))
+  (get-single c "index" "set-name"))
 ```
 
-### Query
+### Query/Put
+For demo purposes we will use a docker based local DB:
+```shell
+$ sudo docker run -d --name aerospike -p 3000:3000 -p 3001:3001 -p 3002:3002 -p 3003:3003 aerospike
+```
+And connect to it:
 ```clojure
-(let [data (rand-int 1000)]
-    (is (true? @(client/create db "a-key" "a-set" data 100)))
-    (let [{:keys [payload gen]} @(client/get-single-with-meta db "a-key" "a-set")]
-      (is (= data payload))
-      (is (= 1 gen))))
+user=> (def db (aero/init-simple-aerospike-client ["localhost"] "test" {:enable-logging true}))
+#'user/db
+```
+
+```clojure
+user=> (require '[manifold.deferred :as d])
+nil
+user=> (aero/put c "index" "set-name" 42 1000)
+<< … >>
+user=> (def f (aero/get-single c "index" "set-name"))
+#'user/f
+user=> (d/chain (aero/get-single c "index" "set-name")
+  #_=>          :ttl
+  #_=>          aero/expiry-unix
+  #_=>          #(java.time.Instant/ofEpochSecond %)
+  #_=>          str
+  #_=>          println)
+<< … >>
+2019-01-10T09:02:45Z
+```
+We actually get back a record with the payload, the DB generation and the ttl (in an Aerospike style EPOCH format).
+```clojure
+user=> (let [x @(aero/get-single db "a-key" "a-set")]
+  #_=>   x)
+#aerospike_clj.client.AerospikeRecord{:payload 42, :gen 1, :ttl 285167713}
 ```
 
 #### Unix EPOCH TTL
 Aerospike returns a TTL on the queried records that is Epoch style, but with a different "beginning of time" which is "2010-01-01T00:00:00Z". Call `expiry-unix` with the returned TTL to get a UNIX TTL if you want to convert it later to a more standard timestamp.
-
-### Put
-```clojure
-(let [data (rand-int 1000)]
-    (is (true? @(client/put db "another-key" "a-set" data 100{:record-exist-action :replace :transcoder identity})))
-    (let [{:keys [payload gen]} @(client/get-single-with-meta db "another-key" "a-set")]
-      (is (= data payload))
-      (is (= 1 gen))))
-```
-
-### Creating additional clients
-Implement `IAerospikeClient`. For example, creating a client that is sharding reads and writes between several clients:
-
-```clojure
-(defrecord ShardedAerospikeClient [^"[Lcom.aerospike.client.AerospikeClient;" acs
-                                   ^int shards
-                                   ^EventLoop el
-                                   ^ClientPolicy cp
-                                   ^String dbns
-                                   ^String cluster-name
-                                   ^boolean logging?
-                                   client-events]
-  IAerospikeClient
-  (get-client ^AerospikeClient [_ index] (get acs (mod (hash index) shards)))
-  (get-client-policy ^ClientPolicy [_] cp)
-  (get-all-clients [_] acs))
-```
 
 ## Testing
 Testing is performed against a local Aerospike running in the latest docker
