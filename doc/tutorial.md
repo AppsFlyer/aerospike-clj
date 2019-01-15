@@ -7,16 +7,18 @@ For a complete reference of Aerospike Java client internals I warmly recommend r
 
 This library wraps the Java code, hides all Clojure Java interop and supplies a more functional approach to Aerospike. It also adds a few handy features.
 
-A note worth mentioning at the beginning is that the Java client has both synchronous and asynchronous APIs. This Library however, only wraps the asynchronous ones. If a synchronous behaviour is still desired, it can be be easily achieved, as shown below.
+A note worth mentioning at the beginning is that the Java client has both synchronous and asynchronous APIs. This library however, only wraps the asynchronous ones. If a synchronous behaviour is still desired, it can be be easily achieved, as shown below.
+
+Also, although possible to combine several namespaces in a single cluster, this library uses a single client object per cluster/client.
 ### Setup
 #### docker
-For this tutorial we will take advantage of a locally deployed Aerospike DB with docker. The following command should download and install a docker image with the latest Aerospike image on your machine.
+For this tutorial we will take advantage of a locally deployed Aerospike DB with docker container. The following command should download and install a docker image with the latest Aerospike image on your machine.
 ```bash
-$ sudo docker run -d --name aerospike -p 3000:3000 -p 3001:3001 -p 3002:3002 -p 3003:3003 aerospike"}
+$ sudo docker run -d --name aerospike -p 3000:3000 -p 3001:3001 -p 3002:3002 -p 3003:3003 aerospike"
 ```
 The DB created contains a single namespace named `test`. On production, Aerospike is a distributed cluster composed of several nodes.
 #### repl
-In order to follow the example further in this tutorial, you should run a Clojure repl with the library located in the class-path.
+In order to follow the example further in this tutorial, you should run a Clojure repl with the library located in the classpath.
 This can be done:
 - by cloning the library and running a repl:
 ```bash
@@ -34,8 +36,9 @@ nil
 * -or- by referencing it in your project `profiles.clj` and running a repl there:
 ```clojure
 (defproject af-common-rta-aerospike "3.0.0"
-  :dependencies [[aerospike-clj "0.1.1"] ]
-  :profiles {:dev {:dependencies [[org.clojure/clojure "1.10.0"]]})
+  :dependencies [[aerospike-clj "0.1.1"]]
+  ; ...
+  )
 ```
 ## Usage
 #### Client creation
@@ -44,7 +47,6 @@ First, let's create a client:
 user=> (require '[aerospike-clj.client :as aero])
 nil
 user=> (def c (aero/init-simple-aerospike-client ["localhost"] "test"))
-event-policy config: max-commands-in-process: 0, max-commands-in-queue: 0
 ;; Starting aerospike clients for clusters localhost with username null
 #'user/c
 user=>
@@ -57,14 +59,14 @@ user=> (def c (aero/init-simple-aerospike-client ["localhost"]
                                                   "AuthMode" "INTERNAL"
                                                   "user" nil
                                                   "password" nil
-												  "maxCommandsInProcess" 0}))
+                                                  "maxCommandsInProcess" 0}))
 ;; Starting aerospike clients for clusters localhost with username null
 #'user/c
 ```
 
-Currently, almost all configuration (except default read/write/batch/info/query/scan policies) can be passed to `init-simple-aerospike-client` in the `conf` map. This includes `ClientPolicy` and `EventPolicy` configurations, flattened together (e.g `maxCommandsInProcess`) :
+Currently, almost all configuration (except default batch/info/query/scan policies) can be passed to `init-simple-aerospike-client` in the `conf` map. This includes `ClientPolicy` and `EventPolicy` configurations, flattened together (e.g `maxCommandsInProcess`) :
 
-The Java client can cache all API related policies for you, and then uses them when a `nil` policy is passed to the API call. This is wroth while because most of the time, the same policies are used throughout the application lifetime. Those caches are initiated with the (mostly sane) defaults. You can change them by creating new custom ones:
+The Java client can cache all API related policies for you, and then uses them when a `nil` policy is passed to the API call. This is worthwhile because most of the time, the same policies are used throughout the application lifetime. Those caches are initiated with the (mostly sane) defaults. You can change them by creating new custom ones:
 ```clojure
 user=> (require '[aerospike-clj.policy :as policy])
 nil
@@ -77,44 +79,39 @@ user=> (.sendKey new-wp)
 Reflection warning...
 true
 ```
-Those reflection warning are not a bug. Those functions do use reflection and are here to save you some Java interop. Since they are slow, **do not** use them to create new policies for each call. Use them just to tweak the defaults.
+Those reflection warning are not a bug. Those functions do use reflection and are here to save you some Java interop. Since they are slow, **do not** use them to create one-time-use policies for each API call. Use them just to tweak the defaults:
 ```clojure
 user=> (def c (aero/init-simple-aerospike-client ["localhost"] "test" {"writePolicyDefault" new-wp}))
 #'user/c
 user=> (.commitLevel (.writePolicyDefault (aero/get-client c)))
 #object[com.aerospike.client.policy.CommitLevel 0x2f1f3fef "COMMIT_MASTER"]
 ```
-You can also just pass the flags directly to the config map:
-```clojure
-user=> (def c (aero/init-simple-aerospike-client ["localhost"] "test" {"CommitLevel" "COMMIT_MASTER"}))
-#'user/c
-user=> (.commitLevel (.writePolicyDefault (aero/get-client c)))
-#object[com.aerospike.client.policy.CommitLevel 0x2f1f3fef "COMMIT_MASTER"]
-```
-Those `AerospikeClient` fields are `final` hence can only be set on creation, but you can also have a few useful policies `def`ed somewhere and pass them later under the `:policy` key of the API calls.
+
+Those `AerospikeClient` fields are `final` hence can only be set on client creation, but you can also have a few useful policies `def`ed somewhere and pass them later under the `:policy` key of the API calls.
 
 
 
 #### Querying
-Querying is only possible via the asynchronous APIs of the client. `aerospike-clj` also converts the callback model of those APIs to a future based model (using [manifold](https://github.com/ztellman/manifold)). This allows users to configure additional logic to happen when the requests return. But first, let's see a simple query:
+Querying is only possible (read: easy) via the asynchronous APIs of the client. `aerospike-clj` also converts the callback model of the underlying APIs to a future based model (using [manifold](https://github.com/ztellman/manifold)). This allows users to configure additional logic to happen when the requests return. But first, let's see a simple query:
 ```clojure
-user=> (def f (aero/get-single c "not-there" "set-name")
+user=> (def f (aero/get-single c "not-there" "set-name"))
 user=> (type f)
 manifold.deferred.Deferred
 user=> (deref f)
 nil
 ```
-Joy! We got a future (deferred) answer. In this case, the deferred result is `nil`, since the key "not-there" is missing. `Deferred` objects can be composed with logic that can happen once they are delivered (for a complete documeentation, see [manifold docs here](https://github.com/ztellman/manifold/blob/master/docs/deferred.md#composing-with-deferreds). Behold:
+Joy! We got a future (deferred) answer. In this case, the deferred result is `nil`, since the key "not-there" is missing. `Deferred` objects can be composed with logic that can happen once they are delivered (for a complete documentation, see [manifold docs here](https://github.com/ztellman/manifold/blob/master/docs/deferred.md#composing-with-deferreds). Behold:
 ```clojure
 user=> (require '[manifold.deferred :as d])
 nil
-user=> (d/chain (aero/get-single c "index" "set-name") #(if %1 (prn "good!") (prn "not there")))
+user=> (d/chain (aero/get-single c "index" "set-name")
+  #_=>          #(if %1 (prn "good!") (prn "not there")))
 "not there"
 << nil >>
 ```
 If the record existed we would get an `AerospikeRecord`:
 ```clojure
-user=> (aero/put c "index" "set-name" 42 100)
+user=> (aero/put c "index" "set-name" 42 1000)
 << … >>
 user=> (def f (aero/get-single c "index" "set-name"))
 #'user/f
@@ -123,9 +120,9 @@ user=> (deref f)
 user=>
 ```
 We observe a few new things:
-1. The `put` API also return deferred objects.
-2. The `put` API requires an additional argument, the TTL. Although Aerospike clusters have a default TTL, and there is also a default TTL in the Java client, we chose to make your life harder here. This is because we believe that TTLs are too important to be default, and programmers must think about them.
-3. In the query result we got a Clojure record with a triplet: `:payload` with the value, `:gen` for the record generation, and a `:ttl` for the record TTL, in Aerospike format. In order to convert it to Unix EPOCH you can use `expiry-unix`.
+1. The `put` API also return deferred objects. Those will contain the action result when it completes.
+2. The `put` API requires an additional argument, the TTL. Although Aerospike cluster namespaces have a default TTL, and there is also a default TTL in the Java client, we chose to make your life harder here. This is because we believe that TTLs are too important to be default, and programmers must think about them.
+3. In the query result we got a Clojure record with a triplet: `:payload` with the value, `:gen` for the record generation, and a `:ttl` for the record TTL, in Aerospike format. This resembles the [Record class](https://www.aerospike.com/apidocs/java/com/aerospike/client/Record.html). In order to convert the TTL to a Unix EPOCH you can call `expiry-unix` on it (see below).
 #### Unix EPOCH TTL
 Aerospike returns a TTL on the queried records that is Epoch style, but with a different "beginning of time" which is "2010-01-01T00:00:00Z". Call `expiry-unix` with the returned TTL to get a UNIX TTL if you want to convert it later to a more standard timestamp.
 
@@ -151,11 +148,12 @@ user=> (d/chain (aero/get-single c "index" "set-name")
 ```
 We got a deferred back and some time later the whole chain of composed logic was triggered.
 
-We can also get the result once multiple required records return. We will sipmply get a sequence of `AerospikeRecord`s once all of them arrive:
+We can also get the result once multiple required records return. We will simply get a sequence of `AerospikeRecord`s once all of them arrive:
 ```clojure
 user=> (run! #(aero/put c (str %1) "set-name" %1 1000) (range 5))
 nil
-user=> @(d/chain (aero/get-multiple c (map str (range 5)) (repeat "set-name")) #(map :payload %1)))
+user=> @(d/chain (aero/get-multiple c (map str (range 5)) (repeat "set-name"))
+  #_=>           #(map :payload %))
 (0 1 2 3 4)
 ```
 
@@ -164,19 +162,23 @@ user=> @(d/chain (aero/get-multiple c (map str (range 5)) (repeat "set-name")) #
 Since the returned future objects can be easily `deref`ed, simply adding a `@` before queries makes them synchronous.
 
 #### Using Transcoders
-The library takes advantage of deferreds ability to compose and allow you to configure a `:transcoder` to conveniently set this logic:
+The library takes advantage of deferreds ability to compose and allows you to configure a `:transcoder` to conveniently set this logic:
 * `get` Transcoders are functions of the **AerospikeRecord instance**, not the `deferred` value of it.
 * `put` transcoders are functions on the passed **payload**. They are called _before_ the request is even put on the event-loop.
 
 ##### On get:
 ```clojure
-user=> (d/chain (aero/get-single c "index" "set-name" {:transcoder (fn [rec] (update rec :payload inc))})
+user=> (aero/put c "index" "set-name" 42 1000)
+<< … >>
+user=> (defn inc-transcoder [rec] (when rec
+  #_=>                                  (update rec :payload inc)))
+#'user/inc-transcoder
+user=> (d/chain (aero/get-single c "index" "set-name" {:transcoder inc-transcoder})
   #_=>          :payload
   #_=>          println)
 << … >>
 43
 ```
-The transcoder option saves some boilerplate and can be easily used to do more useful stuff, like de-serializing or decompressing data on the client side.
 
 ##### On put:
 
@@ -187,3 +189,4 @@ user=> (aero/put c "17" "set-name" 1 1000 {:transcoder str})
 user=> @(aero/get-single c "17" "set-name" {:transcoder #(:payload %1)})
 "1"
 ```
+The transcoder option saves some boilerplate and can be easily used to do more useful stuff, like de-serializing or (de)compressing data on the client side.
