@@ -5,12 +5,14 @@
   aerospike-clj.client-test
   (:require [clojure.test :refer [deftest testing is use-fixtures]]
             [aerospike-clj.client :as client]
+            [aerospike-clj.policy :as policy]
             [taoensso.timbre :as timbre]
             [cheshire.core :as json])
   (:import [com.aerospike.client AerospikeException Value]
            [com.aerospike.client.cdt ListOperation ListPolicy ListOrder ListWriteFlags ListReturnType
             MapOperation MapPolicy MapOrder MapWriteFlags MapReturnType]
-           [com.aerospike.client.policy Priority ConsistencyLevel Replica AuthMode ClientPolicy]
+           [com.aerospike.client.policy Priority ConsistencyLevel Replica AuthMode ClientPolicy GenerationPolicy
+                                        RecordExistsAction]
            [java.util HashMap]))
 
 (def K "k")
@@ -26,8 +28,7 @@
 (defn db-connection [f]
   (binding [*c* (client/init-simple-aerospike-client
                   ["localhost"]
-                  "test"
-                  {:enable-logging true})]
+                  "test")]
     (f)
     (client/stop-aerospike-client *c*)))
 
@@ -288,6 +289,30 @@
     (is (false? (.sendKey rp))) ;; do not send the user defined key
     (is (false? (.linearizeRead rp))))) ;; Force reads to be linearized for server namespaces that support strong consistency mode.
 
+(deftest configure-read-policy
+  (let [c (client/init-simple-aerospike-client
+            ["localhost"] "test"
+            {"readPolicyDefault" (policy/map->policy {"ConsistencyLevel" "CONSISTENCY_ALL"
+                                                      "linearizeRead" true
+                                                      "maxRetries" 1
+                                                      "Replica" "RANDOM"
+                                                      "sendKey" true
+                                                      "sleepBetweenRetries" 100
+                                                      "socketTimeout" 1000
+                                                      "timeoutDelay" 2000
+                                                      "totalTimeout" 3000})})
+        rp (.getReadPolicyDefault (client/get-client c))]
+    (is (= Priority/DEFAULT (.priority rp)))
+    (is (= ConsistencyLevel/CONSISTENCY_ALL (.consistencyLevel rp)))
+    (is (= Replica/RANDOM (.replica rp)))
+    (is (= 1000 (.socketTimeout rp)))
+    (is (= 3000 (.totalTimeout rp)))
+    (is (= 2000 (.timeoutDelay rp)))
+    (is (= 1 (.maxRetries rp)))
+    (is (= 100 (.sleepBetweenRetries rp)))
+    (is (true? (.sendKey rp)))
+    (is (true? (.linearizeRead rp)))))
+
 (deftest default-write-policy
   (let [rp (.getWritePolicyDefault (client/get-client *c*))]
     (is (= Priority/DEFAULT (.priority rp))) ;; Priority of request relative to other transactions. Currently, only used for scans.
@@ -304,4 +329,25 @@
     (is (zero? (.sleepBetweenRetries rp))) ;; do not sleep between retries
     (is (false? (.sendKey rp))) ;; do not send the user defined key
     (is (false? (.linearizeRead rp))))) ;; Force reads to be linearized for server namespaces that support strong consistency mode.
+
+(deftest configure-write-policy
+  (let [c (client/init-simple-aerospike-client
+            ["localhost"] "test"
+            {"writePolicyDefault" (policy/map->write-policy {"CommitLevel" "COMMIT_MASTER"
+                                                             "durableDelete" true
+                                                             "expiration" 1000
+                                                             "generation" 7
+                                                             "GenerationPolicy" "EXPECT_GEN_GT"
+                                                             "RecordExistsAction" "REPLACE_ONLY"
+                                                             "respondAllOps" true})})
+
+        wp (.getWritePolicyDefault (client/get-client c))]
+    (is (= Priority/DEFAULT (.priority wp)))
+    (is (= ConsistencyLevel/CONSISTENCY_ONE (.consistencyLevel wp)))
+    (is (true? (.durableDelete wp)))
+    (is (= 1000 (.expiration wp)))
+    (is (= 7 (.generation wp)))
+    (is (= GenerationPolicy/EXPECT_GEN_GT (.generationPolicy wp)))
+    (is (= RecordExistsAction/REPLACE_ONLY (.recordExistsAction wp)))
+    (is (true? (.respondAllOps wp)))))
 

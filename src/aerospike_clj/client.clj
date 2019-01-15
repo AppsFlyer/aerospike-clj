@@ -17,13 +17,12 @@
 
 (defprotocol IAerospikeClient
   (get-client [ac] [ac index] "Returns the relevant AerospikeClient object for the specific shard")
-  (get-all-clients [_] "Returns all AerospikeClient objects"))
+  (get-all-clients [_] "Returns a sequence of all AerospikeClient objects."))
 
 (defrecord SimpleAerospikeClient [^AerospikeClient ac
                                   ^NioEventLoops el
                                   ^String dbns
                                   ^String cluster-name
-                                  ^boolean logging?
                                   client-events]
   IAerospikeClient
   (get-client ^AerospikeClient [_ _] ac)
@@ -46,12 +45,9 @@
     (NioEventLoops. elp 1)))
 
 (defn init-simple-aerospike-client
-  "hosts should be a seq of known hosts to bootstrap from
-  supported config:
-  ```{username: string password: string event-loops: com.aerospike.client.async.NioEventLoops
-  max-commands-in-process: int max-commands-in-queue: int enable-logging: true (default)}```"
+  "hosts should be a seq of known hosts to bootstrap from."
   ([hosts aero-ns]
-   (init-simple-aerospike-client hosts aero-ns {:enable-logging true}))
+   (init-simple-aerospike-client hosts aero-ns {}))
   ([hosts aero-ns conf]
    (let [cluster-name (utils/cluster-name hosts)
          event-loops (:event-loops conf (create-event-loops conf))
@@ -61,7 +57,6 @@
                                   :el event-loops
                                   :dbns aero-ns
                                   :cluster-name cluster-name
-                                  :logging? (:enable-logging conf false)
                                   :client-events (:client-events conf)}))))
 
 (defn stop-aerospike-client
@@ -137,7 +132,8 @@
          ^Integer (.expiration ^Record record))))
 
 (defn get-single
-  "returns: (transcoder AerospikeRecord)."
+  "Returns a single record: `(transcoder AerospikeRecord)`. The default transcoder is `identity`.
+  Pass a `:policy` in `conf` to use a non-default `ReadPolicy`"
   ([db index set-name] (get-single db index set-name {}))
   ([db index set-name conf]
    (let [client (get-client db index)
@@ -153,8 +149,9 @@
        (register-events d db "read" index (System/nanoTime))))))
 
 (defn get-multiple
-  "returns a (future) sequence of AerospikeRecords returned by get-single
-  with records in corresponding places to the required keys. Indices and sets should be sequences"
+  "Returns a (future) sequence of AerospikeRecords returned by `get-single`
+  with records in corresponding places to the required keys. Indices and sets should be sequences.
+  The `conf` map is passed to all `get-single` invocations."
   ([db indices sets]
    (get-multiple db indices sets {}))
   ([db indices sets conf]
@@ -163,7 +160,7 @@
                (map vector indices sets)))))
 
 (defn exists?
-  "Asynchronously check if an index exists"
+  "Test if an index exists."
   ([db index set-name] (exists? db index set-name {}))
   ([db index set-name conf]
    (let [client (get-client db index)
@@ -176,7 +173,7 @@
      (register-events op-future db "exists" index (System/nanoTime)))))
 
 (defn get-single-no-meta
-  "returns record payload only."
+  "Shorthand to return a single record payload only."
   [db index set-name]
   (get-single db index set-name {:transcoder :payload}))
 
@@ -195,8 +192,9 @@
 
 (defn put
   "Writes `data` into a record with the key `index`, with the ttl of `expiration` seconds.
-  Data should be string.
-  "
+  `index` should be string. Pass a function in `(:trascoder conf)` to modify `data` before it
+  is sent to the DB.
+  Pass a `WritePolicy` in `(:policy conf)` to uses the non-default policy."
   ([db index set-name data expiration] (put db index set-name data expiration {}))
   ([db index set-name data expiration conf]
    (_put db
@@ -206,7 +204,7 @@
          set-name)))
 
 (defn create
-  "put with a create-only policy"
+  "`put` with a create-only policy"
   ([db index set-name data expiration]
    (create db index set-name data expiration {}))
   ([db index set-name data expiration conf]
@@ -218,7 +216,9 @@
 
 (defn update
   "Writing a new value for the key `index`.
-  Generation: the expected modification count of the record (i.e. how many times was it modified before my current action).  "
+  Generation: the expected modification count of the record (i.e. how many times was it
+  modified before my current action). Pass a function in `(:trascoder conf)` to modify
+  `data` before it is sent to the DB."
   ([db index set-name new-record generation new-expiration]
    (update db index set-name new-record generation new-expiration {}))
   ([db index set-name new-record generation new-expiration conf]
@@ -229,7 +229,8 @@
          set-name)))
 
 (defn touch
-  "updates the ttl of the record stored under the key of `index` to `expiration` seconds from now."
+  "Updates the ttl of the record stored under at `index` to `expiration` seconds from now.
+  Expects records to exist."
   [db index set-name expiration]
   (let [client (get-client db index)
         op-future (d/deferred)]
@@ -243,7 +244,8 @@
 ;; delete
 
 (defn delete
-  "deletes the record stored for key <index>. Returns async true/false for deletion success (hit)"
+  "Delete the record stored for key <index>.
+  Returns async true/false for deletion success (hit)."
   ([db index set-name]
    (delete db index set-name {}))
   ([db index set-name conf]
@@ -261,7 +263,8 @@
 (defn operate
   "Asynchronously perform multiple read/write operations on a single key in one batch call.
   This method registers the command with an event loop and returns. The event loop thread
-  will process the command and send the results to the listener."
+  will process the command and send the results to the listener.
+  `commands` is a sequence of Aerospike CDT operations."
   ([db index set-name expiration operations]
    (operate db index set-name expiration operations {}))
   ([db index set-name expiration operations conf]
@@ -279,7 +282,7 @@
 
 ;; metrics
 (defn get-cluster-stats
-  "For each xdr client, returns a vector of [metric-name metric-val] 2-tuples.
+  "For each client, return a vector of [metric-name metric-val] 2-tuples.
   The metric name is a dot separated string that should be convenient for
   reporting to statsd/graphite. All values are gauges."
   [db]
@@ -291,7 +294,9 @@
 ;; health
 
 (defn healty?
-  "Returns true iff the cluster is reachable and can take reads and writes. Uses __health-check set to avoid data collisions. `operation-timeout-ms` is for total timeout of reads (including 2 retries so an small over estimation is advised to avoid false negatives."
+  "Returns true iff the cluster is reachable and can take reads and writes.
+  Uses __health-check set to avoid data collisions. `operation-timeout-ms` is for total timeout of reads
+  (including 2 retries) so an small over estimation is advised to avoid false negatives."
   [db operation-timeout-ms]
   (let [read-policy (let [p (.readPolicyDefault ^AerospikeClient (get-client db ""))]
                       (set! (.totalTimeout p) operation-timeout-ms)
@@ -311,6 +316,6 @@
 ;; etc
 
 (defn expiry-unix
-  "Returns the epoch time of now + <ttl> seconds"
+  "Used to convert Aerospike style returned TTLS to standard UNIX EPOCH."
   [ttl]
   (+ ttl EPOCH))
