@@ -38,3 +38,7 @@ A few notes on the above code:
 2. The code is using the passed arguments to measure latency, format metrics names. You can easily do other stuff like logging etc.
 3. Both `on-success` and `on-failure` return the results passed in. Although this logic is the last logic that happens to the operations results (e.g. after trascoders are being run), the returned result will be what the calling code gets as a returned value.
 
+Finally, hook it to your client:
+```clojure
+user=> (def c (aero/init-simple-aerospike-client ["localhost"] "test" {:client-events (->DBMeter)}))
+```
