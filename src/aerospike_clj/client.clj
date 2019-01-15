@@ -23,7 +23,6 @@
                                   ^NioEventLoops el
                                   ^String dbns
                                   ^String cluster-name
-                                  ^boolean logging?
                                   client-events]
   IAerospikeClient
   (get-client ^AerospikeClient [_ _] ac)
@@ -48,7 +47,7 @@
 (defn init-simple-aerospike-client
   "hosts should be a seq of known hosts to bootstrap from."
   ([hosts aero-ns]
-   (init-simple-aerospike-client hosts aero-ns {:enable-logging true}))
+   (init-simple-aerospike-client hosts aero-ns {}))
   ([hosts aero-ns conf]
    (let [cluster-name (utils/cluster-name hosts)
          event-loops (:event-loops conf (create-event-loops conf))
@@ -58,7 +57,6 @@
                                   :el event-loops
                                   :dbns aero-ns
                                   :cluster-name cluster-name
-                                  :logging? (:enable-logging conf false)
                                   :client-events (:client-events conf)}))))
 
 (defn stop-aerospike-client
