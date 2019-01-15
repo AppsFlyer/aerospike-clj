@@ -6,6 +6,11 @@ An opinionated Clojure library wrapping Aerospike Java Client.
 
 # Docs:
 [Generated docs](https://appsflyer.github.io/aerospike-clj/)
+## Tutorial:
+[here.](https://appsflyer.github.io/aerospike-clj/index.html)
+## More advanced docs:
+* [Advanced asynchronous hooks.](https://appsflyer.github.io/aerospike-clj/advanced-async-hooks.html)
+* [Implementing your own client.](https://appsflyer.github.io/aerospike-clj/implementing-clients.html)
 
 # Requirements:
 - Java 8
@@ -20,29 +25,29 @@ An opinionated Clojure library wrapping Aerospike Java Client.
 # Opinionated:
 - Non blocking only: Expose only the non-blocking API. Block with `deref` if you like.
 - Futures instead of callbacks. Futures (and functional chaining) are more composable and less cluttered.
-If a synchronous behaviour is still desired, the calling code can still deref (`@`) the returned future object. For a more sophisticated coordination, a variety of control mechanism is supplied by [manifold/deferred](https://github.com/ztellman/manifold/blob/master/docs/deferred.md).
-- Tries to follow the method names of the underlying Java API (with Clojure standard library limitations)
+If a synchronous behaviour is still desired, the calling code can still deref (`@`) the returned future object. For a more sophisticated coordination, a variety of control mechanism is supplied by [manifold/deferred](https://github.com/ztellman/manifold/blob/master/docs/deferred.md), or via the library using [transcoders](https://appsflyer.github.io/aerospike-clj/index.html) or [hooks](https://appsflyer.github.io/aerospike-clj/advanced-async-hooks.html).
+- Follows the method names of the underlying Java APIs.
 - TTLs should be explicit, and developers should think about them. Forces passing a ttl and not use the cluster default.
 - Minimal dependencies.
 - Single client per Aerospike namespace.
 
 # Limitations/ caveats
 - Currently supports only single bin records.
-- Does not expose batch operations.
+- Does not expose batch/scan operations. Batch reads are supported via `get-multi`.
 
 # TBD
-- use batch asynchronous APIs
+- Support batch asynchronous APIs.
 
 ## Usage:
 #### Most of the time just create a simple client (single cluster)
 ```clojure
-(require '[aerospike-clj.client :as aero])
-
-(def db (aero/init-simple-aerospike-client
-          ["aerospike-001.com", "aerospik-002.com"] "my-ns" {:enable-logging true}))
+user=> (require '[aerospike-clj.client :as aero])
+nil
+user=> (def c (aero/init-simple-aerospike-client
+  #_=>          ["aerospike-001.com", "aerospik-002.com"] "my-ns" {:enable-logging true}))
 ```
 
-#### It is possible to inject additional asynchronous user-defined behaviour. To do that add an instance of ClientEvents. Some useful info is passed in in-order to support metering and to read client configuration. `op-start-time` is `(System/nanoTime)`.
+It is possible to inject additional asynchronous user-defined behaviour. To do that add an instance of `ClientEvents`. Some useful info is passed in in-order to support metering and to read client configuration. `op-start-time` is `(System/nanoTime)` [more here](https://appsflyer.github.io/aerospike-clj/advanced-async-hooks.html).
 
 ```clojure
 (let [c (aero/init-simple-aerospike-client
@@ -65,7 +70,7 @@ $ sudo docker run -d --name aerospike -p 3000:3000 -p 3001:3001 -p 3002:3002 -p 
 ```
 And connect to it:
 ```clojure
-user=> (def db (aero/init-simple-aerospike-client ["localhost"] "test" {:enable-logging true}))
+user=> (def c (aero/init-simple-aerospike-client ["localhost"] "test"))
 #'user/db
 ```
 
@@ -87,8 +92,7 @@ user=> (d/chain (aero/get-single c "index" "set-name")
 ```
 We actually get back a record with the payload, the DB generation and the ttl (in an Aerospike style EPOCH format).
 ```clojure
-user=> (let [x @(aero/get-single db "a-key" "a-set")]
-  #_=>   x)
+user=> @(aero/get-single c "index" "set-name")
 #aerospike_clj.client.AerospikeRecord{:payload 42, :gen 1, :ttl 285167713}
 ```
 
