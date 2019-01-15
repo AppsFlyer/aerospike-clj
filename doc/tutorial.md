@@ -28,7 +28,7 @@ $ lein repl
 ```
 * -or- using [lein-try](https://github.com/avescodes/lein-try):
 ```bash
-$ lein try aerospike-clj "0.1.1"
+$ lein try aerospike-clj "0.2.1"
 ...
 user=> (require '[aerospike-clj.client :as aero])
 nil
@@ -36,7 +36,7 @@ nil
 * -or- by referencing it in your project `profiles.clj` and running a repl there:
 ```clojure
 (defproject af-common-rta-aerospike "3.0.0"
-  :dependencies [[aerospike-clj "0.1.1"]]
+  :dependencies [[aerospike-clj "0.2.1"]]
   ; ...
   )
 ```
