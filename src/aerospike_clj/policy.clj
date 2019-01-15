@@ -2,7 +2,7 @@
   (:import [com.aerospike.client AerospikeClient]
            [com.aerospike.client.async EventPolicy]
            [com.aerospike.client.policy Policy ClientPolicy WritePolicy RecordExistsAction GenerationPolicy CommitLevel
-                                        AuthMode]))
+                                        AuthMode ConsistencyLevel Priority Replica]))
 
 (defmacro set-java [obj conf obj-name]
   `(when (get ~conf ~obj-name)
@@ -19,11 +19,11 @@
 (defn ^Policy map->policy [conf]
   (let [p (Policy.)
         conf (merge {"timeoutDelay" 3000} conf)]
-      (set-java p conf "authMode")
+      (set-java-enum p conf "ConsistencyLevel")
       (set-java p conf "linearizeRead")
       (set-java p conf "maxRetries")
-      (set-java p conf "priority")
-      (set-java p conf "replica")
+      (set-java-enum p conf "Priority")
+      (set-java-enum p conf "Replica")
       (set-java p conf "sendKey")
       (set-java p conf "sleepBetweenRetries")
       (set-java p conf "socketTimeout")
