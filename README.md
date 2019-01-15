@@ -7,7 +7,7 @@ An opinionated Clojure library wrapping Aerospike Java Client.
 # Docs:
 [Generated docs](https://appsflyer.github.io/aerospike-clj/)
 ## Tutorial:
-[here.](https://appsflyer.github.io/aerospike-clj/index.html)
+[here.](https://appsflyer.github.io/aerospike-clj/tutorial.html)
 ## More advanced docs:
 * [Advanced asynchronous hooks.](https://appsflyer.github.io/aerospike-clj/advanced-async-hooks.html)
 * [Implementing your own client.](https://appsflyer.github.io/aerospike-clj/implementing-clients.html)
