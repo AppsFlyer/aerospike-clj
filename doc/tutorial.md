@@ -79,7 +79,8 @@ user=> (.sendKey new-wp)
 Reflection warning...
 true
 ```
-Those reflection warning are not a bug. Those functions do use reflection and are here to save you some Java interop. Since they are slow, **do not** use them to create one-time-use policies for each API call. Use them just to tweak the defaults:
+##### Important note:
+The functions `map->policy` and `map->write-policy` are slow due to reflection and are here to save you some Java interop. Since they are slow, **do not** use them to create one-time-use policies for each API call. Use them just to tweak the defaults:
 ```clojure
 user=> (def c (aero/init-simple-aerospike-client ["localhost"] "test" {"writePolicyDefault" new-wp}))
 #'user/c
@@ -164,7 +165,7 @@ Since the returned future objects can be easily `deref`ed, simply adding a `@` b
 #### Using Transcoders
 The library takes advantage of deferreds ability to compose and allows you to configure a `:transcoder` to conveniently set this logic:
 * `get` Transcoders are functions of the **AerospikeRecord instance**, not the `deferred` value of it.
-* `put` transcoders are functions on the passed **payload**. They are called _before_ the request is even put on the event-loop.
+* `put` Transcoders are functions on the passed **payload**. They are called _before_ the request is even put on the event-loop.
 
 ##### On get:
 ```clojure
