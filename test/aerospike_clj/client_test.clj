@@ -6,7 +6,6 @@
   (:require [clojure.test :refer [deftest testing is use-fixtures]]
             [aerospike-clj.client :as client]
             [aerospike-clj.policy :as policy]
-            [taoensso.timbre :as timbre]
             [cheshire.core :as json])
   (:import [com.aerospike.client AerospikeException Value]
            [com.aerospike.client.cdt ListOperation ListPolicy ListOrder ListWriteFlags ListReturnType
@@ -43,7 +42,7 @@
                         (client/init-simple-aerospike-client ["localhost"] "test" {"maxCommandsInProcess" 1}))))
 
 (deftest health
-  (is (true? (client/healty? *c* 10))))
+  (is (true? (client/healthy? *c* 10))))
 
 (deftest get-record
   (let [data (rand-int 1000)]

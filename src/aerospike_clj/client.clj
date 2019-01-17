@@ -293,7 +293,7 @@
 
 ;; health
 
-(defn healty?
+(defn healthy?
   "Returns true iff the cluster is reachable and can take reads and writes.
   Uses __health-check set to avoid data collisions. `operation-timeout-ms` is for total timeout of reads
   (including 2 retries) so an small over estimation is advised to avoid false negatives."
