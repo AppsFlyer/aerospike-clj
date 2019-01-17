@@ -203,6 +203,17 @@
          (:policy conf (policy/write-policy (get-client db) expiration))
          set-name)))
 
+(defn put-multiple
+  "Put multiple payloads by invoking `put`. All arguments should be mutually
+  corresponding sequences."
+  ([db indices set-names payloads expirations]
+   (put-multiple db indices set-names payloads expirations {}))
+  ([db indices set-names payloads expirations conf]
+   (apply d/zip'
+          (map (fn [[index set-name payload expiration]]
+                 (put db index set-name payload expiration conf))
+               (map vector indices set-names payloads expirations)))))
+
 (defn create
   "`put` with a create-only policy"
   ([db index set-name data expiration]
