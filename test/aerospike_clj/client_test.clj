@@ -105,6 +105,18 @@
       (is (nil? d3))
       (is (nil? g3)))))
 
+(deftest put-multiple
+  (let [data [(rand-int 1000) (rand-int 1000)]
+        ks [K K2 "not-there"]]
+    (is (= [true true]
+           @(client/put-multiple *c* [K K2] (repeat _set) data (repeat 100))))
+    (let [[{d1 :payload g1 :gen} {d2 :payload g2 :gen} {d3 :payload g3 :gen}] @(client/get-multiple *c* ks (repeat _set))]
+      (is (= d1 (first data)))
+      (is (= d2 (second data)))
+      (is (= 1 g1 g2))
+      (is (nil? d3))
+      (is (nil? g3)))))
+
 (deftest get-multiple-transcoded
   (let [put-json (fn [k d] (client/put *c* k _set d 100 {:transcoder json/generate-string}))
         data [{:a (rand-int 1000)} {:a (rand-int 1000)}]

@@ -35,7 +35,7 @@ If a synchronous behaviour is still desired, the calling code can still deref (`
 
 # Limitations/ caveats
 - Currently supports only single bin records.
-- Does not expose batch/scan operations. Batch reads are supported via `get-multi`.
+- Does not expose batch/scan operations. Batch reads/writes are supported via `get-multiple`/`put-multiple`.
 
 # TBD
 - Support batch asynchronous APIs.
