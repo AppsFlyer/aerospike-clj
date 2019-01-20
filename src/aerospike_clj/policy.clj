@@ -108,7 +108,8 @@
     (throw (IllegalArgumentException. "tlsPolicyDefault is not supported")))
 
   (let [cp (ClientPolicy.)
-        {:keys [username password]} conf]
+        username (get conf "username")
+        password (get conf "password")]
     (when (and username password)
       (set! (.user cp) username)
       (set! (.password cp) password))
