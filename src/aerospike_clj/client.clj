@@ -52,7 +52,7 @@
    (let [cluster-name (utils/cluster-name hosts)
          event-loops (:event-loops conf (create-event-loops conf))
          client-policy (:client-policy conf (policy/create-client-policy event-loops conf))]
-     (println (format ";; Starting aerospike clients for clusters %s with username %s" cluster-name (:username conf)))
+     (println (format ";; Starting aerospike clients for clusters %s with username %s" cluster-name (get conf "username")))
      (map->SimpleAerospikeClient {:ac (create-client hosts client-policy)
                                   :el event-loops
                                   :dbns aero-ns

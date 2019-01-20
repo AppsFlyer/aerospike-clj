@@ -22,7 +22,7 @@ In order to follow the example further in this tutorial, you should run a Clojur
 This can be done:
 - by cloning the library and running a repl:
 ```bash
-$ git clone git@github.com:AppsFlyer/aerospike-clj.git
+$ git clone https://github.com/AppsFlyer/aerospike-clj.git
 $ cd aerospike-clj
 $ lein repl
 ```
@@ -57,7 +57,7 @@ user=> (def c (aero/init-simple-aerospike-client ["localhost"]
                                                  "test"
                                                  {"failIfNotConnected" true
                                                   "AuthMode" "INTERNAL"
-                                                  "user" nil
+                                                  "username" nil
                                                   "password" nil
                                                   "maxCommandsInProcess" 0}))
 ;; Starting aerospike clients for clusters localhost with username null
