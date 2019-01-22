@@ -114,5 +114,4 @@ PRs are welcome!
 
 ## License
 
-Distributed under the Eclipse Public License either version 1.0 or (at
-your option) any later version.
+Distributed under the Apache 2.0 License - found [here](https://github.com/AppsFlyer/aerospike-clj/blob/master/LICENSE).
