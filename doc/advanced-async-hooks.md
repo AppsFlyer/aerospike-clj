@@ -1,5 +1,5 @@
 ## Advanced asynchronous hooks:
-Since `aerospike-clj` uses a future based model instead of a callback based model, it is convenient to compose complec asynchronous logic using [manifold](https://github.com/ztellman/manifold).
+Since `aerospike-clj` uses a future based model instead of a callback based model, it is convenient to compose complex asynchronous logic using [manifold](https://github.com/ztellman/manifold).
 
 By implementing `ClientEvents` 2 hooks are exposed that are called for each API call: `on-success` and `on-failure`.
 
