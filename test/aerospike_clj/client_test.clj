@@ -12,7 +12,8 @@
             MapOperation MapPolicy MapOrder MapWriteFlags MapReturnType]
            [com.aerospike.client.policy Priority ConsistencyLevel Replica AuthMode ClientPolicy GenerationPolicy
                                         RecordExistsAction]
-           [java.util HashMap]))
+           [java.util HashMap]
+           [com.fasterxml.jackson.databind ObjectMapper]))
 
 (def K "k")
 (def K2 "k2")
@@ -60,6 +61,20 @@
   (let [data (rand-int 1000)]
     (is (true? @(client/create *c* K _set data 100)))
     (is (= data @(client/get-single-no-meta *c* K _set)))))
+
+(deftest put-get-clj-map
+  (let [data {:foo {:bar [(rand-int 1000)]}}]
+    (is (true? @(client/create *c* K _set data 100)))
+    (testing "clojure maps can be serialized as-is")
+    (let [v @(client/get-single-no-meta *c* K _set)]
+      (is (= data v)) ;; per value it is identical
+      (is (= java.util.HashMap (type v))) ;; but we get back a HashMap
+      (is (false? (map? v)))
+      (testing "using Jackson to recursively create a PersistantHashMap"
+        (let [json (.writeValueAsString (ObjectMapper.) v)
+              parsed (json/parse-string json #(keyword (subs % 1)))]
+          (is (= data parsed))
+          (is (true? (map? parsed))))))))
 
 (deftest update-test
   (is (true? @(client/create *c* K _set 16 100)))

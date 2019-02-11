@@ -12,5 +12,6 @@
           :metadata {:doc/format :markdown}}
   :profiles {:dev {:dependencies [[org.clojure/clojure "1.10.0"]
                                   [criterium "0.4.4"]
-                                  [cheshire "5.8.1"]]
+                                  [cheshire "5.8.1"]
+                                  [com.fasterxml.jackson.core/jackson-databind "2.9.8"]]
                    :global-vars {*warn-on-reflection* true}}})
