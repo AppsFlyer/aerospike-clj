@@ -307,7 +307,7 @@
     ;; If socketTimeout is reached, reads also try nodes containing replicated partitions,
     ;; but writes remain on master node.)))
     ;; This option requires ClientPolicy.requestProleReplicas to be enabled in order to function properly.
-    (is (zero? (.socketTimeout rp))) ;; no socket idle time limit
+    (is (= 30000 (.socketTimeout rp))) ;; 30 seconds default
     (is (zero? (.totalTimeout rp))) ;; no time limit
     (is (= 3000 (.timeoutDelay rp))) ;; no delay, connection closed on timeout
     (is (= 2 (.maxRetries rp))) ;; initial attempt + 2 retries = 3 attempts
@@ -348,7 +348,7 @@
     ;; If socketTimeout is reached, reads also try nodes containing replicated partitions,
     ;; but writes remain on master node.)))
     ;; This option requires ClientPolicy.requestProleReplicas to be enabled in order to function properly.
-    (is (zero? (.socketTimeout rp))) ;; no socket idle time limit
+    (is (= 30000 (.socketTimeout rp))) ;; 30 seconds default
     (is (zero? (.totalTimeout rp))) ;; no time limit
     (is (= 3000 (.timeoutDelay rp))) ;; no delay, connection closed on timeout
     (is (= 2 (.maxRetries rp))) ;; initial attempt + 2 retries = 3 attempts
