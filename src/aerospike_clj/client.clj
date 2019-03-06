@@ -137,7 +137,8 @@
   ([db index set-name] (get-single db index set-name {}))
   ([db index set-name conf]
    (let [client (get-client db index)
-         op-future (d/deferred)]
+         op-future (d/deferred)
+         start-time (System/nanoTime)]
      (.get ^AerospikeClient client
            ^EventLoop (.next ^NioEventLoops (:el db))
            (reify-record-listener op-future)
@@ -146,7 +147,7 @@
      (let [d (d/chain' op-future
                        record->map
                        (:transcoder conf identity))]
-       (register-events d db "read" index (System/nanoTime))))))
+       (register-events d db "read" index start-time)))))
 
 (defn get-multiple
   "Returns a (future) sequence of AerospikeRecords returned by `get-single`
@@ -164,13 +165,14 @@
   ([db index set-name] (exists? db index set-name {}))
   ([db index set-name conf]
    (let [client (get-client db index)
-         op-future (d/deferred)]
+         op-future (d/deferred)
+         start-time (System/nanoTime)]
      (.exists ^AerospikeClient client
               ^EventLoop (.next ^NioEventLoops (:el db))
               (reify-exists-listener op-future)
               ^Policy (:policy conf)
               (create-key (:dbns db) set-name index))
-     (register-events op-future db "exists" index (System/nanoTime)))))
+     (register-events op-future db "exists" index start-time))))
 
 (defn get-single-no-meta
   "Shorthand to return a single record payload only."
@@ -181,14 +183,15 @@
 (defn- _put [db index data policy set-name]
   (let [client (get-client db index)
         bins (into-array Bin [^Bin (Bin. "" data)])
-        op-future (d/deferred)]
+        op-future (d/deferred)
+        start-time (System/nanoTime)]
     (.put ^AerospikeClient client
           ^EventLoop (.next ^NioEventLoops (:el db))
           ^WriteListener (reify-write-listener op-future)
           ^WritePolicy policy
           (create-key (:dbns db) set-name index)
           ^"[Lcom.aerospike.client.Bin;" bins)
-    (register-events op-future db "write" index (System/nanoTime))))
+    (register-events op-future db "write" index start-time)))
 
 (defn put
   "Writes `data` into a record with the key `index`, with the ttl of `expiration` seconds.
@@ -244,13 +247,14 @@
   Expects records to exist."
   [db index set-name expiration]
   (let [client (get-client db index)
-        op-future (d/deferred)]
+        op-future (d/deferred)
+        start-time (System/nanoTime)]
     (.touch ^AerospikeClient client
             ^EventLoop (.next ^NioEventLoops (:el db))
             ^WriteListener (reify-write-listener op-future)
             ^WritePolicy (policy/write-policy client expiration RecordExistsAction/UPDATE_ONLY)
             (create-key (:dbns db) set-name index))
-    (register-events op-future db "touch" index (System/nanoTime))))
+    (register-events op-future db "touch" index start-time)))
 
 ;; delete
 
@@ -261,13 +265,14 @@
    (delete db index set-name {}))
   ([db index set-name conf]
    (let [client (get-client db index)
-         op-future (d/deferred)]
+         op-future (d/deferred)
+         start-time (System/nanoTime)]
      (.delete ^AerospikeClient client
               ^EventLoop (.next ^NioEventLoops (:el db))
               ^DeleteListener (reify-delete-listener op-future)
               ^WritePolicy (:policy conf)
               (create-key (:dbns db) set-name index))
-     (register-events op-future db "delete" index (System/nanoTime)))))
+     (register-events op-future db "delete" index start-time))))
 
 ;; operate
 
@@ -282,14 +287,15 @@
    (if (empty? operations)
      (d/success-deferred nil)
      (let [client (get-client db index)
-           op-future (d/deferred)]
+           op-future (d/deferred)
+           start-time (System/nanoTime)]
        (.operate ^AerospikeClient client
                  ^EventLoop (.next^NioEventLoops (:el db))
                  ^RecordListener (reify-record-listener op-future)
                  ^WritePolicy (:policy conf (policy/write-policy client expiration RecordExistsAction/UPDATE))
                  (create-key (:dbns db) set-name index)
                  (into-array Operation operations))
-       (register-events (d/chain' op-future record->map) db "operate" index (System/nanoTime))))))
+       (register-events (d/chain' op-future record->map) db "operate" index start-time)))))
 
 ;; metrics
 (defn get-cluster-stats
