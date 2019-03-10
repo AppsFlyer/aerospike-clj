@@ -1,9 +1,9 @@
-(defproject aerospike-clj "0.2.5"
+(defproject aerospike-clj "0.2.6"
   :description "An Aerospike Clojure client."
   :url "https://github.com/AppsFlyer/aerospike-clj"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
-  :dependencies [[com.aerospike/aerospike-client "4.3.0"]
+  :dependencies [[com.aerospike/aerospike-client "4.3.1"]
                  [manifold "0.1.8"]
                  [com.taoensso/timbre "4.10.0"]]
   :plugins [[lein-codox "0.10.5"]]
