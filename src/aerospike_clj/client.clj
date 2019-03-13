@@ -228,6 +228,17 @@
          (policy/create-only-policy (get-client db) expiration)
          set-name)))
 
+(defn replace-only
+  "`put` with a replace-only policy"
+  ([db index set-name data expiration]
+   (replace-only db index set-name data expiration {}))
+  ([db index set-name data expiration conf]
+   (_put db
+         index
+         ((:transcoder conf identity) data)
+         (policy/replace-only-policy (get-client db) expiration)
+         set-name)))
+
 (defn update
   "Writing a new value for the key `index`.
   Generation: the expected modification count of the record (i.e. how many times was it
