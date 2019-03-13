@@ -17,6 +17,7 @@
 
 (def K "k")
 (def K2 "k2")
+(def K_not_exists "k_not_exists")
 (def _set "set")
 (def ^:dynamic *c* nil)
 
@@ -102,6 +103,9 @@
   (is (thrown-with-msg? AerospikeException #"Key already exists"
                         @(client/create *c* K _set 1 100))))
 
+(deftest put-replace-only-raises-exception
+  (is (thrown-with-msg? AerospikeException #"Key not found"
+                        @(client/replace-only *c* K_not_exists _set 1 100))))
 (deftest delete
   (is (true? @(client/put *c* K _set 1 100)))
   (is (true? @(client/delete *c* K _set)))

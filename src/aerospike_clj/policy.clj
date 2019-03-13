@@ -76,6 +76,13 @@
     (set! (.recordExistsAction wp) RecordExistsAction/CREATE_ONLY)
     wp))
 
+(defn ^WritePolicy replace-only-policy
+  "Create a write policy with REPLACE_ONLY record exists action. Fails if the record does not exists"
+  [client expiration]
+  (let [wp (write-policy client expiration)]
+    (set! (.recordExistsAction wp) RecordExistsAction/REPLACE_ONLY)
+    wp))
+
 (defn ^EventPolicy map->event-policy
   "Create an `EventPolicy` from a map. Usage same as `map->write-policy`."
   [conf]
