@@ -77,6 +77,67 @@
           (is (= data parsed))
           (is (true? (map? parsed))))))))
 
+(deftest put-bins-get-clj-map
+  (let [data {:foo {:bar [(rand-int 1000)]}
+              :baz true
+              :qux false
+              :quux nil}]
+    (is (true? @(client/create-with-bins *c* K _set data 100)))
+    (testing "clojure maps can be serialized from bins")
+    (let [v @(client/get-single-all-bins-no-meta *c* K _set)]
+      (is (= (:foo data) (:foo v))) ;; per value it is identical
+      (is (= (:baz data) (:baz v))) ;; true value returns the same after being sanitized/desanitized
+      (is (= (:qux data) (:qux v))) ;; false value returns the same after being sanitized/desanitized
+      (is (= (:quux data) (:quux v))) ;; nil value retuns the same after being sanitized/desanitized
+      (is (= clojure.lang.PersistentArrayMap (type v))) ;; converted back to a Clojure map instead of HashMap
+      (is (true? (map? v)))
+      (testing "using Jackson to recursively create a PersistantHashMap"
+        (let [json (.writeValueAsString (ObjectMapper.) v)
+              parsed (json/parse-string json #(keyword (subs % 1)))]
+          (is (= data parsed))
+          (is (true? (map? parsed))))))))
+
+(deftest get-single-bins
+  (let [data {:foo [(rand-int 1000)]
+              :bar [(rand-int 1000)]
+              :baz [(rand-int 1000)]}]
+    (is (true? @(client/create-with-bins *c* K _set data 100)))
+    (testing "bin values can be retrieved individually and all together")
+    (let [v1 @(client/get-single-with-bins *c* K _set [:foo])
+          v2 @(client/get-single-with-bins *c* K _set [:bar])
+          v3 @(client/get-single-with-bins *c* K _set [:baz])
+          v4 @(client/get-single-with-bins *c* K _set [:all])]
+      (is (= (:foo data) (:foo (:payload v1))))
+      (is (= (:bar data) (:bar (:payload v2))))
+      (is (= (:baz data) (:baz (:payload v3))))
+      (is (= data (:payload v4)))
+      (is (true? (map? (:payload v1)))))))
+
+(deftest adding-bins-to-record
+  (let [data {:foo [(rand-int 1000)]
+              :bar [(rand-int 1000)]
+              :baz [(rand-int 1000)]}
+        new-data {:qux [(rand-int 1000)]}]
+    (is (true? @(client/create-with-bins *c* K _set data 100)))
+    (is (true? @(client/add-bins-to-record *c* K _set new-data 100))) ;; adding value to bin
+    (testing "bin values can be added to existing records")
+    (let [v @(client/get-single-all-bins-no-meta *c* K _set)]
+      (is (= v (merge data new-data)))
+      (is (contains? v :qux)))))
+
+(deftest removing-bins-from-record
+  (let [data {:foo [(rand-int 1000)]
+              :bar [(rand-int 1000)]
+              :baz [(rand-int 1000)]
+              :qux [(rand-int 1000)]}
+        bin-keys [:foo :bar :baz]]
+    (is (true? @(client/create-with-bins *c* K _set data 100)))
+    (is (true? @(client/remove-bins-from-record *c* K _set bin-keys 100))) ;; removing value from bin
+    (testing "bin values can be removed from existing records")
+    (let [v @(client/get-single-all-bins-no-meta *c* K _set)]
+      (is (= v (apply dissoc data bin-keys)))
+      (is (contains? v :qux)))))
+
 (deftest update-test
   (is (true? @(client/create *c* K _set 16 100)))
   (is (true? @(client/update *c* K _set 17 1 100)))
@@ -88,6 +149,12 @@
   (let [too-long-key (clojure.string/join "" (repeat (inc client/MAX_KEY_LENGTH) "k"))]
     (is (thrown-with-msg? Exception #"key is too long"
                           @(client/put *c* too-long-key _set 1 100)))))
+
+(deftest too-long-bin-name
+  (let [long-bin-name "thisstringislongerthan14characters"]
+    (is (thrown-with-msg?
+          Exception #"Bin names have to be <= 14 characters..."
+          @(client/put-with-bins *c* K _set {long-bin-name "foo"} 100)))))
 
 (deftest update-with-wrong-gen
   (let [data (rand-int 1000)]
