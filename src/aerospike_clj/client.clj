@@ -193,16 +193,16 @@
          start-time (System/nanoTime)
          bin-names (map name bin-keys)] ;; bin-names can only be stored as strings in Aerospike
      (.get ^AerospikeClient client
-       ^EventLoop (.next ^NioEventLoops (:el db))
-       (reify-record-listener op-future)
-       ^Policy (:policy conf)
-       (create-key (:dbns db) set-name index)
-       ^"[Lcom.aerospike.client.Bin;" (if (= [:all] bin-keys)
-                                        nil
-                                        (into-array String bin-names)))
+           ^EventLoop (.next ^NioEventLoops (:el db))
+           (reify-record-listener op-future)
+           ^Policy (:policy conf)
+           (create-key (:dbns db) set-name index)
+           ^"[Lcom.aerospike.client.Bin;" (if (= [:all] bin-keys)
+                                            nil
+                                            (into-array String bin-names)))
      (let [d (d/chain' op-future
-               record->bins->map
-               (:transcoder conf identity))]
+                       record->bins->map
+                       (:transcoder conf identity))]
        (register-events d db "read" index start-time)))))
 
 (defn exists?
@@ -278,11 +278,11 @@
         op-future (d/deferred)
         start-time (System/nanoTime)]
     (.put ^AerospikeClient client
-      ^EventLoop (.next ^NioEventLoops (:el db))
-      ^WriteListener (reify-write-listener op-future)
-      ^WritePolicy policy
-      (create-key (:dbns db) set-name index)
-      ^"[Lcom.aerospike.client.Bin;" bins)
+          ^EventLoop (.next ^NioEventLoops (:el db))
+          ^WriteListener (reify-write-listener op-future)
+          ^WritePolicy policy
+          (create-key (:dbns db) set-name index)
+          ^"[Lcom.aerospike.client.Bin;" bins)
     (register-events op-future db "write" index start-time)))
 
 (defn put-with-bins
@@ -298,10 +298,10 @@
    (put-with-bins db index set-name data expiration {}))
   ([db index set-name ^IPersistentMap data expiration conf]
    (_put-with-bins db
-     index
-     ((:transcoder conf identity) data)
-     (:policy conf (policy/write-policy (get-client db) expiration))
-     set-name)))
+                   index
+                   ((:transcoder conf identity) data)
+                   (:policy conf (policy/write-policy (get-client db) expiration))
+                   set-name)))
 
 (defn create
   "`put` with a create-only policy"
@@ -320,10 +320,10 @@
    (create-with-bins db index set-name data expiration {}))
   ([db index set-name ^IPersistentMap data expiration conf]
    (_put-with-bins db
-     index
-     ((:transcoder conf identity) data)
-     (policy/create-only-policy (get-client db) expiration)
-     set-name)))
+                   index
+                   ((:transcoder conf identity) data)
+                   (policy/create-only-policy (get-client db) expiration)
+                   set-name)))
 
 (defn add-bins-to-record
   "With an existing record in the database, this function accepts `new-data` as a Clojure
