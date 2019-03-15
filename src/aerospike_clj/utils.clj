@@ -1,5 +1,6 @@
 (ns aerospike-clj.utils
-  (:require [clojure.string :as s]))
+  (:require [clojure.set :as set]
+            [clojure.string :as s]))
 
 (defn- hosts->cluster [hosts]
   (or
@@ -11,3 +12,28 @@
   (-> (hosts->cluster hosts)
       (s/split  #"\.")
       first))
+
+(def ^:private boolean-replacements
+  "For bins, Aerospike converts `true` to `1`, `false` to `0` and `nil` values are
+  not accepted. The conversion happens only at the top-level of the bin and does not
+  seem to affect nested structures. To store these values in the database, they are
+  converted to keywords."
+  {:true  true
+   :false false
+   :nil   nil})
+
+(defn sanitize-bin-value
+  "Values in nested structures are unaffected and do not need to be sanitized. If,
+  however, `true`, `false` or `nil` exist as the only value in a bin, they need to
+  be sanitized."
+  [bin-value]
+  (->> (conj [] bin-value)
+       (replace (set/map-invert boolean-replacements))
+       first))
+
+(defn desanitize-bin-value
+  "Converts sanitized (keywordized) bin values back to their original value."
+  [bin-value]
+  (->> (conj [] bin-value)
+       (replace boolean-replacements)
+       first))
