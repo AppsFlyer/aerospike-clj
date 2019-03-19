@@ -33,13 +33,13 @@
   however, `true`, `false` or `nil` exist as the only value in a bin, they need to
   be sanitized."
   [bin-value]
-  (->> (conj [] bin-value)
+  (->> (vector bin-value)
        (replace (set/map-invert boolean-replacements))
        first))
 
 (defn desanitize-bin-value
   "Converts sanitized (keywordized) bin values back to their original value."
   [bin-value]
-  (->> (conj [] bin-value)
+  (->> (vector bin-value)
        (replace boolean-replacements)
        first))

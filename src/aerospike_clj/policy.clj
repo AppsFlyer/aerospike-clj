@@ -83,7 +83,7 @@
     (set! (.recordExistsAction wp) RecordExistsAction/REPLACE_ONLY)
     wp))
 
-(defn ^WritePolicy update-bins-policy
+(defn ^WritePolicy update-only-policy
   "Create a write policy with UPDATE_ONLY record exists action. The policy helps add/delete bins in
   records without replacing existing data."
   [client new-expiration]

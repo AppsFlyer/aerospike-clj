@@ -16,7 +16,7 @@
 
 (def MAX_KEY_LENGTH (dec (bit-shift-left 1 13)))
 
-(def MAX_BIN_NAME_LENGTH (- (bit-shift-left 1 4) 2)) ;; 14
+(def MAX_BIN_NAME_LENGTH 14)
 
 (defprotocol IAerospikeClient
   (get-client [ac] [ac index] "Returns the relevant AerospikeClient object for the specific shard")
@@ -304,7 +304,7 @@
    (_put db
          index
          ((:transcoder conf identity) new-data)
-         (policy/update-bins-policy (get-client db) new-expiration)
+         (policy/update-only-policy (get-client db) new-expiration)
          set-name)))
 
 (defn touch
@@ -360,7 +360,7 @@
    (_delete-bins db
                  index
                  ((:transcoder conf identity) bin-keys)
-                 (policy/update-bins-policy (get-client db) new-expiration)
+                 (policy/update-only-policy (get-client db) new-expiration)
                  set-name)))
 
 ;; operate
