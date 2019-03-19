@@ -22,6 +22,12 @@
    :false false
    :nil   nil})
 
+(defn single-bin?
+  "Predicate function to determine whether data will be stored as a single bin or
+  multiple bin record."
+  [bin-names]
+  (= bin-names [""]))
+
 (defn sanitize-bin-value
   "Values in nested structures are unaffected and do not need to be sanitized. If,
   however, `true`, `false` or `nil` exist as the only value in a bin, they need to
