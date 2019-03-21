@@ -140,21 +140,30 @@
 (defn- record->map [^Record record]
   (and record
     (let [bins      (into {} (.bins ^Record record)) ;; converting from java.util.HashMap to a Clojure map
-          bin-names (mapv first bins)]
+          bin-names (keys bins)]
       (->AerospikeRecord
         (if (utils/single-bin? bin-names)
+          ;; single bin record
           (utils/desanitize-bin-value (get bins ""))
+          ;; multiple-bin record
           (reduce-kv (fn [m k v]
-                       (assoc m (keyword k) (utils/desanitize-bin-value v)))
+                       (assoc m k (utils/desanitize-bin-value v)))
             {}
             bins))
         ^Integer (.generation ^Record record)
         ^Integer (.expiration ^Record record)))))
 
+(def ^:private x-bin-convert
+  (comp
+    (map (fn [[k v]] [k (utils/sanitize-bin-value v)]))
+    (map (fn [[k v]] (create-bin k v)))))
+
 (defn- map->multiple-bins [^IPersistentMap m]
-  (let [bins (for [[k v] m]
-               (create-bin (name k) (utils/sanitize-bin-value v)))]
-    (into-array Bin bins)))
+  (let [bin-names  (keys m)]
+    (if (utils/string-keys? bin-names)
+      (->> (into [] x-bin-convert m)
+           (into-array Bin))
+      (throw (Exception. (format "Aerospike only accepts string values as bin names. Please ensure all keys in the map are strings."))))))
 
 (defn- data->bins
   "Function to identify whether `data` will be stored as a single or multiple bin record.
@@ -167,19 +176,18 @@
 (defn get-single
   "Returns a single record: `(transcoder AerospikeRecord)`. The default transcoder is `identity`.
   Pass a `:policy` in `conf` to use a non-default `ReadPolicy`"
-  ([db index set-name] (get-single db index set-name [:all] {}))
-  ([db index set-name ^IPersistentVector bin-keys] (get-single db index set-name bin-keys {}))
-  ([db index set-name ^IPersistentVector bin-keys conf]
+  ([db index set-name] (get-single db index set-name {} [:all]))
+  ([db index set-name conf] (get-single db index set-name conf [:all]))
+  ([db index set-name conf ^IPersistentVector bin-names]
    (let [client (get-client db index)
          op-future (d/deferred)
-         start-time (System/nanoTime)
-         bin-names (mapv name bin-keys)] ;; bin-names can only be stored as strings in Aerospike
+         start-time (System/nanoTime)]
      (.get ^AerospikeClient client
            ^EventLoop (.next ^NioEventLoops (:el db))
            (reify-record-listener op-future)
            ^Policy (:policy conf)
            (create-key (:dbns db) set-name index)
-           ^"[Lcom.aerospike.client.Bin;" (if (= [:all] bin-keys)
+           ^"[Lcom.aerospike.client.Bin;" (if (= [:all] bin-names)
                                             (if (utils/single-bin? bin-names) bin-names nil)
                                             (into-array String bin-names)))
      (let [d (d/chain' op-future
@@ -195,7 +203,7 @@
    (get-multiple db indices sets {}))
   ([db indices sets conf]
    (apply d/zip'
-          (map (fn [[index set-name]] (get-single db index set-name [:all] conf))
+          (map (fn [[index set-name]] (get-single db index set-name conf))
                (map vector indices sets)))))
 
 (defn exists?
@@ -214,9 +222,9 @@
 
 (defn get-single-no-meta
   "Shorthand to return a single record payload only."
-  ([db index set-name] (get-single db index set-name [:all] {:transcoder :payload}))
-  ([db index set-name ^IPersistentVector bin-keys]
-    (get-single db index set-name bin-keys {:transcoder :payload})))
+  ([db index set-name] (get-single db index set-name {:transcoder :payload} [:all]))
+  ([db index set-name ^IPersistentVector bin-names]
+    (get-single db index set-name {:transcoder :payload} bin-names)))
 
 ;; put
 (defn- _put [db index data policy set-name]
@@ -238,8 +246,8 @@
   is sent to the DB.
   Pass a `WritePolicy` in `(:policy conf)` to uses the non-default policy.
   When a Clojure map is provided for the `data` argument, a multiple bin record will be created.
-  Each key-value pair in the map will be treated as a bin-name, bin-value pair. Bin-values can
-  be any nested data structure."
+  Each key-value pair in the map will be treated as a bin-name, bin-value pair. Bin-names must be
+  strings. Bin-values can be any nested data structure."
   ([db index set-name data expiration] (put db index set-name data expiration {}))
   ([db index set-name data expiration conf]
    (_put db
@@ -339,11 +347,10 @@
               (create-key (:dbns db) set-name index))
      (register-events op-future db "delete" index start-time))))
 
-(defn- _delete-bins [db index bin-keys policy set-name]
+(defn- _delete-bins [db index bin-names policy set-name]
   (let [client (get-client db index)
         op-future (d/deferred)
-        start-time (System/nanoTime)
-        bin-names (mapv name bin-keys)]
+        start-time (System/nanoTime)]
     (.put ^AerospikeClient client
           ^EventLoop (.next ^NioEventLoops (:el db))
           ^WriteListener (reify-write-listener op-future)
@@ -353,13 +360,13 @@
     (register-events op-future db "write" index start-time)))
 
 (defn delete-bins
-  "Delete bins from an existing record. The `bin-keys` must be a vector of keywords."
-  ([db index set-name ^IPersistentVector bin-keys new-expiration]
-   (delete-bins db index set-name bin-keys new-expiration {}))
-  ([db index set-name ^IPersistentVector bin-keys new-expiration conf]
+  "Delete bins from an existing record. The `bin-names` must be a vector of strings."
+  ([db index set-name ^IPersistentVector bin-names new-expiration]
+   (delete-bins db index set-name bin-names new-expiration {}))
+  ([db index set-name ^IPersistentVector bin-names new-expiration conf]
    (_delete-bins db
                  index
-                 ((:transcoder conf identity) bin-keys)
+                 ((:transcoder conf identity) bin-names)
                  (policy/update-only-policy (get-client db) new-expiration)
                  set-name)))
 
@@ -414,8 +421,8 @@
     (try
       @(create db k set-name v ttl)
       (= v
-         @(get-single db k set-name [:all] {:transcoder :payload
-                                            :policy read-policy}))
+         @(get-single db k set-name {:transcoder :payload
+                                     :policy read-policy} [:all]))
       (catch Exception ex
         false))))
 
