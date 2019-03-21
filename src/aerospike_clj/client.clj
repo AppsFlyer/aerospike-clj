@@ -349,7 +349,7 @@
           ^WriteListener (reify-write-listener op-future)
           ^WritePolicy policy
           (create-key (:dbns db) set-name index)
-          ^"[Lcom.aerospike.client.Bin;" (into-array Bin (mapv #(set-bin-as-null %) bin-names)))
+          ^"[Lcom.aerospike.client.Bin;" (into-array Bin (mapv set-bin-as-null bin-names)))
     (register-events op-future db "write" index start-time)))
 
 (defn delete-bins

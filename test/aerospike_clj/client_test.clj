@@ -101,16 +101,16 @@
               :bar [(rand-int 1000)]
               :baz [(rand-int 1000)]}]
     (is (true? @(client/create *c* K _set data 100)))
-    (testing "bin values can be retrieved individually and all together")
-    (let [v1 @(client/get-single *c* K _set [:foo])
-          v2 @(client/get-single *c* K _set [:bar])
-          v3 @(client/get-single *c* K _set [:baz])
-          v4 @(client/get-single *c* K _set [:all])]
-      (is (= (:foo data) (:foo (:payload v1))))
-      (is (= (:bar data) (:bar (:payload v2))))
-      (is (= (:baz data) (:baz (:payload v3))))
-      (is (= data (:payload v4)))
-      (is (true? (map? (:payload v1)))))))
+    (testing "bin values can be retrieved individually and all together"
+      (let [v1 @(client/get-single *c* K _set [:foo])
+            v2 @(client/get-single *c* K _set [:bar])
+            v3 @(client/get-single *c* K _set [:baz])
+            v4 @(client/get-single *c* K _set [:all])]
+        (is (= (:foo data) (:foo (:payload v1))))
+        (is (= (:bar data) (:bar (:payload v2))))
+        (is (= (:baz data) (:baz (:payload v3))))
+        (is (= data (:payload v4)))
+        (is (true? (map? (:payload v1))))))))
 
 (deftest adding-bins-to-record
   (let [data {:foo [(rand-int 1000)]
@@ -119,10 +119,10 @@
         new-data {:qux [(rand-int 1000)]}]
     (is (true? @(client/create *c* K _set data 100)))
     (is (true? @(client/add-bins *c* K _set new-data 100))) ;; adding value to bin
-    (testing "bin values can be added to existing records")
-    (let [v @(client/get-single-no-meta *c* K _set)]
-      (is (= v (merge data new-data)))
-      (is (contains? v :qux)))))
+    (testing "bin values can be added to existing records"
+      (let [v @(client/get-single-no-meta *c* K _set)]
+        (is (= v (merge data new-data)))
+        (is (contains? v :qux))))))
 
 (deftest removing-bins-from-record
   (let [data {:foo [(rand-int 1000)]
@@ -132,10 +132,10 @@
         bin-keys [:foo :bar :baz]]
     (is (true? @(client/create *c* K _set data 100)))
     (is (true? @(client/delete-bins *c* K _set bin-keys 100))) ;; removing value from bin
-    (testing "bin values can be removed from existing records")
-    (let [v @(client/get-single-no-meta *c* K _set)]
-      (is (= v (apply dissoc data bin-keys)))
-      (is (contains? v :qux)))))
+    (testing "bin values can be removed from existing records"
+      (let [v @(client/get-single-no-meta *c* K _set)]
+        (is (= v (apply dissoc data bin-keys)))
+        (is (contains? v :qux))))))
 
 (deftest update-test
   (is (true? @(client/create *c* K _set 16 100)))
