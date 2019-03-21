@@ -64,78 +64,73 @@
     (is (= data @(client/get-single-no-meta *c* K _set)))))
 
 (deftest put-get-clj-map
-  (let [data {:foo {:bar [(rand-int 1000)]}}]
+  (let [data {"foo" {"bar" [(rand-int 1000)]}}]
     (is (true? @(client/create *c* K _set data 100)))
     (testing "clojure maps can be serialized as-is")
     (let [v @(client/get-single-no-meta *c* K _set)]
       (is (= data v)) ;; per value it is identical
-      (is (= clojure.lang.PersistentArrayMap (type v)))
-      (testing "using Jackson to recursively create a PersistantHashMap"
-        (let [json (.writeValueAsString (ObjectMapper.) v)
-              parsed (json/parse-string json #(keyword (subs % 1)))]
-          (is (= data parsed))
-          (is (true? (map? parsed))))))))
+      (is (= clojure.lang.PersistentArrayMap (type v))))))
 
 (deftest put-multiple-bins-get-clj-map
-  (let [data {:foo {:bar [(rand-int 1000)]}
-              :baz true
-              :qux false
-              :quux nil}]
+  (let [data {"foo" {"bar" [(rand-int 1000)]}
+              "baz" true
+              "qux" false
+              "quuz" nil}]
     (is (true? @(client/create *c* K _set data 100)))
     (testing "clojure maps can be serialized from bins")
     (let [v @(client/get-single-no-meta *c* K _set)]
-      (is (= (:foo data) (:foo v))) ;; per value it is identical
-      (is (= (:baz data) (:baz v))) ;; true value returns the same after being sanitized/desanitized
-      (is (= (:qux data) (:qux v))) ;; false value returns the same after being sanitized/desanitized
-      (is (= (:quux data) (:quux v))) ;; nil value retuns the same after being sanitized/desanitized
+      (is (= (get data "foo") (get v "foo"))) ;; per value it is identical
+      (is (= (get data "bar") (get v "bar"))) ;; true value returns the same after being sanitized/desanitized
+      (is (= (get data "baz") (get v "baz"))) ;; false value returns the same after being sanitized/desanitized
+      (is (= (get data "qux") (get v "qux"))) ;; nil value retuns the same after being sanitized/desanitized
       (is (= clojure.lang.PersistentArrayMap (type v))) ;; converted back to a Clojure map instead of HashMap
-      (is (true? (map? v)))
-      (testing "using Jackson to recursively create a PersistantHashMap"
-        (let [json (.writeValueAsString (ObjectMapper.) v)
-              parsed (json/parse-string json #(keyword (subs % 1)))]
-          (is (= data parsed))
-          (is (true? (map? parsed))))))))
+      (is (true? (map? v))))))
 
 (deftest get-single-multiple-bins
-  (let [data {:foo [(rand-int 1000)]
-              :bar [(rand-int 1000)]
-              :baz [(rand-int 1000)]}]
+  (let [data {"foo"  [(rand-int 1000)]
+              "bar"  [(rand-int 1000)]
+              "baz" [(rand-int 1000)]}]
     (is (true? @(client/create *c* K _set data 100)))
     (testing "bin values can be retrieved individually and all together"
-      (let [v1 @(client/get-single *c* K _set [:foo])
-            v2 @(client/get-single *c* K _set [:bar])
-            v3 @(client/get-single *c* K _set [:baz])
-            v4 @(client/get-single *c* K _set [:all])]
-        (is (= (:foo data) (:foo (:payload v1))))
-        (is (= (:bar data) (:bar (:payload v2))))
-        (is (= (:baz data) (:baz (:payload v3))))
+      (let [v1 @(client/get-single *c* K _set {} ["foo"])
+            v2 @(client/get-single *c* K _set {} ["bar"])
+            v3 @(client/get-single *c* K _set {} ["baz"])
+            v4 @(client/get-single *c* K _set {} [:all])]
+        (is (= (get data "foo") (get (:payload v1) "foo")))
+        (is (= (get data "bar") (get (:payload v2) "bar")))
+        (is (= (get data "baz") (get (:payload v3) "baz")))
         (is (= data (:payload v4)))
         (is (true? (map? (:payload v1))))))))
 
 (deftest adding-bins-to-record
-  (let [data {:foo [(rand-int 1000)]
-              :bar [(rand-int 1000)]
-              :baz [(rand-int 1000)]}
-        new-data {:qux [(rand-int 1000)]}]
+  (let [data {"foo" [(rand-int 1000)]
+              "bar" [(rand-int 1000)]
+              "baz" [(rand-int 1000)]}
+        new-data {"qux" [(rand-int 1000)]}]
     (is (true? @(client/create *c* K _set data 100)))
     (is (true? @(client/add-bins *c* K _set new-data 100))) ;; adding value to bin
     (testing "bin values can be added to existing records"
       (let [v @(client/get-single-no-meta *c* K _set)]
         (is (= v (merge data new-data)))
-        (is (contains? v :qux))))))
+        (is (= (contains? v "qux")))))
+    (testing "adding a bin that already exists in the record with a new value"
+      (let [existing-bin {"foo" [(rand-int 1000)]}]
+        (is (true? @(client/add-bins *c* K _set existing-bin 100)))
+        (is (= (get existing-bin "foo")
+               (get @(client/get-single-no-meta *c* K _set) "foo")))))))
 
 (deftest removing-bins-from-record
-  (let [data {:foo [(rand-int 1000)]
-              :bar [(rand-int 1000)]
-              :baz [(rand-int 1000)]
-              :qux [(rand-int 1000)]}
-        bin-keys [:foo :bar :baz]]
+  (let [data {"foo" [(rand-int 1000)]
+              "bar" [(rand-int 1000)]
+              "baz" [(rand-int 1000)]
+              "qux" [(rand-int 1000)]}
+        bin-keys ["foo" "bar" "baz"]]
     (is (true? @(client/create *c* K _set data 100)))
     (is (true? @(client/delete-bins *c* K _set bin-keys 100))) ;; removing value from bin
     (testing "bin values can be removed from existing records"
       (let [v @(client/get-single-no-meta *c* K _set)]
         (is (= v (apply dissoc data bin-keys)))
-        (is (contains? v :qux))))))
+        (is (= (keys v) ["qux"]))))))
 
 (deftest update-test
   (is (true? @(client/create *c* K _set 16 100)))
@@ -233,7 +228,7 @@
 (deftest transcoder-failure
   (is (true? @(client/create *c* K _set 1 100)))
   (let [transcoder (fn [_] (throw (Exception. "oh-no")))]
-    (is (thrown-with-msg? Exception #"oh-no" @(client/get-single *c* K _set [:all] {:transcoder transcoder})))))
+    (is (thrown-with-msg? Exception #"oh-no" @(client/get-single *c* K _set {:transcoder transcoder} [:all])))))
 
 (deftest operations-lists
   (let [result1 @(client/operate *c* K _set 100
@@ -321,7 +316,7 @@
             (letfn [(->set [res] (->> ^HashMap (:payload res)
                                       .keySet
                                       (into #{})))]
-              @(client/get-single *c* K _set [:all] {:transcoder ->set})))
+              @(client/get-single *c* K _set {:transcoder ->set} [:all])))
           (set-size []
             (client/operate *c* K _set 100
                             [(MapOperation/size "")]))]
@@ -353,7 +348,7 @@
                                ListReturnType/VALUE)]))
           (set-getall []
             (letfn [(->set [res] (->> res :payload (into #{})))]
-              @(client/get-single *c* K _set [:all] {:transcoder ->set})))
+              @(client/get-single *c* K _set {:transcoder ->set} [:all])))
           (set-size []
             (client/operate *c* K _set 100
                             [(ListOperation/size "")]))]
