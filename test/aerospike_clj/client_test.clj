@@ -77,14 +77,14 @@
               "qux" false
               "quuz" nil}]
     (is (true? @(client/create *c* K _set data 100)))
-    (testing "clojure maps can be serialized from bins")
-    (let [v @(client/get-single-no-meta *c* K _set)]
-      (is (= (get data "foo") (get v "foo"))) ;; per value it is identical
-      (is (= (get data "bar") (get v "bar"))) ;; true value returns the same after being sanitized/desanitized
-      (is (= (get data "baz") (get v "baz"))) ;; false value returns the same after being sanitized/desanitized
-      (is (= (get data "qux") (get v "qux"))) ;; nil value retuns the same after being sanitized/desanitized
-      (is (= clojure.lang.PersistentArrayMap (type v))) ;; converted back to a Clojure map instead of HashMap
-      (is (true? (map? v))))))
+    (testing "clojure maps can be serialized from bins"
+      (let [v @(client/get-single-no-meta *c* K _set)]
+        (is (= (get data "foo") (get v "foo"))) ;; per value it is identical
+        (is (= (get data "bar") (get v "bar"))) ;; true value returns the same after being sanitized/desanitized
+        (is (= (get data "baz") (get v "baz"))) ;; false value returns the same after being sanitized/desanitized
+        (is (= (get data "qux") (get v "qux"))) ;; nil value retuns the same after being sanitized/desanitized
+        (is (= clojure.lang.PersistentArrayMap (type v))) ;; converted back to a Clojure map instead of HashMap
+        (is (true? (map? v)))))))
 
 (deftest get-single-multiple-bins
   (let [data {"foo"  [(rand-int 1000)]
@@ -95,7 +95,7 @@
       (let [v1 @(client/get-single *c* K _set {} ["foo"])
             v2 @(client/get-single *c* K _set {} ["bar"])
             v3 @(client/get-single *c* K _set {} ["baz"])
-            v4 @(client/get-single *c* K _set {} [:all])]
+            v4 @(client/get-single *c* K _set {})] ;; getting all bins for the record
         (is (= (get data "foo") (get (:payload v1) "foo")))
         (is (= (get data "bar") (get (:payload v2) "bar")))
         (is (= (get data "baz") (get (:payload v3) "baz")))
@@ -228,7 +228,7 @@
 (deftest transcoder-failure
   (is (true? @(client/create *c* K _set 1 100)))
   (let [transcoder (fn [_] (throw (Exception. "oh-no")))]
-    (is (thrown-with-msg? Exception #"oh-no" @(client/get-single *c* K _set {:transcoder transcoder} [:all])))))
+    (is (thrown-with-msg? Exception #"oh-no" @(client/get-single *c* K _set {:transcoder transcoder})))))
 
 (deftest operations-lists
   (let [result1 @(client/operate *c* K _set 100
@@ -316,7 +316,7 @@
             (letfn [(->set [res] (->> ^HashMap (:payload res)
                                       .keySet
                                       (into #{})))]
-              @(client/get-single *c* K _set {:transcoder ->set} [:all])))
+              @(client/get-single *c* K _set {:transcoder ->set})))
           (set-size []
             (client/operate *c* K _set 100
                             [(MapOperation/size "")]))]
@@ -348,7 +348,7 @@
                                ListReturnType/VALUE)]))
           (set-getall []
             (letfn [(->set [res] (->> res :payload (into #{})))]
-              @(client/get-single *c* K _set {:transcoder ->set} [:all])))
+              @(client/get-single *c* K _set {:transcoder ->set})))
           (set-size []
             (client/operate *c* K _set 100
                             [(ListOperation/size "")]))]
