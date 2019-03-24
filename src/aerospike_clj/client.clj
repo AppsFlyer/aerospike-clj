@@ -188,7 +188,12 @@
            ^Policy (:policy conf)
            (create-key (:dbns db) set-name index)
            ^"[Lcom.aerospike.client.Bin;" (if (= [:all] bin-names)
-                                            (if (utils/single-bin? bin-names) bin-names nil)
+                                            (if (utils/single-bin? bin-names)
+                                              bin-names
+                                              ;; 'nil' as the last value for .get invokes a different version of the
+                                              ;; method and retrieves all bins for multi-bin records
+                                              nil)
+                                            ;; if `bin-names` are provided, only returns those bins
                                             (into-array String bin-names)))
      (let [d (d/chain' op-future
                        record->map
@@ -222,7 +227,7 @@
 
 (defn get-single-no-meta
   "Shorthand to return a single record payload only."
-  ([db index set-name] (get-single db index set-name {:transcoder :payload} [:all]))
+  ([db index set-name] (get-single db index set-name {:transcoder :payload}))
   ([db index set-name ^IPersistentVector bin-names]
     (get-single db index set-name {:transcoder :payload} bin-names)))
 
@@ -422,7 +427,7 @@
       @(create db k set-name v ttl)
       (= v
          @(get-single db k set-name {:transcoder :payload
-                                     :policy read-policy} [:all]))
+                                     :policy read-policy}))
       (catch Exception ex
         false))))
 
