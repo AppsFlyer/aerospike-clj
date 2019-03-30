@@ -66,10 +66,10 @@
 (deftest put-get-clj-map
   (let [data {"foo" {"bar" [(rand-int 1000)]}}]
     (is (true? @(client/create *c* K _set data 100)))
-    (testing "clojure maps can be serialized as-is")
-    (let [v @(client/get-single-no-meta *c* K _set)]
-      (is (= data v)) ;; per value it is identical
-      (is (= clojure.lang.PersistentArrayMap (type v))))))
+    (testing "clojure maps can be serialized as-is"
+      (let [v @(client/get-single-no-meta *c* K _set)]
+        (is (= data v)) ;; per value it is identical
+        (is (= clojure.lang.PersistentArrayMap (type v)))))))
 
 (deftest put-multiple-bins-get-clj-map
   (let [data {"foo" {"bar" [(rand-int 1000)]}
