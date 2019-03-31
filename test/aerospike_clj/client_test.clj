@@ -112,7 +112,7 @@
     (testing "bin values can be added to existing records"
       (let [v @(client/get-single-no-meta *c* K _set)]
         (is (= v (merge data new-data)))
-        (is (= (contains? v "qux")))))
+        (is (= (into #{} (keys v)) #{"foo" "bar" "baz" "qux"}))))
     (testing "adding a bin that already exists in the record with a new value"
       (let [existing-bin {"foo" [(rand-int 1000)]}]
         (is (true? @(client/add-bins *c* K _set existing-bin 100)))
