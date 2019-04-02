@@ -173,32 +173,37 @@
     (map->multiple-bins data)
     (into-array Bin [^Bin (Bin. "" (utils/sanitize-bin-value data))])))
 
+(defn _get [db index set-name conf bin-names]
+  (let [client (get-client db index)
+        op-future (d/deferred)
+        start-time (System/nanoTime)]
+    (if (and (= [:all] bin-names)
+             (not (utils/single-bin? bin-names)))
+      ;; When [:all] is passed as an argument for bin-names and there is more than one bin,
+      ;; the `get` method does not require bin-names and the whole record is retrieved
+      (.get ^AerospikeClient client
+            ^EventLoop (.next ^NioEventLoops (:el db))
+            (reify-record-listener op-future)
+            ^Policy (:policy conf)
+            (create-key (:dbns db) set-name index))
+      ;; For all other cases, bin-names are passed to a different `get` method
+      (.get ^AerospikeClient client
+            ^EventLoop (.next ^NioEventLoops (:el db))
+            (reify-record-listener op-future)
+            ^Policy (:policy conf)
+            (create-key (:dbns db) set-name index)
+            ^"[Ljava.lang.String;" (into-array String bin-names)))
+    (let [d (d/chain' op-future
+                      record->map
+                      (:transcoder conf identity))]
+      (register-events d db "read" index start-time))))
+
 (defn get-single
   "Returns a single record: `(transcoder AerospikeRecord)`. The default transcoder is `identity`.
   Pass a `:policy` in `conf` to use a non-default `ReadPolicy`"
-  ([db index set-name] (get-single db index set-name {} [:all]))
-  ([db index set-name conf] (get-single db index set-name conf [:all]))
-  ([db index set-name conf ^IPersistentVector bin-names]
-   (let [client (get-client db index)
-         op-future (d/deferred)
-         start-time (System/nanoTime)]
-     (.get ^AerospikeClient client
-           ^EventLoop (.next ^NioEventLoops (:el db))
-           (reify-record-listener op-future)
-           ^Policy (:policy conf)
-           (create-key (:dbns db) set-name index)
-           ^"[Lcom.aerospike.client.Bin;" (if (= [:all] bin-names)
-                                            (if (utils/single-bin? bin-names)
-                                              bin-names
-                                              ;; 'nil' as the last value for .get invokes a different version of the
-                                              ;; method and retrieves all bins for multi-bin records
-                                              nil)
-                                            ;; if `bin-names` are provided, only returns those bins
-                                            (into-array String bin-names)))
-     (let [d (d/chain' op-future
-                       record->map
-                       (:transcoder conf identity))]
-       (register-events d db "read" index start-time)))))
+  ([db index set-name] (_get db index set-name {} [:all]))
+  ([db index set-name conf] (_get db index set-name conf [:all]))
+  ([db index set-name conf bin-names] (_get db index set-name conf bin-names)))
 
 (defn get-multiple
   "Returns a (future) sequence of AerospikeRecords returned by `get-single`
