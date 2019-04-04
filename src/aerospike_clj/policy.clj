@@ -24,7 +24,6 @@
         conf (merge {"timeoutDelay" 3000} conf)]
       (set-java-enum p conf "ReadModeAP")
       (set-java-enum p conf "ReadModeSC")
-      (set-java p conf "linearizeRead")
       (set-java p conf "maxRetries")
       (set-java-enum p conf "Priority")
       (set-java-enum p conf "Replica")
