@@ -10,7 +10,7 @@
   (:import [com.aerospike.client AerospikeException Value]
            [com.aerospike.client.cdt ListOperation ListPolicy ListOrder ListWriteFlags ListReturnType
             MapOperation MapPolicy MapOrder MapWriteFlags MapReturnType]
-           [com.aerospike.client.policy Priority ConsistencyLevel Replica AuthMode ClientPolicy GenerationPolicy
+           [com.aerospike.client.policy Priority ReadModeSC ReadModeAP Replica AuthMode ClientPolicy GenerationPolicy
                                         RecordExistsAction]
            [java.util HashMap]
            [com.fasterxml.jackson.databind ObjectMapper]))
@@ -366,7 +366,7 @@
 (deftest default-read-policy
   (let [rp (.getReadPolicyDefault (client/get-client *c*))]
     (is (= Priority/DEFAULT (.priority rp))) ;; Priority of request relative to other transactions. Currently, only used for scans.
-    (is (= ConsistencyLevel/CONSISTENCY_ONE (.consistencyLevel rp))) ;; Involve master only in the read operation.
+    (is (= ReadModeAP/ONE (.readModeAP rp))) ;; Involve single node in the read operation.
     (is (= Replica/SEQUENCE (.replica rp))) ;; Try node containing master partition first.
     ;; If connection fails, all commands try nodes containing replicated partitions.
     ;; If socketTimeout is reached, reads also try nodes containing replicated partitions,
@@ -378,13 +378,13 @@
     (is (= 2 (.maxRetries rp))) ;; initial attempt + 2 retries = 3 attempts
     (is (zero? (.sleepBetweenRetries rp))) ;; do not sleep between retries
     (is (false? (.sendKey rp))) ;; do not send the user defined key
-    (is (false? (.linearizeRead rp))))) ;; Force reads to be linearized for server namespaces that support strong consistency mode.
+    (is (= ReadModeSC/SESSION (.readModeSC rp))))) ;; Ensures this client will only see an increasing sequence of record versions. Server only reads from master. This is the default..
 
 (deftest configure-read-policy
   (let [c (client/init-simple-aerospike-client
             ["localhost"] "test"
-            {"readPolicyDefault" (policy/map->policy {"ConsistencyLevel" "CONSISTENCY_ALL"
-                                                      "linearizeRead" true
+            {"readPolicyDefault" (policy/map->policy {"ReadModeAP" "ALL"
+                                                      "ReadModeSC" "LINEARIZE"
                                                       "maxRetries" 1
                                                       "Replica" "RANDOM"
                                                       "sendKey" true
@@ -394,7 +394,7 @@
                                                       "totalTimeout" 3000})})
         rp (.getReadPolicyDefault (client/get-client c))]
     (is (= Priority/DEFAULT (.priority rp)))
-    (is (= ConsistencyLevel/CONSISTENCY_ALL (.consistencyLevel rp)))
+    (is (= ReadModeAP/ALL (.readModeAP rp)))
     (is (= Replica/RANDOM (.replica rp)))
     (is (= 1000 (.socketTimeout rp)))
     (is (= 3000 (.totalTimeout rp)))
@@ -402,12 +402,12 @@
     (is (= 1 (.maxRetries rp)))
     (is (= 100 (.sleepBetweenRetries rp)))
     (is (true? (.sendKey rp)))
-    (is (true? (.linearizeRead rp)))))
+    (is (= ReadModeSC/LINEARIZE (.readModeSC rp)))))
 
 (deftest default-write-policy
   (let [rp (.getWritePolicyDefault (client/get-client *c*))]
     (is (= Priority/DEFAULT (.priority rp))) ;; Priority of request relative to other transactions. Currently, only used for scans.
-    (is (= ConsistencyLevel/CONSISTENCY_ONE (.consistencyLevel rp))) ;; Involve master only in the read operation.
+    (is (= ReadModeAP/ONE (.readModeAP rp))) ;; Involve master only in the read operation.
     (is (= Replica/SEQUENCE (.replica rp))) ;; Try node containing master partition first.
     ;; If connection fails, all commands try nodes containing replicated partitions.
     ;; If socketTimeout is reached, reads also try nodes containing replicated partitions,
@@ -419,7 +419,7 @@
     (is (= 2 (.maxRetries rp))) ;; initial attempt + 2 retries = 3 attempts
     (is (zero? (.sleepBetweenRetries rp))) ;; do not sleep between retries
     (is (false? (.sendKey rp))) ;; do not send the user defined key
-    (is (false? (.linearizeRead rp))))) ;; Force reads to be linearized for server namespaces that support strong consistency mode.
+    (is (= ReadModeSC/SESSION (.readModeSC rp))))) ;; Ensures this client will only see an increasing sequence of record versions. Server only reads from master. This is the default..
 
 (deftest configure-write-policy
   (let [c (client/init-simple-aerospike-client
@@ -434,7 +434,7 @@
 
         wp (.getWritePolicyDefault (client/get-client c))]
     (is (= Priority/DEFAULT (.priority wp)))
-    (is (= ConsistencyLevel/CONSISTENCY_ONE (.consistencyLevel wp)))
+    (is (= ReadModeAP/ONE (.readModeAP wp)))
     (is (true? (.durableDelete wp)))
     (is (= 1000 (.expiration wp)))
     (is (= 7 (.generation wp)))
