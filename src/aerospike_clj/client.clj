@@ -234,7 +234,7 @@
   "Shorthand to return a single record payload only."
   ([db index set-name] (get-single db index set-name {:transcoder :payload}))
   ([db index set-name ^IPersistentVector bin-names]
-    (get-single db index set-name {:transcoder :payload} bin-names)))
+   (get-single db index set-name {:transcoder :payload} bin-names)))
 
 ;; put
 (defn- _put [db index data policy set-name]
