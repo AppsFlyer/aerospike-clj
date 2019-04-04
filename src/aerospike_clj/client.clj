@@ -7,13 +7,16 @@
   (:import [com.aerospike.client AerospikeClient Host Key Bin Record AerospikeException Operation]
            [com.aerospike.client.async EventLoop NioEventLoops]
            [com.aerospike.client.listener RecordListener WriteListener DeleteListener ExistsListener]
-           [com.aerospike.client.policy Policy ClientPolicy RecordExistsAction]))
+           [com.aerospike.client.policy Policy ClientPolicy RecordExistsAction]
+           (clojure.lang IPersistentMap IPersistentVector)))
 
 (def EPOCH
   ^{:doc "The 0 date reference for returned record TTL"}
   (.getEpochSecond (java.time.Instant/parse "2010-01-01T00:00:00Z")))
 
 (def MAX_KEY_LENGTH (dec (bit-shift-left 1 13)))
+
+(def MAX_BIN_NAME_LENGTH 14)
 
 (defprotocol IAerospikeClient
   (get-client [ac] [ac index] "Returns the relevant AerospikeClient object for the specific shard")
@@ -121,33 +124,86 @@
     (throw (Exception. (format "key is too long: %s..." (subs k 0 40)))))
   (Key. aero-namespace set-name k))
 
+(defn- ^Bin create-bin [^String bin-name bin-value]
+  (when (< MAX_BIN_NAME_LENGTH (.length bin-name))
+    (throw (Exception. (format "%s is %s characters. Bin names have to be <= 14 characters..." bin-name (.length bin-name)))))
+  (Bin. bin-name bin-value))
+
+(defn- ^Bin set-bin-as-null [^String bin-name]
+  (when (< MAX_BIN_NAME_LENGTH (.length bin-name))
+    (throw (Exception. (format "%s is %s characters. Bin names have to be <= 14 characters..." bin-name (.length bin-name)))))
+  (Bin/asNull bin-name))
+
 ;; get
 (defrecord AerospikeRecord [payload ^Integer gen ^Integer ttl])
 
 (defn- record->map [^Record record]
   (and record
-       (->AerospikeRecord
-         (get (.bins ^Record record) "")
-         ^Integer (.generation ^Record record)
-         ^Integer (.expiration ^Record record))))
+    (let [bins      (into {} (.bins ^Record record)) ;; converting from java.util.HashMap to a Clojure map
+          bin-names (keys bins)]
+      (->AerospikeRecord
+        (if (utils/single-bin? bin-names)
+          ;; single bin record
+          (utils/desanitize-bin-value (get bins ""))
+          ;; multiple-bin record
+          (reduce-kv (fn [m k v]
+                       (assoc m k (utils/desanitize-bin-value v)))
+            {}
+            bins))
+        ^Integer (.generation ^Record record)
+        ^Integer (.expiration ^Record record)))))
+
+(def ^:private x-bin-convert
+  (comp
+    (map (fn [[k v]] [k (utils/sanitize-bin-value v)]))
+    (map (fn [[k v]] (create-bin k v)))))
+
+(defn- map->multiple-bins [^IPersistentMap m]
+  (let [bin-names  (keys m)]
+    (if (utils/string-keys? bin-names)
+      (->> (into [] x-bin-convert m)
+           (into-array Bin))
+      (throw (Exception. (format "Aerospike only accepts string values as bin names. Please ensure all keys in the map are strings."))))))
+
+(defn- data->bins
+  "Function to identify whether `data` will be stored as a single or multiple bin record.
+  Only Clojure maps will default to multiple bins. Nested data structures are supported."
+  [data]
+  (if (map? data)
+    (map->multiple-bins data)
+    (into-array Bin [^Bin (Bin. "" (utils/sanitize-bin-value data))])))
+
+(defn _get [db index set-name conf bin-names]
+  (let [client (get-client db index)
+        op-future (d/deferred)
+        start-time (System/nanoTime)]
+    (if (and (= [:all] bin-names)
+             (not (utils/single-bin? bin-names)))
+      ;; When [:all] is passed as an argument for bin-names and there is more than one bin,
+      ;; the `get` method does not require bin-names and the whole record is retrieved
+      (.get ^AerospikeClient client
+            ^EventLoop (.next ^NioEventLoops (:el db))
+            (reify-record-listener op-future)
+            ^Policy (:policy conf)
+            (create-key (:dbns db) set-name index))
+      ;; For all other cases, bin-names are passed to a different `get` method
+      (.get ^AerospikeClient client
+            ^EventLoop (.next ^NioEventLoops (:el db))
+            (reify-record-listener op-future)
+            ^Policy (:policy conf)
+            (create-key (:dbns db) set-name index)
+            ^"[Ljava.lang.String;" (into-array String bin-names)))
+    (let [d (d/chain' op-future
+                      record->map
+                      (:transcoder conf identity))]
+      (register-events d db "read" index start-time))))
 
 (defn get-single
   "Returns a single record: `(transcoder AerospikeRecord)`. The default transcoder is `identity`.
   Pass a `:policy` in `conf` to use a non-default `ReadPolicy`"
-  ([db index set-name] (get-single db index set-name {}))
-  ([db index set-name conf]
-   (let [client (get-client db index)
-         op-future (d/deferred)
-         start-time (System/nanoTime)]
-     (.get ^AerospikeClient client
-           ^EventLoop (.next ^NioEventLoops (:el db))
-           (reify-record-listener op-future)
-           ^Policy (:policy conf)
-           (create-key (:dbns db) set-name index))
-     (let [d (d/chain' op-future
-                       record->map
-                       (:transcoder conf identity))]
-       (register-events d db "read" index start-time)))))
+  ([db index set-name] (_get db index set-name {} [:all]))
+  ([db index set-name conf] (_get db index set-name conf [:all]))
+  ([db index set-name conf bin-names] (_get db index set-name conf bin-names)))
 
 (defn get-multiple
   "Returns a (future) sequence of AerospikeRecords returned by `get-single`
@@ -176,13 +232,14 @@
 
 (defn get-single-no-meta
   "Shorthand to return a single record payload only."
-  [db index set-name]
-  (get-single db index set-name {:transcoder :payload}))
+  ([db index set-name] (get-single db index set-name {:transcoder :payload}))
+  ([db index set-name ^IPersistentVector bin-names]
+    (get-single db index set-name {:transcoder :payload} bin-names)))
 
 ;; put
 (defn- _put [db index data policy set-name]
   (let [client (get-client db index)
-        bins (into-array Bin [^Bin (Bin. "" data)])
+        bins (data->bins data)
         op-future (d/deferred)
         start-time (System/nanoTime)]
     (.put ^AerospikeClient client
@@ -197,7 +254,10 @@
   "Writes `data` into a record with the key `index`, with the ttl of `expiration` seconds.
   `index` should be string. Pass a function in `(:trascoder conf)` to modify `data` before it
   is sent to the DB.
-  Pass a `WritePolicy` in `(:policy conf)` to uses the non-default policy."
+  Pass a `WritePolicy` in `(:policy conf)` to uses the non-default policy.
+  When a Clojure map is provided for the `data` argument, a multiple bin record will be created.
+  Each key-value pair in the map will be treated as a bin-name, bin-value pair. Bin-names must be
+  strings. Bin-values can be any nested data structure."
   ([db index set-name data expiration] (put db index set-name data expiration {}))
   ([db index set-name data expiration conf]
    (_put db
@@ -253,6 +313,18 @@
          (policy/update-policy (get-client db) generation new-expiration)
          set-name)))
 
+(defn add-bins
+  "Add bins to an existing record without modifying old data. The `new-data` must be a
+  Clojure map."
+  ([db index set-name ^IPersistentMap new-data new-expiration]
+   (add-bins db index set-name new-data new-expiration {}))
+  ([db index set-name ^IPersistentMap new-data new-expiration conf]
+   (_put db
+         index
+         ((:transcoder conf identity) new-data)
+         (policy/update-only-policy (get-client db) new-expiration)
+         set-name)))
+
 (defn touch
   "Updates the ttl of the record stored under at `index` to `expiration` seconds from now.
   Expects records to exist."
@@ -285,6 +357,29 @@
               (create-key (:dbns db) set-name index))
      (register-events op-future db "delete" index start-time))))
 
+(defn- _delete-bins [db index bin-names policy set-name]
+  (let [client (get-client db index)
+        op-future (d/deferred)
+        start-time (System/nanoTime)]
+    (.put ^AerospikeClient client
+          ^EventLoop (.next ^NioEventLoops (:el db))
+          ^WriteListener (reify-write-listener op-future)
+          ^WritePolicy policy
+          (create-key (:dbns db) set-name index)
+          ^"[Lcom.aerospike.client.Bin;" (into-array Bin (mapv set-bin-as-null bin-names)))
+    (register-events op-future db "write" index start-time)))
+
+(defn delete-bins
+  "Delete bins from an existing record. The `bin-names` must be a vector of strings."
+  ([db index set-name ^IPersistentVector bin-names new-expiration]
+   (delete-bins db index set-name bin-names new-expiration {}))
+  ([db index set-name ^IPersistentVector bin-names new-expiration conf]
+   (_delete-bins db
+                 index
+                 ((:transcoder conf identity) bin-names)
+                 (policy/update-only-policy (get-client db) new-expiration)
+                 set-name)))
+
 ;; operate
 
 (defn operate
@@ -301,7 +396,7 @@
            op-future (d/deferred)
            start-time (System/nanoTime)]
        (.operate ^AerospikeClient client
-                 ^EventLoop (.next^NioEventLoops (:el db))
+                 ^EventLoop (.next ^NioEventLoops (:el db))
                  ^RecordListener (reify-record-listener op-future)
                  ^WritePolicy (:policy conf (policy/write-policy client expiration RecordExistsAction/UPDATE))
                  (create-key (:dbns db) set-name index)
