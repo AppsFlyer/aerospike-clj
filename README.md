@@ -2,7 +2,7 @@
 
 An opinionated Clojure library wrapping Aerospike Java Client.
 
-![](https://clojars.org/aerospike-clj/latest-version.svg)
+[![Clojars Project](https://img.shields.io/clojars/v/aerospike-clj.svg)](https://clojars.org/aerospike-clj)
 
 [![Build Status](https://travis-ci.com/AppsFlyer/aerospike-clj.svg?branch=master)](https://travis-ci.com/AppsFlyer/aerospike-clj)
 
@@ -23,6 +23,10 @@ An opinionated Clojure library wrapping Aerospike Java Client.
 - Expose passing functional transcoders over payloads (both put/get).
 - Health-check utility.
 - Functions return Clojure records.
+
+# Maturity:
+- Feature completeness: mostly.
+- Stability: production ready. We actively use this library in production.
 
 # Opinionated:
 - Non blocking only: Expose only the non-blocking API. Block with `deref` if you like.
