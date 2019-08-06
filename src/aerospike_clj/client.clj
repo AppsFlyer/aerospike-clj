@@ -226,6 +226,11 @@
       (BatchRead. k ^"[Ljava.lang.String;" (into-array String (:bins brm))))))
 
 (defn get-batch
+  "Get a batch of records from the cluster asynchronously. `batch-reads` is a collection of maps
+  of the form `{:index \"foo\" :set \"someset\" :bins [...]}` the `:bins` key can have required
+  bins for the batched keys or missing/[:all] to get all the bins (see `_get`). The result is a
+  vector of `AerospikeRecord`s in the same order of keys. Missing keys result in `nil` in corresponding
+  positions."
   ([db batch-reads]
    (get-batch db batch-reads {}))
   ([db batch-reads conf]
