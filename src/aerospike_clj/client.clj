@@ -161,10 +161,10 @@
         ^Integer (.generation ^Record record)
         ^Integer (.expiration ^Record record)))))
 
-(defn- batch-read->map [^BatchRead br]
-  (assoc (record->map (.record br))
+(defn- batch-read->map [^BatchRead batch-read]
+  (assoc (record->map (.record batch-read))
          :index
-         (.toString (.userKey (.key br)))))
+         (.toString (.userKey (.key batch-read)))))
 
 (def ^:private x-bin-convert
   (comp
@@ -218,12 +218,12 @@
   ([db index set-name conf] (_get db index set-name conf [:all]))
   ([db index set-name conf bin-names] (_get db index set-name conf bin-names)))
 
-(defn- ^BatchRead map->batch-read [brm dbns]
-  (let [k (create-key dbns (:set brm) (:index brm))]
-    (if (or (= [:all] (:bins brm))
-            (nil? (:bins brm)))
+(defn- ^BatchRead map->batch-read [batc-read-map dbns]
+  (let [k (create-key dbns (:set batc-read-map) (:index batc-read-map))]
+    (if (or (= [:all] (:bins batc-read-map))
+            (nil? (:bins batc-read-map)))
       (BatchRead. k true)
-      (BatchRead. k ^"[Ljava.lang.String;" (into-array String (:bins brm))))))
+      (BatchRead. k ^"[Ljava.lang.String;" (into-array String (:bins batc-read-map))))))
 
 (defn get-batch
   "Get a batch of records from the cluster asynchronously. `batch-reads` is a collection of maps
@@ -237,12 +237,12 @@
    (let [client (get-client db (:index (first batch-reads)))
          op-future (d/deferred)
          start-time (System/nanoTime)
-         brs (ArrayList. ^Collection (mapv #(map->batch-read % (:dbns db)) batch-reads))]
+         batch-reads-arr (ArrayList. ^Collection (mapv #(map->batch-read % (:dbns db)) batch-reads))]
      (.get ^AerospikeClient client
            ^EventLoop (.next ^NioEventLoops (:el db))
            (reify-record-batch-list-listener op-future)
            ^BatchPolicy (:policy conf)
-           ^List brs)
+           ^List batch-reads-arr)
      (let [d (d/chain' op-future
                       #(mapv batch-read->map %)
                       (:transcoder conf identity))]
