@@ -6,8 +6,7 @@ An opinionated Clojure library wrapping Aerospike Java Client.
 
 [![Build Status](https://travis-ci.com/AppsFlyer/aerospike-clj.svg?branch=master)](https://travis-ci.com/AppsFlyer/aerospike-clj)
 
-<!-- [![codecov](https://codecov.io/gh/USERNAME/PROJECT-NAME/branch/master/graph/badge.svg)]
- (https://codecov.io/gh/USERNAME/PROJECT-NAME) -->
+[![Coverage Status](https://coveralls.io/repos/github/AppsFlyer/aerospike-clj/badge.svg?branch=master)](https://coveralls.io/github/AppsFlyer/aerospike-clj?branch=master)
 
 # Docs:
 [Generated docs](https://appsflyer.github.io/aerospike-clj/)

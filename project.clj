@@ -10,7 +10,8 @@
   :codox {:output-path "codox"
           :source-uri "http://github.com/AppsFlyer/aerospike-clj/blob/{version}/{filepath}#L{line}"
           :metadata {:doc/format :markdown}}
-  :profiles {:dev {:plugins [[jonase/eastwood "0.3.5"]]
+  :profiles {:dev {:plugins [[jonase/eastwood "0.3.5"]
+                             [lein-cloverage "1.1.1"]]
                    :dependencies [[org.clojure/clojure "1.10.1"]
                                   [criterium "0.4.5"]
                                   [cheshire "5.8.1"]
