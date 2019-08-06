@@ -1,11 +1,11 @@
 (ns aerospike-clj.policy
   (:import [com.aerospike.client AerospikeClient]
            [com.aerospike.client.async EventPolicy]
-           [com.aerospike.client.policy Policy ClientPolicy WritePolicy RecordExistsAction GenerationPolicy CommitLevel
+           [com.aerospike.client.policy Policy ClientPolicy WritePolicy RecordExistsAction GenerationPolicy BatchPolicy CommitLevel
                                         AuthMode ReadModeAP ReadModeSC Priority Replica]))
 
 (defmacro set-java [obj conf obj-name]
-  `(when (get ~conf ~obj-name)
+  `(when (some? (get ~conf ~obj-name))
      (set! (. ~obj ~(symbol obj-name)) (get ~conf ~obj-name))))
 
 (defn lowercase-first [s]
@@ -33,6 +33,17 @@
       (set-java p conf "timeoutDelay")
       (set-java p conf "totalTimeout")
       p))
+
+(defn ^BatchPolicy map->batch-policy
+  "Create a (read) `BatchPolicy` from a map.
+  This function is slow due to possible reflection."
+  [conf]
+  (let [bp (BatchPolicy.)
+        conf (merge {"timeoutDelay" 3000} conf)]
+      (set-java bp conf "allowInline")
+      (set-java bp conf "maxConcurrentThreads")
+      (set-java bp conf "sendSetName")
+      bp))
 
 (defn ^WritePolicy map->write-policy
   "Create a `WritePolicy` from a map. Keys are strings identical to field names
@@ -111,8 +122,6 @@
       ep)))
 
 (defn ^ClientPolicy create-client-policy [event-loops conf]
-  (when (get "batchPolicyDefault" conf)
-    (throw (IllegalArgumentException. "batchPolicyDefault is not supported")))
   (when (get "infoPolicyDefault" conf)
     (throw (IllegalArgumentException. "infoPolicyDefault is not supported")))
   (when (get "queryPolicyDefault" conf)
@@ -133,6 +142,7 @@
     (set! (.eventLoops cp) event-loops)
     (set! (.readPolicyDefault cp) (get conf "readPolicyDefault" (map->policy conf)))
     (set! (.writePolicyDefault cp) (get conf "writePolicyDefault" (map->write-policy conf)))
+    (set! (.batchPolicyDefault cp) (get conf "batchPolicyDefault" (map->batch-policy conf)))
     (set-java-enum cp conf "AuthMode")
     (set-java cp conf "clusterName")
     (set-java cp conf "connPoolsPerNode")

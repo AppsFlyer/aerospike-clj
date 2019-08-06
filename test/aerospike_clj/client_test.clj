@@ -17,13 +17,16 @@
 
 (def K "k")
 (def K2 "k2")
+(def K3 "k3")
 (def K_not_exists "k_not_exists")
 (def _set "set")
+(def _set2 "set2")
 (def ^:dynamic *c* nil)
 
 (defn- test-fixture [f]
-  @(client/delete *c* K _set)
-  @(client/delete *c* K2 _set)
+  (doseq [k [K K2 K3 K_not_exists]
+          s [_set _set2]]
+    @(client/delete *c* k s))
   (f))
 
 (defn db-connection [f]
@@ -63,6 +66,22 @@
     (is (true? @(client/create *c* K _set data 100)))
     (is (= data @(client/get-single-no-meta *c* K _set)))))
 
+(deftest get-batch
+  (let [data (rand-int 1000)
+        data2 (rand-int 1000)
+        data3 (rand-int 1000)]
+    (is (true? @(client/create *c* K _set data 100)))
+    (is (true? @(client/create *c* K2 _set2 data2 100)))
+    (is (true? @(client/create *c* K3 _set data3 100)))
+    (let [brs [{:index K :set _set}
+               {:index K2 :set _set2}
+               {:index K2 :set _set}
+               {:index K3 :set _set}
+               {:index K_not_exists :set _set}]
+          res @(client/get-batch *c* brs)]
+      (is (= [data data2 nil data3 nil] (mapv :payload res)))
+      (is (= [1 1 nil 1 nil] (mapv :gen res))))))
+
 (deftest put-get-clj-map
   (let [data {"foo" {"bar" [(rand-int 1000)]}}]
     (is (true? @(client/create *c* K _set data 100)))
@@ -101,6 +120,20 @@
         (is (= (get data "baz") (get (:payload v3) "baz")))
         (is (= data (:payload v4)))
         (is (true? (map? (:payload v1))))))))
+
+(deftest get-batch-multiple-bins
+  (let [data {"foo"  [(rand-int 1000)]
+              "bar"  [(rand-int 1000)]
+              "baz" [(rand-int 1000)]}]
+    (is (true? @(client/create *c* K _set data 100)))
+    (is (true? @(client/create *c* K2 _set data 100)))
+    (let [brs [{:index K :set _set :bins [:all]}
+               {:index K :set _set}
+               {:index K2 :set _set :bins ["bar"]}
+               {:index K_not_exists :set _set}]
+          res @(client/get-batch *c* brs)]
+      (is (= [data data (select-keys data ["bar"]) nil] (mapv :payload res)))
+      (is (= [1 1 1 nil] (mapv :gen res))))))
 
 (deftest adding-bins-to-record
   (let [data {"foo" [(rand-int 1000)]
@@ -380,7 +413,7 @@
     (is (false? (.sendKey rp))) ;; do not send the user defined key
     (is (= ReadModeSC/SESSION (.readModeSC rp))))) ;; Ensures this client will only see an increasing sequence of record versions. Server only reads from master. This is the default..
 
-(deftest configure-read-policy
+(deftest configure-read-and-batch-policy
   (let [c (client/init-simple-aerospike-client
             ["localhost"] "test"
             {"readPolicyDefault" (policy/map->policy {"ReadModeAP" "ALL"
@@ -391,8 +424,14 @@
                                                       "sleepBetweenRetries" 100
                                                       "socketTimeout" 1000
                                                       "timeoutDelay" 2000
-                                                      "totalTimeout" 3000})})
-        rp (.getReadPolicyDefault (client/get-client c))]
+                                                      "totalTimeout" 3000})
+             "batchPolicyDefault" (policy/map->batch-policy {"allowInline" false
+                                                             "maxConcurrentThreads" 2
+                                                             "sendSetName" true})})
+                                                             
+                                                              
+        rp (.getReadPolicyDefault (client/get-client c))
+        bp (.getBatchPolicyDefault (client/get-client c))]
     (is (= Priority/DEFAULT (.priority rp)))
     (is (= ReadModeAP/ALL (.readModeAP rp)))
     (is (= Replica/RANDOM (.replica rp)))
@@ -402,7 +441,11 @@
     (is (= 1 (.maxRetries rp)))
     (is (= 100 (.sleepBetweenRetries rp)))
     (is (true? (.sendKey rp)))
-    (is (= ReadModeSC/LINEARIZE (.readModeSC rp)))))
+    (is (= ReadModeSC/LINEARIZE (.readModeSC rp)))
+
+    (is (false? (.allowInline bp)))
+    (is (= 2 (.maxConcurrentThreads bp)))
+    (is (true? (.sendSetName bp)))))
 
 (deftest default-write-policy
   (let [rp (.getWritePolicyDefault (client/get-client *c*))]

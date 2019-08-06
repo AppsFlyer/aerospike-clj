@@ -6,6 +6,9 @@ An opinionated Clojure library wrapping Aerospike Java Client.
 
 [![Build Status](https://travis-ci.com/AppsFlyer/aerospike-clj.svg?branch=master)](https://travis-ci.com/AppsFlyer/aerospike-clj)
 
+<!-- [![codecov](https://codecov.io/gh/USERNAME/PROJECT-NAME/branch/master/graph/badge.svg)]
+ (https://codecov.io/gh/USERNAME/PROJECT-NAME) -->
+
 # Docs:
 [Generated docs](https://appsflyer.github.io/aerospike-clj/)
 ## Tutorial:
@@ -31,18 +34,19 @@ An opinionated Clojure library wrapping Aerospike Java Client.
 # Opinionated:
 - Non blocking only: Expose only the non-blocking API. Block with `deref` if you like.
 - Futures instead of callbacks. Futures (and functional chaining) are more composable and less cluttered.
-If a synchronous behaviour is still desired, the calling code can still deref (`@`) the returned future object. For a more sophisticated coordination, a variety of control mechanism is supplied by [manifold/deferred](https://github.com/ztellman/manifold/blob/master/docs/deferred.md), or via the library using [transcoders](https://appsflyer.github.io/aerospike-clj/index.html) or [hooks](https://appsflyer.github.io/aerospike-clj/advanced-async-hooks.html).
+If a synchronous behaviour is still desired, the calling code can still deref (`@`) the returned future object. For a more sophisticated coordination, a variety of control mechanisms are supplied by [manifold/deferred](https://github.com/ztellman/manifold/blob/master/docs/deferred.md), or via the library using [transcoders](https://appsflyer.github.io/aerospike-clj/index.html) or [hooks](https://appsflyer.github.io/aerospike-clj/advanced-async-hooks.html).
 - Follows the method names of the underlying Java APIs.
 - TTLs should be explicit, and developers should think about them. Forces passing a ttl and not use the cluster default.
 - Minimal dependencies.
-- Single client per Aerospike namespace.
+- Single client per Aerospike namespace. Namespaces in Aerospike usually indicate different cluster configurations. In order to reduce overhead for clusters with more than a single namespace create 2 client objects and share an event loop between them.
 
 # Limitations/ caveats
 - Currently supports only single bin records.
-- Does not expose batch/scan operations. Batch reads/writes are supported via `get-multiple`/`put-multiple`.
+- Does not expose batch/scan operations. Batch writes are supported via `put-multiple`.
 
 # TBD
-- Support batch asynchronous APIs.
+- ~~Support batch asynchronous APIs.~~
+- Support batch put asynchronous API.
 
 ## Usage:
 #### Most of the time just create a simple client (single cluster)

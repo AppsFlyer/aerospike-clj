@@ -4,11 +4,12 @@
             [aerospike-clj.utils :as utils]
             [aerospike-clj.metrics :as metrics]
             [manifold.deferred :as d])
-  (:import [com.aerospike.client AerospikeClient Host Key Bin Record AerospikeException Operation]
+  (:import [com.aerospike.client AerospikeClient Host Key Bin Record AerospikeException Operation BatchRead]
            [com.aerospike.client.async EventLoop NioEventLoops]
-           [com.aerospike.client.listener RecordListener WriteListener DeleteListener ExistsListener]
-           [com.aerospike.client.policy Policy ClientPolicy RecordExistsAction]
-           (clojure.lang IPersistentMap IPersistentVector)))
+           [com.aerospike.client.listener RecordListener WriteListener DeleteListener ExistsListener BatchListListener]
+           [com.aerospike.client.policy Policy BatchPolicy ClientPolicy RecordExistsAction]
+           [clojure.lang IPersistentMap IPersistentVector]
+           [java.util List Collection ArrayList]))
 
 (def EPOCH
   ^{:doc "The 0 date reference for returned record TTL"}
@@ -68,7 +69,7 @@
   (println ";; Stopping aerospike clients")
   (doseq [^AerospikeClient client (get-all-clients db)]
     (.close client))
-  (.close (:el db)))
+  (.close ^NioEventLoops (:el db)))
 
 ;; listeners
 (defprotocol ClientEvents
@@ -119,6 +120,13 @@
     (^void onSuccess [this ^Key k ^Record record]
       (d/success! op-future record))))
 
+(defn- ^BatchListListener reify-record-batch-list-listener [op-future]
+  (reify BatchListListener
+    (^void onFailure [this ^AerospikeException ex]
+      (d/error! op-future ex))
+    (^void onSuccess [this ^List records]
+      (d/success! op-future records))))
+
 (defn- ^Key create-key [^String aero-namespace ^String set-name ^String k]
   (when (< MAX_KEY_LENGTH (.length k))
     (throw (Exception. (format "key is too long: %s..." (subs k 0 40)))))
@@ -139,7 +147,7 @@
 
 (defn- record->map [^Record record]
   (and record
-    (let [bins      (into {} (.bins ^Record record)) ;; converting from java.util.HashMap to a Clojure map
+    (let [bins      (into {} (.bins record)) ;; converting from java.util.HashMap to a Clojure map
           bin-names (keys bins)]
       (->AerospikeRecord
         (if (utils/single-bin? bin-names)
@@ -152,6 +160,11 @@
             bins))
         ^Integer (.generation ^Record record)
         ^Integer (.expiration ^Record record)))))
+
+(defn- batch-read->map [^BatchRead br]
+  (assoc (record->map (.record br))
+         :index
+         (.toString (.userKey (.key br)))))
 
 (def ^:private x-bin-convert
   (comp
@@ -205,10 +218,39 @@
   ([db index set-name conf] (_get db index set-name conf [:all]))
   ([db index set-name conf bin-names] (_get db index set-name conf bin-names)))
 
+(defn- ^BatchRead map->batch-read [brm dbns]
+  (let [k (create-key dbns (:set brm) (:index brm))]
+    (if (or (= [:all] (:bins brm))
+            (nil? (:bins brm)))
+      (BatchRead. k true)
+      (BatchRead. k ^"[Ljava.lang.String;" (into-array String (:bins brm))))))
+
+(defn get-batch
+  ([db batch-reads]
+   (get-batch db batch-reads {}))
+  ([db batch-reads conf]
+   (let [client (get-client db (:index (first batch-reads)))
+         op-future (d/deferred)
+         start-time (System/nanoTime)
+         brs (ArrayList. ^Collection (mapv #(map->batch-read % (:dbns db)) batch-reads))]
+     (.get ^AerospikeClient client
+           ^EventLoop (.next ^NioEventLoops (:el db))
+           (reify-record-batch-list-listener op-future)
+           ^BatchPolicy (:policy conf)
+           ^List brs)
+     (let [d (d/chain' op-future
+                      #(mapv batch-read->map %)
+                      (:transcoder conf identity))]
+      (register-events d db "read-batch" nil start-time)))))
+       
+
 (defn get-multiple
-  "Returns a (future) sequence of AerospikeRecords returned by `get-single`
+  "DEPRECATED - use `get-batch` instead.
+
+  Returns a (future) sequence of AerospikeRecords returned by `get-single`
   with records in corresponding places to the required keys. Indices and sets should be sequences.
   The `conf` map is passed to all `get-single` invocations."
+  {:deprecated "0.3.2"}
   ([db indices sets]
    (get-multiple db indices sets {}))
   ([db indices sets conf]
