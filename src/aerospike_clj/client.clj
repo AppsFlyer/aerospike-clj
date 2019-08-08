@@ -4,11 +4,12 @@
             [aerospike-clj.utils :as utils]
             [aerospike-clj.metrics :as metrics]
             [manifold.deferred :as d])
-  (:import [com.aerospike.client AerospikeClient Host Key Bin Record AerospikeException Operation]
+  (:import [com.aerospike.client AerospikeClient Host Key Bin Record AerospikeException Operation BatchRead]
            [com.aerospike.client.async EventLoop NioEventLoops]
-           [com.aerospike.client.listener RecordListener WriteListener DeleteListener ExistsListener]
-           [com.aerospike.client.policy Policy ClientPolicy RecordExistsAction]
-           (clojure.lang IPersistentMap IPersistentVector)))
+           [com.aerospike.client.listener RecordListener WriteListener DeleteListener ExistsListener BatchListListener]
+           [com.aerospike.client.policy Policy BatchPolicy ClientPolicy RecordExistsAction]
+           [clojure.lang IPersistentMap IPersistentVector]
+           [java.util List Collection ArrayList]))
 
 (def EPOCH
   ^{:doc "The 0 date reference for returned record TTL"}
@@ -68,7 +69,7 @@
   (println ";; Stopping aerospike clients")
   (doseq [^AerospikeClient client (get-all-clients db)]
     (.close client))
-  (.close (:el db)))
+  (.close ^NioEventLoops (:el db)))
 
 ;; listeners
 (defprotocol ClientEvents
@@ -119,6 +120,13 @@
     (^void onSuccess [this ^Key k ^Record record]
       (d/success! op-future record))))
 
+(defn- ^BatchListListener reify-record-batch-list-listener [op-future]
+  (reify BatchListListener
+    (^void onFailure [this ^AerospikeException ex]
+      (d/error! op-future ex))
+    (^void onSuccess [this ^List records]
+      (d/success! op-future records))))
+
 (defn- ^Key create-key [^String aero-namespace ^String set-name ^String k]
   (when (< MAX_KEY_LENGTH (.length k))
     (throw (Exception. (format "key is too long: %s..." (subs k 0 40)))))
@@ -139,7 +147,7 @@
 
 (defn- record->map [^Record record]
   (and record
-    (let [bins      (into {} (.bins ^Record record)) ;; converting from java.util.HashMap to a Clojure map
+    (let [bins      (into {} (.bins record)) ;; converting from java.util.HashMap to a Clojure map
           bin-names (keys bins)]
       (->AerospikeRecord
         (if (utils/single-bin? bin-names)
@@ -153,6 +161,11 @@
         ^Integer (.generation ^Record record)
         ^Integer (.expiration ^Record record)))))
 
+(defn- batch-read->map [^BatchRead batch-read]
+  (assoc (record->map (.record batch-read))
+         :index
+         (.toString (.userKey (.key batch-read)))))
+
 (def ^:private x-bin-convert
   (comp
     (map (fn [[k v]] [k (utils/sanitize-bin-value v)]))
@@ -162,7 +175,7 @@
   (let [bin-names  (keys m)]
     (if (utils/string-keys? bin-names)
       (->> (into [] x-bin-convert m)
-           (into-array Bin))
+           (utils/v->array Bin))
       (throw (Exception. (format "Aerospike only accepts string values as bin names. Please ensure all keys in the map are strings."))))))
 
 (defn- data->bins
@@ -171,7 +184,7 @@
   [data]
   (if (map? data)
     (map->multiple-bins data)
-    (into-array Bin [^Bin (Bin. "" (utils/sanitize-bin-value data))])))
+    (utils/v->array Bin [^Bin (Bin. "" (utils/sanitize-bin-value data))])))
 
 (defn _get [db index set-name conf bin-names]
   (let [client (get-client db index)
@@ -192,7 +205,7 @@
             (reify-record-listener op-future)
             ^Policy (:policy conf)
             (create-key (:dbns db) set-name index)
-            ^"[Ljava.lang.String;" (into-array String bin-names)))
+            ^"[Ljava.lang.String;" (utils/v->array String bin-names)))
     (let [d (d/chain' op-future
                       record->map
                       (:transcoder conf identity))]
@@ -205,10 +218,44 @@
   ([db index set-name conf] (_get db index set-name conf [:all]))
   ([db index set-name conf bin-names] (_get db index set-name conf bin-names)))
 
+(defn- ^BatchRead map->batch-read [batch-read-map dbns]
+  (let [k (create-key dbns (:set batch-read-map) (:index batch-read-map))]
+    (if (or (= [:all] (:bins batch-read-map))
+            (nil? (:bins batch-read-map)))
+      (BatchRead. k true)
+      (BatchRead. k ^"[Ljava.lang.String;" (utils/v->array String (:bins batch-read-map))))))
+
+(defn get-batch
+  "Get a batch of records from the cluster asynchronously. `batch-reads` is a collection of maps
+  of the form `{:index \"foo\" :set \"someset\" :bins [...]}` the `:bins` key can have required
+  bins for the batched keys or missing/[:all] to get all the bins (see `_get`). The result is a
+  vector of `AerospikeRecord`s in the same order of keys. Missing keys result in `nil` in corresponding
+  positions."
+  ([db batch-reads]
+   (get-batch db batch-reads {}))
+  ([db batch-reads conf]
+   (let [client (get-client db (:index (first batch-reads)))
+         op-future (d/deferred)
+         start-time (System/nanoTime)
+         batch-reads-arr (ArrayList. ^Collection (mapv #(map->batch-read % (:dbns db)) batch-reads))]
+     (.get ^AerospikeClient client
+           ^EventLoop (.next ^NioEventLoops (:el db))
+           (reify-record-batch-list-listener op-future)
+           ^BatchPolicy (:policy conf)
+           ^List batch-reads-arr)
+     (let [d (d/chain' op-future
+                      #(mapv batch-read->map %)
+                      (:transcoder conf identity))]
+      (register-events d db "read-batch" nil start-time)))))
+       
+
 (defn get-multiple
-  "Returns a (future) sequence of AerospikeRecords returned by `get-single`
+  "DEPRECATED - use `get-batch` instead.
+
+  Returns a (future) sequence of AerospikeRecords returned by `get-single`
   with records in corresponding places to the required keys. Indices and sets should be sequences.
   The `conf` map is passed to all `get-single` invocations."
+  {:deprecated "0.3.2"}
   ([db indices sets]
    (get-multiple db indices sets {}))
   ([db indices sets conf]
@@ -366,7 +413,7 @@
           ^WriteListener (reify-write-listener op-future)
           ^WritePolicy policy
           (create-key (:dbns db) set-name index)
-          ^"[Lcom.aerospike.client.Bin;" (into-array Bin (mapv set-bin-as-null bin-names)))
+          ^"[Lcom.aerospike.client.Bin;" (utils/v->array Bin (mapv set-bin-as-null bin-names)))
     (register-events op-future db "write" index start-time)))
 
 (defn delete-bins
@@ -400,7 +447,7 @@
                  ^RecordListener (reify-record-listener op-future)
                  ^WritePolicy (:policy conf (policy/write-policy client expiration RecordExistsAction/UPDATE))
                  (create-key (:dbns db) set-name index)
-                 (into-array Operation operations))
+                 (utils/v->array Operation operations))
        (register-events (d/chain' op-future record->map) db "operate" index start-time)))))
 
 ;; metrics

@@ -54,3 +54,8 @@
   [bin-value]
   (->> (into [] x-desanitize (vector bin-value))
        first))
+
+(defn v->array
+  "An optimized way to convert vectors into Java arrays of type `cls`"
+  [cls v]
+  (.toArray ^java.util.Collection v (make-array cls (count v))))
