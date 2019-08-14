@@ -324,10 +324,10 @@
                  (put db index set-name payload expiration conf))
                (map vector indices set-names payloads expirations)))))
 
-(defn set
+(defn set-single
   "`put` with a update policy"
   ([db index set-name data expiration]
-    (set db index set-name data expiration {}))
+    (set-single db index set-name data expiration {}))
   ([db index set-name data expiration conf]
     (_put db
           index
