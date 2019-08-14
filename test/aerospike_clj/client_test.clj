@@ -485,3 +485,13 @@
     (is (= RecordExistsAction/REPLACE_ONLY (.recordExistsAction wp)))
     (is (true? (.respondAllOps wp)))))
 
+
+(deftest set-entry
+  (let [data (rand-int 1000)
+        update-data (rand-int 1000)]
+       (is (true? @(client/set *c* K _set data 100)))
+       (is (= data @(client/get-single-no-meta *c* K _set)))
+       (is (true? @(client/set *c* K _set update-data 100)))
+       (is (= update-data @(client/get-single-no-meta *c* K _set)))))
+
+

@@ -71,6 +71,15 @@
      (set! (.recordExistsAction wp) record-exists-action)
      wp)))
 
+(defn ^WritePolicy set-policy
+      "Create a write policy with UPDATE record exists action.
+       in case of new entry, create it
+       in case the entry exists, update entry"
+      [client expiration]
+      (let [wp (write-policy client expiration)]
+           (set! (.recordExistsAction wp) RecordExistsAction/UPDATE)
+           wp))
+
 (defn ^WritePolicy update-policy
   "Create a write policy with `expiration`, expected `generation`
   and EXPECT_GEN_EQUAL generation policy."

@@ -324,6 +324,17 @@
                  (put db index set-name payload expiration conf))
                (map vector indices set-names payloads expirations)))))
 
+(defn set
+  "`put` with a update policy"
+  ([db index set-name data expiration]
+    (set db index set-name data expiration {}))
+  ([db index set-name data expiration conf]
+    (_put db
+          index
+          ((:transcoder conf identity) data)
+          (policy/set-policy (get-client db) expiration)
+          set-name)))
+
 (defn create
   "`put` with a create-only policy"
   ([db index set-name data expiration]
