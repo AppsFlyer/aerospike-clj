@@ -1,3 +1,6 @@
+#### VERSION 0.3.3
+*support set-single with `update` policy. liraz.meyer@appsflyer.com
+
 #### VERSION 0.3.0
 * Support multiple bins! dhruvil.patel@kirasystems.com
 * Update java client to 4.4.0.
