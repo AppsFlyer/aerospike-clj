@@ -1,5 +1,8 @@
+#### VERSION 0.3.4
+* Rename set to set-single. liraz.meyer@appsflyer.com
+
 #### VERSION 0.3.3
-* Support set-single with `update` policy. liraz.meyer@appsflyer.com
+* Support set with `update` policy. liraz.meyer@appsflyer.com
 
 #### VERSION 0.3.0
 * Support multiple bins! dhruvil.patel@kirasystems.com
