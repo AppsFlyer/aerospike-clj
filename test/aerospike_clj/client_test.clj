@@ -6,13 +6,14 @@
   (:require [clojure.test :refer [deftest testing is use-fixtures]]
             [aerospike-clj.client :as client]
             [aerospike-clj.policy :as policy]
-            [cheshire.core :as json])
-  (:import [com.aerospike.client AerospikeException Value]
+            [cheshire.core :as json]
+            [taoensso.timbre :refer [spy]])
+  (:import [com.aerospike.client AerospikeException Value Value$ValueArray]
            [com.aerospike.client.cdt ListOperation ListPolicy ListOrder ListWriteFlags ListReturnType
-            MapOperation MapPolicy MapOrder MapWriteFlags MapReturnType]
+            MapOperation MapPolicy MapOrder MapWriteFlags MapReturnType CTX MapWriteMode]
            [com.aerospike.client.policy Priority ReadModeSC ReadModeAP Replica AuthMode ClientPolicy GenerationPolicy
                                         RecordExistsAction]
-           [java.util HashMap]
+           [java.util HashMap ArrayList]
            [com.fasterxml.jackson.databind ObjectMapper]))
 
 (def K "k")
@@ -263,36 +264,84 @@
   (let [transcoder (fn [_] (throw (Exception. "oh-no")))]
     (is (thrown-with-msg? Exception #"oh-no" @(client/get-single *c* K _set {:transcoder transcoder})))))
 
+(def empty-ctx-varargs (into-array CTX []))
+
 (deftest operations-lists
   (let [result1 @(client/operate *c* K _set 100
                                  [(ListOperation/append
                                     (ListPolicy. ListOrder/UNORDERED ListWriteFlags/ADD_UNIQUE)
                                     ""
-                                    (Value/get "foo"))])
+                                    (Value/get "foo")
+                                    empty-ctx-varargs)])
         result2 @(client/operate *c* K _set 100
                                  [(ListOperation/append
                                     (ListPolicy. ListOrder/UNORDERED ListWriteFlags/ADD_UNIQUE)
                                     ""
-                                    (Value/get "bar"))])]
+                                    (Value/get "bar")
+                                    empty-ctx-varargs)])]
     (is (thrown-with-msg? AerospikeException
                           #"Map key exists"
                           @(client/operate *c* K _set 100
                                            [(ListOperation/append
                                               (ListPolicy. ListOrder/UNORDERED ListWriteFlags/ADD_UNIQUE)
                                               ""
-                                              (Value/get "bar"))])))
+                                              (Value/get "bar")
+                                              empty-ctx-varargs)])))
     (let [result3 @(client/operate *c* K _set 100
                                    [(ListOperation/appendItems
                                       (ListPolicy. ListOrder/UNORDERED (bit-or ListWriteFlags/ADD_UNIQUE
                                                                                ListWriteFlags/PARTIAL
                                                                                ListWriteFlags/NO_FAIL))
                                       ""
-                                      [(Value/get "bar") (Value/get "baz")])])
+                                      [(Value/get "bar") (Value/get "baz")]
+                                      empty-ctx-varargs)])
           result4 @(client/get-single *c* K _set)]
       (is (= 1 (:payload result1)))
       (is (= 2 (:payload result2)))
       (is (= 3 (:payload result3)))
       (is (= ["foo" "bar" "baz"] (vec (:payload result4)))))))
+
+(deftest operations-windowed-uniq-list
+  (let [get-all #(:payload @(client/get-single *c* K _set))
+        key-ctx (fn [^String k]
+                  (into-array CTX [(CTX/mapKey (Value/get k))]))
+        outer-ctx (into-array CTX [])
+        outer-map-policy (MapPolicy. MapOrder/KEY_ORDERED (bit-or MapWriteFlags/CREATE_ONLY
+                                                                  MapWriteFlags/NO_FAIL))
+        bin-name ""
+        max-entries 4
+        initial-empty-value #(hash-map (Value/get %) (Value/get (ArrayList. 1)))  
+        append (fn [k v]
+                 (first
+                   (:payload @(client/operate *c* K _set 100
+                                        [(MapOperation/putItems outer-map-policy bin-name (initial-empty-value k) outer-ctx)
+                                         (ListOperation/append bin-name (Value/get v) (key-ctx k))
+                                         (ListOperation/removeByRankRange bin-name -1 1 ListReturnType/INVERTED (key-ctx k))
+                                         (MapOperation/removeByRankRange
+                                           bin-name
+                                           (- max-entries)
+                                           max-entries
+                                           (bit-or MapReturnType/INVERTED
+                                                   MapReturnType/COUNT)
+                                           outer-ctx)]))))]
+        
+    (is (= nil (get-all)))
+    (is (= 1 (append "foo" 19)))
+    (is (= {"foo" [19]} (get-all)))
+    (is (= 2 (append "bar" 18)))
+    (is (= {"bar" [18] "foo" [19]} (get-all)))
+    (is (= 2 (append "foo" 17)))
+    (is (= {"bar" [18] "foo" [19]} (get-all)))
+    (is (= 3 (append "baz" 15)))
+    (is (= {"baz" [15] "bar" [18] "foo" [19]} (get-all)))
+    (is (= 3 (append "baz" 16)))
+    (is (= {"baz" [16] "bar" [18] "foo" [19]} (get-all)))
+    (is (= 4 (append "bat" 10)))
+    (is (= {"bat" [10] "baz" [16] "bar" [18] "foo" [19]} (get-all)))
+    (is (= 5 (append "too-many" 11)))
+    (is (= {"too-many" [11] "baz" [16] "bar" [18] "foo" [19]} (get-all)))
+    (is (= 5 (append "way-too-many" 10)))
+    (is (= {"too-many" [11] "baz" [16] "bar" [18] "foo" [19]} (get-all)))))
 
 (deftest operations-maps
   (let [result1 @(client/operate *c* K _set 100
@@ -300,13 +349,15 @@
                                     (MapPolicy. MapOrder/UNORDERED MapWriteFlags/DEFAULT)
                                     ""
                                     (Value/get "foo")
-                                    (Value/get "foo1"))])
+                                    (Value/get "foo1")
+                                    empty-ctx-varargs)])
         result2 @(client/operate *c* K _set 100
                                  [(MapOperation/put
                                     (MapPolicy. MapOrder/UNORDERED MapWriteFlags/DEFAULT)
                                     ""
                                     (Value/get "bar")
-                                    (Value/get "bar1"))])]
+                                    (Value/get "bar1")
+                                    empty-ctx-varargs)])]
     (is (thrown-with-msg? AerospikeException
                           #"Map key exists"
                           @(client/operate *c* K _set 100
@@ -314,7 +365,8 @@
                                               (MapPolicy. MapOrder/UNORDERED MapWriteFlags/CREATE_ONLY)
                                               ""
                                               (Value/get "foo")
-                                              (Value/get "foo2"))])))
+                                              (Value/get "foo2")
+                                              empty-ctx-varargs)])))
     (let [result3 @(client/operate *c* K _set 100
                                    [(MapOperation/putItems
                                       (MapPolicy. MapOrder/UNORDERED (bit-or MapWriteFlags/CREATE_ONLY
@@ -322,7 +374,8 @@
                                                                              MapWriteFlags/NO_FAIL))
                                       ""
                                       {(Value/get "foo") (Value/get "foo2")
-                                       (Value/get "baz") (Value/get "baz1")})])
+                                       (Value/get "baz") (Value/get "baz1")}
+                                      empty-ctx-varargs)])
           result4 @(client/get-single *c* K _set)]
       (is (= 1 (:payload result1)))
       (is (= 2 (:payload result2)))
@@ -338,13 +391,15 @@
                                                                 MapWriteFlags/NO_FAIL))
                                ""
                                (Value/get v)
-                               (Value/get (byte 1)))]))
+                               (Value/get (byte 1))
+                               empty-ctx-varargs)]))
           (set-pop [v]
             (client/operate *c* K _set 100
                             [(MapOperation/removeByKey
                                ""
                                (Value/get v)
-                               MapReturnType/KEY)]))
+                               MapReturnType/KEY
+                               empty-ctx-varargs)]))
           (set-getall []
             (letfn [(->set [res] (->> ^HashMap (:payload res)
                                       .keySet
@@ -352,7 +407,7 @@
               @(client/get-single *c* K _set {:transcoder ->set})))
           (set-size []
             (client/operate *c* K _set 100
-                            [(MapOperation/size "")]))]
+                            [(MapOperation/size "" empty-ctx-varargs)]))]
 
     (is (= 1 (:payload @(set-add "foo"))))
     (is (= 1 (:payload @(set-size))))
@@ -372,19 +427,21 @@
                                                                         ListWriteFlags/PARTIAL
                                                                         ListWriteFlags/NO_FAIL))
                                ""
-                               (Value/get v))]))
+                               (Value/get v)
+                               empty-ctx-varargs)]))
           (set-pop [v]
             (client/operate *c* K _set 100
                             [(ListOperation/removeByValue
                                ""
                                (Value/get v)
-                               ListReturnType/VALUE)]))
+                               ListReturnType/VALUE
+                               empty-ctx-varargs)]))
           (set-getall []
             (letfn [(->set [res] (->> res :payload (into #{})))]
               @(client/get-single *c* K _set {:transcoder ->set})))
           (set-size []
             (client/operate *c* K _set 100
-                            [(ListOperation/size "")]))]
+                            [(ListOperation/size "" empty-ctx-varargs)]))]
 
     (is (= 1 (:payload @(set-add "foo"))))
     (is (= 1 (:payload @(set-size))))

@@ -1,3 +1,7 @@
+#### VERSION 0.3.5
+* Bump aerospike lib to 4.4.4.
+* Improve CDT tests (requires testing agains aerospike server v4.6)
+
 #### VERSION 0.3.4
 * Rename set to set-single. liraz.meyer@appsflyer.com
 
