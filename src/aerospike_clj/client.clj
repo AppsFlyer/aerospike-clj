@@ -327,13 +327,13 @@
 (defn set-single
   "`put` with a update policy"
   ([db index set-name data expiration]
-    (set-single db index set-name data expiration {}))
+   (set-single db index set-name data expiration {}))
   ([db index set-name data expiration conf]
-    (_put db
-          index
-          ((:transcoder conf identity) data)
-          (policy/set-policy (get-client db) expiration)
-          set-name)))
+   (_put db
+         index
+         ((:transcoder conf identity) data)
+         (policy/set-policy (get-client db) expiration)
+         set-name)))
 
 (defn create
   "`put` with a create-only policy"
