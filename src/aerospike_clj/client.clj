@@ -7,7 +7,7 @@
   (:import [com.aerospike.client AerospikeClient Host Key Bin Record AerospikeException Operation BatchRead]
            [com.aerospike.client.async EventLoop NioEventLoops]
            [com.aerospike.client.listener RecordListener WriteListener DeleteListener ExistsListener BatchListListener]
-           [com.aerospike.client.policy Policy BatchPolicy ClientPolicy RecordExistsAction]
+           [com.aerospike.client.policy Policy BatchPolicy ClientPolicy RecordExistsAction WritePolicy]
            [clojure.lang IPersistentMap IPersistentVector]
            [java.util List Collection ArrayList]))
 
@@ -46,7 +46,7 @@
   Can also be used to share event loops between several clients."
   [conf]
   (let [elp (policy/map->event-policy conf)]
-    (NioEventLoops. elp 1)))
+    (NioEventLoops. elp 1 true "NioEventLoops")))
 
 (defn init-simple-aerospike-client
   "hosts should be a seq of known hosts to bootstrap from."
@@ -92,39 +92,39 @@
 
 (defn- ^ExistsListener reify-exists-listener [op-future]
   (reify ExistsListener
-    (^void onFailure [this ^AerospikeException ex]
+    (^void onFailure [_this ^AerospikeException ex]
       (d/error! op-future ex))
-    (^void onSuccess [this ^Key k ^boolean exists]
+    (^void onSuccess [_this ^Key _k ^boolean exists]
       (d/success! op-future exists))))
 
 (defn- ^DeleteListener reify-delete-listener [op-future]
   (reify
     DeleteListener
-    (^void onSuccess [this ^Key k ^boolean existed]
+    (^void onSuccess [_this ^Key _k ^boolean existed]
       (d/success! op-future existed))
-    (^void onFailure [this ^AerospikeException ex]
+    (^void onFailure [_ ^AerospikeException ex]
       (d/error! op-future ex))))
 
 (defn- ^WriteListener reify-write-listener [op-future]
   (reify
     WriteListener
-    (^void onSuccess [this ^Key _]
+    (^void onSuccess [_this ^Key _]
       (d/success! op-future true))
-    (^void onFailure [this ^AerospikeException ex]
+    (^void onFailure [_this ^AerospikeException ex]
       (d/error! op-future ex))))
 
 (defn- ^RecordListener reify-record-listener [op-future]
   (reify RecordListener
-    (^void onFailure [this ^AerospikeException ex]
+    (^void onFailure [_this ^AerospikeException ex]
       (d/error! op-future ex))
-    (^void onSuccess [this ^Key k ^Record record]
+    (^void onSuccess [_this ^Key _k ^Record record]
       (d/success! op-future record))))
 
 (defn- ^BatchListListener reify-record-batch-list-listener [op-future]
   (reify BatchListListener
-    (^void onFailure [this ^AerospikeException ex]
+    (^void onFailure [_this ^AerospikeException ex]
       (d/error! op-future ex))
-    (^void onSuccess [this ^List records]
+    (^void onSuccess [_this ^List records]
       (d/success! op-future records))))
 
 (defn- ^Key create-key [^String aero-namespace ^String set-name ^String k]
@@ -491,7 +491,7 @@
       (= v
          @(get-single db k set-name {:transcoder :payload
                                      :policy read-policy}))
-      (catch Exception ex
+      (catch Exception _ex
         false))))
 
 ;; etc

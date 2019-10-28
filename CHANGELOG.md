@@ -1,3 +1,6 @@
+#### VERSION 0.3.6
+* Bump aerospike lib to 4.4.6
+
 #### VERSION 0.3.5
 * Bump aerospike lib to 4.4.4.
 * Improve CDT tests (requires testing agains aerospike server v4.6)
