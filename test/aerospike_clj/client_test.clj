@@ -8,13 +8,13 @@
             [aerospike-clj.policy :as policy]
             [cheshire.core :as json]
             [taoensso.timbre :refer [spy]])
-  (:import [com.aerospike.client AerospikeException Value Value$ValueArray]
+  (:import [com.aerospike.client AerospikeException Value]
            [com.aerospike.client.cdt ListOperation ListPolicy ListOrder ListWriteFlags ListReturnType
-            MapOperation MapPolicy MapOrder MapWriteFlags MapReturnType CTX MapWriteMode]
-           [com.aerospike.client.policy Priority ReadModeSC ReadModeAP Replica AuthMode ClientPolicy GenerationPolicy
-                                        RecordExistsAction]
+                                     MapOperation MapPolicy MapOrder MapWriteFlags MapReturnType CTX]
+           [com.aerospike.client.policy Priority ReadModeSC ReadModeAP Replica GenerationPolicy RecordExistsAction
+                                        WritePolicy BatchPolicy Policy]
            [java.util HashMap ArrayList]
-           [com.fasterxml.jackson.databind ObjectMapper]))
+           [clojure.lang PersistentArrayMap]))
 
 (def K "k")
 (def K2 "k2")
@@ -89,7 +89,7 @@
     (testing "clojure maps can be serialized as-is"
       (let [v @(client/get-single-no-meta *c* K _set)]
         (is (= data v)) ;; per value it is identical
-        (is (= clojure.lang.PersistentArrayMap (type v)))))))
+        (is (= PersistentArrayMap (type v)))))))
 
 (deftest put-multiple-bins-get-clj-map
   (let [data {"foo" {"bar" [(rand-int 1000)]}
@@ -103,7 +103,7 @@
         (is (= (get data "bar") (get v "bar"))) ;; true value returns the same after being sanitized/desanitized
         (is (= (get data "baz") (get v "baz"))) ;; false value returns the same after being sanitized/desanitized
         (is (= (get data "qux") (get v "qux"))) ;; nil value retuns the same after being sanitized/desanitized
-        (is (= clojure.lang.PersistentArrayMap (type v))) ;; converted back to a Clojure map instead of HashMap
+        (is (= PersistentArrayMap (type v))) ;; converted back to a Clojure map instead of HashMap
         (is (true? (map? v)))))))
 
 (deftest get-single-multiple-bins
@@ -310,7 +310,7 @@
                                                                   MapWriteFlags/NO_FAIL))
         bin-name ""
         max-entries 4
-        initial-empty-value #(hash-map (Value/get %) (Value/get (ArrayList. 1)))  
+        initial-empty-value #(hash-map (Value/get %) (Value/get (ArrayList. 1)))
         append (fn [k v]
                  (first
                    (:payload @(client/operate *c* K _set 100
@@ -324,7 +324,7 @@
                                            (bit-or MapReturnType/INVERTED
                                                    MapReturnType/COUNT)
                                            outer-ctx)]))))]
-        
+
     (is (= nil (get-all)))
     (is (= 1 (append "foo" 19)))
     (is (= {"foo" [19]} (get-all)))
@@ -485,10 +485,10 @@
              "batchPolicyDefault" (policy/map->batch-policy {"allowInline" false
                                                              "maxConcurrentThreads" 2
                                                              "sendSetName" true})})
-                                                             
-                                                              
-        rp (.getReadPolicyDefault (client/get-client c))
-        bp (.getBatchPolicyDefault (client/get-client c))]
+
+
+        rp ^Policy (.getReadPolicyDefault (client/get-client c))
+        bp ^BatchPolicy (.getBatchPolicyDefault (client/get-client c))]
     (is (= Priority/DEFAULT (.priority rp)))
     (is (= ReadModeAP/ALL (.readModeAP rp)))
     (is (= Replica/RANDOM (.replica rp)))
@@ -505,7 +505,7 @@
     (is (true? (.sendSetName bp)))))
 
 (deftest default-write-policy
-  (let [rp (.getWritePolicyDefault (client/get-client *c*))]
+  (let [rp ^WritePolicy (.getWritePolicyDefault (client/get-client *c*))]
     (is (= Priority/DEFAULT (.priority rp))) ;; Priority of request relative to other transactions. Currently, only used for scans.
     (is (= ReadModeAP/ONE (.readModeAP rp))) ;; Involve master only in the read operation.
     (is (= Replica/SEQUENCE (.replica rp))) ;; Try node containing master partition first.
@@ -532,7 +532,7 @@
                                                              "RecordExistsAction" "REPLACE_ONLY"
                                                              "respondAllOps" true})})
 
-        wp (.getWritePolicyDefault (client/get-client c))]
+        wp ^WritePolicy (.getWritePolicyDefault (client/get-client c))]
     (is (= Priority/DEFAULT (.priority wp)))
     (is (= ReadModeAP/ONE (.readModeAP wp)))
     (is (true? (.durableDelete wp)))
@@ -550,5 +550,95 @@
        (is (= data @(client/get-single-no-meta *c* K _set)))
        (is (true? @(client/set-single *c* K _set update-data 100)))
        (is (= update-data @(client/get-single-no-meta *c* K _set)))))
+
+(deftest scan-test
+  (let [conf {:policy (policy/map->write-policy {"sendKey" true})}
+        aero-namespace "test"
+        ttl 100
+        delete-records (fn []
+                         @(client/delete *c* K _set)
+                         @(client/delete *c* K2 _set)
+                         @(client/delete *c* K3 _set))]
+
+    (testing "it should throw an IllegalArgumentException when:
+    conf is missing, :callback is missing, or :callback is not a function"
+      (is (thrown? IllegalArgumentException @(client/scan-set *c* aero-namespace _set nil)))
+      (is (thrown? IllegalArgumentException @(client/scan-set *c* aero-namespace _set {})))
+      (is (thrown? IllegalArgumentException @(client/scan-set *c* aero-namespace _set {:callback "not a function"}))))
+
+    (testing "it should throw a ClassCastException when :bins is not a vector"
+      (is (thrown? ClassCastException @(client/scan-set *c* aero-namespace _set {:callback (constantly true) :bins {}}))))
+
+    (testing "it should return all the items in the set"
+      @(client/put-multiple *c* [K K2 K3] (repeat _set) [10 20 30] (repeat ttl) conf)
+
+      (let [res (atom [])
+            callback (fn [k v] (swap! res conj [(.toString ^Value k) (:payload v)]))]
+
+        @(client/scan-set *c* aero-namespace _set {:callback callback})
+        (is (= (sort-by first @res) [[K 10] [K2 20] [K3 30]])))
+
+      (delete-records))
+
+    (testing "it should return only the bins that were requested"
+      (let [data [{"name" "John" "occupation" "Carpenter"}
+                  {"name" "Jerry" "occupation" "Bus Driver"}
+                  {"name" "Jack" "occupation" "Chef"}]]
+
+        @(client/put-multiple *c* [K K2 K3] (repeat _set) data (repeat ttl) conf)
+
+        (let [res (atom [])
+              callback (fn [k v] (swap! res conj [(.toString ^Value k) (:payload v)]))]
+
+          @(client/scan-set *c* aero-namespace _set {:callback callback :bins ["occupation"]})
+
+          (is (= (sort-by first @res) [[K {"occupation" "Carpenter"}]
+                                       [K2 {"occupation" "Bus Driver"}]
+                                       [K3 {"occupation" "Chef"}]])))
+        (delete-records)))
+
+    (testing "it can update items during a scan"
+      (let [client *c*
+            callback (fn [k v] (client/put client (.toString ^Value k) _set (inc (:payload v)) ttl))]
+
+        @(client/put-multiple *c* [K K2 K3] (repeat _set) [10 20 30] (repeat ttl) conf)
+
+        @(client/scan-set *c* aero-namespace _set {:callback callback})
+
+        (let [res @(client/get-batch *c* [{:index K :set _set}
+                                          {:index K2 :set _set}
+                                          {:index K3 :set _set}])]
+
+          (is (= (sort (mapv :payload res)) [11 21 31]))))
+      (delete-records))
+
+    (testing "it can delete items during a scan"
+      (let [client *c*
+            callback (fn [k _] (client/delete client (.toString ^Value k) _set))]
+
+        @(client/put-multiple *c* [K K2 K3] (repeat _set) [10 20 30] (repeat ttl) conf)
+
+        @(client/scan-set *c* aero-namespace _set {:callback callback})
+
+        (is (empty? (filter :payload @(client/get-batch *c* [{:index K :set _set}
+                                                             {:index K2 :set _set}
+                                                             {:index K3 :set _set}])))))
+      (delete-records))
+
+    (testing "it should stop the scan when the callback returns `ABORT-SCAN`"
+      @(client/put-multiple *c* [K K2 K3] (repeat _set) [10 20 30] (repeat ttl) conf)
+
+      (let [res (atom [])
+            counter (atom 0)
+            callback (fn [k v]
+                       (if (< (swap! counter inc) 2)
+                         (swap! res conj [(.toString ^Value k) (:payload v)])
+                         client/ABORT-SCAN))]
+
+        (is (false? @(client/scan-set *c* aero-namespace _set {:callback callback})))
+        (is (= 1 (count @res))))
+
+      (delete-records))))
+
 
 

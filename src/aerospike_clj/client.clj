@@ -4,23 +4,30 @@
             [aerospike-clj.utils :as utils]
             [aerospike-clj.metrics :as metrics]
             [manifold.deferred :as d])
-  (:import [com.aerospike.client AerospikeClient Host Key Bin Record AerospikeException Operation BatchRead]
+  (:import [com.aerospike.client AerospikeClient Host Key Bin Record AerospikeException Operation BatchRead AerospikeException$QueryTerminated]
            [com.aerospike.client.async EventLoop NioEventLoops]
-           [com.aerospike.client.listener RecordListener WriteListener DeleteListener ExistsListener BatchListListener]
-           [com.aerospike.client.policy Policy BatchPolicy ClientPolicy RecordExistsAction WritePolicy]
+           [com.aerospike.client.listener RecordListener WriteListener DeleteListener ExistsListener BatchListListener RecordSequenceListener]
+           [com.aerospike.client.policy Policy BatchPolicy ClientPolicy RecordExistsAction WritePolicy ScanPolicy]
            [clojure.lang IPersistentMap IPersistentVector]
-           [java.util List Collection ArrayList]))
+           [java.util List Collection ArrayList]
+           [java.time Instant]))
+
+(declare record->map)
 
 (def EPOCH
   ^{:doc "The 0 date reference for returned record TTL"}
-  (.getEpochSecond (java.time.Instant/parse "2010-01-01T00:00:00Z")))
+  (.getEpochSecond (Instant/parse "2010-01-01T00:00:00Z")))
 
 (def MAX_KEY_LENGTH (dec (bit-shift-left 1 13)))
 
 (def MAX_BIN_NAME_LENGTH 14)
 
+(def
+  ^{:const true :doc "Constant used to abort a scan operation"}
+  ABORT-SCAN "ABORT-SCAN")
+
 (defprotocol IAerospikeClient
-  (get-client [ac] [ac index] "Returns the relevant AerospikeClient object for the specific shard")
+  (^AerospikeClient get-client [ac] [ac index] "Returns the relevant AerospikeClient object for the specific shard")
   (get-all-clients [_] "Returns a sequence of all AerospikeClient objects."))
 
 (defrecord SimpleAerospikeClient [^AerospikeClient ac
@@ -119,6 +126,18 @@
       (d/error! op-future ex))
     (^void onSuccess [_this ^Key _k ^Record record]
       (d/success! op-future record))))
+
+(defn- ^RecordSequenceListener reify-record-sequence-listener [op-future callback]
+  (reify RecordSequenceListener
+    (^void onRecord [_this ^Key k ^Record record]
+      (when (= ABORT-SCAN (callback (.userKey k) (record->map record)))
+        (throw (AerospikeException$QueryTerminated.))))
+    (^void onSuccess [_this]
+      (d/success! op-future true))
+    (^void onFailure [_this ^AerospikeException exception]
+      (if (instance? AerospikeException$QueryTerminated exception)
+        (d/success! op-future false)
+        (d/error! op-future exception)))))
 
 (defn- ^BatchListListener reify-record-batch-list-listener [op-future]
   (reify BatchListListener
@@ -325,7 +344,7 @@
                (map vector indices set-names payloads expirations)))))
 
 (defn set-single
-  "`put` with a update policy"
+  "`put` with an update policy"
   ([db index set-name data expiration]
    (set-single db index set-name data expiration {}))
   ([db index set-name data expiration conf]
@@ -460,6 +479,33 @@
                  (create-key (:dbns db) set-name index)
                  (utils/v->array Operation operations))
        (register-events (d/chain' op-future record->map) db "operate" index start-time)))))
+
+(defn scan-set
+  "Scans through the given set and calls a user defined callback for each record that was found.
+  Returns a deferred response that resolves once the scan completes. When the scan completes
+  successfully it returns `true`. The scan may be aborted by returning `ABORT-SCAN` from the callback.
+  In that case the return value is `false`.
+
+  The `conf` argument should be a map with the following keys:
+  :callback - Function that accepts a com.aerospike.client.Value and an AerospikeRecord.
+  :policy -   Optional. com.aerospike.client.policy.ScanPolicy.
+  :bins -     Optional. Vector of bin names to return. Returns all bins by default."
+  [db aero-namespace set-name conf]
+  (when-not (fn? (:callback conf))
+    (throw (IllegalArgumentException. "(:callback conf) must be a function")))
+
+  (let [client (get-client db)
+        op-future (d/deferred)
+        start-time (System/nanoTime)
+        bin-names (:bins conf)]
+    (.scanAll ^AerospikeClient client
+              ^EventLoop (.next ^NioEventLoops (:el db))
+              (reify-record-sequence-listener op-future (:callback conf))
+              ^Policy (:policy conf (ScanPolicy.))
+              aero-namespace
+              set-name
+              (when bin-names ^"[Ljava.lang.String;" (utils/v->array String bin-names)))
+    (register-events op-future db "scan" nil start-time)))
 
 ;; metrics
 (defn get-cluster-stats
