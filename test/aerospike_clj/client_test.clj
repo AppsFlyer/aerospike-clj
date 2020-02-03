@@ -8,7 +8,7 @@
             [aerospike-clj.policy :as policy]
             [cheshire.core :as json]
             [taoensso.timbre :refer [spy]])
-  (:import [com.aerospike.client AerospikeException Value]
+  (:import [com.aerospike.client AerospikeException Value AerospikeClient]
            [com.aerospike.client.cdt ListOperation ListPolicy ListOrder ListWriteFlags ListReturnType
                                      MapOperation MapPolicy MapOrder MapWriteFlags MapReturnType CTX]
            [com.aerospike.client.policy Priority ReadModeSC ReadModeAP Replica GenerationPolicy RecordExistsAction
@@ -454,7 +454,7 @@
     (is (= #{"bar"} (set-getall)))))
 
 (deftest default-read-policy
-  (let [rp (.getReadPolicyDefault (client/get-client *c*))]
+  (let [rp (.getReadPolicyDefault ^AerospikeClient (client/get-client *c*))]
     (is (= Priority/DEFAULT (.priority rp))) ;; Priority of request relative to other transactions. Currently, only used for scans.
     (is (= ReadModeAP/ONE (.readModeAP rp))) ;; Involve single node in the read operation.
     (is (= Replica/SEQUENCE (.replica rp))) ;; Try node containing master partition first.
