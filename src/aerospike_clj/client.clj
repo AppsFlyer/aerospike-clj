@@ -22,10 +22,6 @@
 
 (def MAX_BIN_NAME_LENGTH 14)
 
-(def
-  ^{:const true :doc "Constant used to abort a scan operation"}
-  ABORT-SCAN "ABORT-SCAN")
-
 (defprotocol IAerospikeClient
   (^AerospikeClient get-client [ac] [ac index] "Returns the relevant AerospikeClient object for the specific shard")
   (get-all-clients [_] "Returns a sequence of all AerospikeClient objects."))
@@ -130,7 +126,7 @@
 (defn- ^RecordSequenceListener reify-record-sequence-listener [op-future callback]
   (reify RecordSequenceListener
     (^void onRecord [_this ^Key k ^Record record]
-      (when (= ABORT-SCAN (callback (.userKey k) (record->map record)))
+      (when (= :abort-scan (callback (.userKey k) (record->map record)))
         (throw (AerospikeException$QueryTerminated.))))
     (^void onSuccess [_this]
       (d/success! op-future true))
@@ -483,7 +479,7 @@
 (defn scan-set
   "Scans through the given set and calls a user defined callback for each record that was found.
   Returns a deferred response that resolves once the scan completes. When the scan completes
-  successfully it returns `true`. The scan may be aborted by returning `ABORT-SCAN` from the callback.
+  successfully it returns `true`. The scan may be aborted by returning :abort-scan from the callback.
   In that case the return value is `false`.
 
   The `conf` argument should be a map with the following keys:

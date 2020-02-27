@@ -625,7 +625,7 @@
                                                              {:index K3 :set _set}])))))
       (delete-records))
 
-    (testing "it should stop the scan when the callback returns `ABORT-SCAN`"
+    (testing "it should stop the scan when the callback returns :abort-scan"
       @(client/put-multiple *c* [K K2 K3] (repeat _set) [10 20 30] (repeat ttl) conf)
 
       (let [res (atom [])
@@ -633,7 +633,7 @@
             callback (fn [k v]
                        (if (< (swap! counter inc) 2)
                          (swap! res conj [(.toString ^Value k) (:payload v)])
-                         client/ABORT-SCAN))]
+                         :abort-scan))]
 
         (is (false? @(client/scan-set *c* aero-namespace _set {:callback callback})))
         (is (= 1 (count @res))))
