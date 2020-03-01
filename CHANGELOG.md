@@ -1,3 +1,9 @@
+#### VERSION 0.3.8
+* Bump aerospike lib to 4.4.9
+
+#### VERSION 0.3.7
+* Scan support
+
 #### VERSION 0.3.6
 * Bump aerospike lib to 4.4.6
 
