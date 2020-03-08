@@ -548,20 +548,27 @@
 ;; health
 
 (defn healthy?
-  "Sends Info commands for all nodes in the cluster. By default sends the `namespaces` command (supported since 3.3.0).
-  "
-  [db operation-timeout-ms & [health-command]]
-  (let [info-policy (let [p (.infoPolicyDefault ^AerospikeClient (get-client db ""))]
-                      (set! (.timeout p) operation-timeout-ms)
-                      p)
-        command (or health-command "namespaces")]
-    (try
-      (every? some?
-        @(apply d/zip 
-                (for [node (get-nodes db)]
-                  (info db node [command] {:policy info-policy}))))
-      (catch Exception _ex
-        false))))
+  "Returns true iff the cluster is reachable and can take reads and writes.
+  Uses __health-check set to avoid data collisions. `operation-timeout-ms` is
+  for total timeout of reads (default is 1s) including 2 retries so a small
+  over estimation is advised to avoid false negatives."
+  ([db]
+   (healthy? db 1000))
+  ([db operation-timeout-ms]
+   (let [read-policy (let [p (.readPolicyDefault ^AerospikeClient (get-client db ""))]
+                       (set! (.totalTimeout p) operation-timeout-ms)
+                       p)
+         k (str "__health__" (rand-int Integer/MAX_VALUE))
+         v (rand-int Integer/MAX_VALUE)
+         ttl (min 1 (int (/ operation-timeout-ms 1000)))
+         set-name "__health-check"]
+     (try
+       @(put db k set-name v ttl)
+       (= v
+          @(get-single db k set-name {:transcoder :payload
+                                      :policy read-policy}))
+       (catch Exception _ex
+         false)))))
 
 ;; etc
 
