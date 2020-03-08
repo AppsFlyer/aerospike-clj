@@ -6,10 +6,12 @@
             [manifold.deferred :as d])
   (:import [com.aerospike.client AerospikeClient Host Key Bin Record AerospikeException Operation BatchRead AerospikeException$QueryTerminated]
            [com.aerospike.client.async EventLoop NioEventLoops]
-           [com.aerospike.client.listener RecordListener WriteListener DeleteListener ExistsListener BatchListListener RecordSequenceListener]
-           [com.aerospike.client.policy Policy BatchPolicy ClientPolicy RecordExistsAction WritePolicy ScanPolicy]
+           [com.aerospike.client.listener RecordListener WriteListener DeleteListener ExistsListener BatchListListener RecordSequenceListener
+                                          InfoListener]
+           [com.aerospike.client.policy Policy BatchPolicy ClientPolicy RecordExistsAction WritePolicy ScanPolicy InfoPolicy]
+           [com.aerospike.client.cluster Node]
            [clojure.lang IPersistentMap IPersistentVector]
-           [java.util List Collection ArrayList]
+           [java.util List Collection ArrayList Map]
            [java.time Instant]))
 
 (declare record->map)
@@ -113,6 +115,14 @@
     WriteListener
     (^void onSuccess [_this ^Key _]
       (d/success! op-future true))
+    (^void onFailure [_this ^AerospikeException ex]
+      (d/error! op-future ex))))
+
+(defn- ^InfoListener reify-info-listener [op-future]
+  (reify
+    InfoListener
+    (^void onSuccess [_this ^Map result-map]
+      (d/success! op-future (into {} result-map)))
     (^void onFailure [_this ^AerospikeException ex]
       (d/error! op-future ex))))
 
@@ -262,7 +272,6 @@
                       #(mapv batch-read->map %)
                       (:transcoder conf identity))]
       (register-events d db "read-batch" nil start-time)))))
-       
 
 (defn get-multiple
   "DEPRECATED - use `get-batch` instead.
@@ -503,6 +512,28 @@
               (when bin-names ^"[Ljava.lang.String;" (utils/v->array String bin-names)))
     (register-events op-future db "scan" nil start-time)))
 
+(defn info 
+  "Asynchronously make info commands to a node. a node can be retreived from `get-nodes`. commands is a seq
+  of strings available from https://www.aerospike.com/docs/reference/info/index.html the returned future conatains
+  a map from and info command to its response.
+  conf can contain {:policy InfoPolicy} "
+  ([db node info-commands]
+   (info db node info-commands {}))
+  ([db ^Node node info-commands conf]
+   (let [client (get-client db)
+         op-future (d/deferred)
+         start-time (System/nanoTime)]
+     (.info ^AerospikeClient client
+            ^EventLoop (.next ^NioEventLoops (:el db))
+            (reify-info-listener op-future)
+            ^InfoPolicy (:policy conf (.infoPolicyDefault ^AerospikeClient client))
+            node
+            (into-array String info-commands))
+     (register-events op-future db "info" nil start-time))))
+
+(defn get-nodes [db]
+  (.getNodes (get-client db)))
+
 ;; metrics
 (defn get-cluster-stats
   "For each client, return a vector of [metric-name metric-val] 2-tuples.
@@ -518,23 +549,26 @@
 
 (defn healthy?
   "Returns true iff the cluster is reachable and can take reads and writes.
-  Uses __health-check set to avoid data collisions. `operation-timeout-ms` is for total timeout of reads
-  (including 2 retries) so an small over estimation is advised to avoid false negatives."
-  [db operation-timeout-ms]
-  (let [read-policy (let [p (.readPolicyDefault ^AerospikeClient (get-client db ""))]
-                      (set! (.totalTimeout p) operation-timeout-ms)
-                      p)
-        k (str "__health__" (rand-int 1000))
-        v 1
-        ttl (min 1 (int (/ operation-timeout-ms 1000)))
-        set-name "__health-check"]
-    (try
-      @(create db k set-name v ttl)
-      (= v
-         @(get-single db k set-name {:transcoder :payload
-                                     :policy read-policy}))
-      (catch Exception _ex
-        false))))
+  Uses __health-check set to avoid data collisions. `operation-timeout-ms` is
+  for total timeout of reads (default is 1s) including 2 retries so a small
+  over estimation is advised to avoid false negatives."
+  ([db]
+   (healthy? db 1000))
+  ([db operation-timeout-ms]
+   (let [read-policy (let [p (.readPolicyDefault ^AerospikeClient (get-client db ""))]
+                       (set! (.totalTimeout p) operation-timeout-ms)
+                       p)
+         k (str "__health__" (rand-int Integer/MAX_VALUE))
+         v (rand-int Integer/MAX_VALUE)
+         ttl (min 1 (int (/ operation-timeout-ms 1000)))
+         set-name "__health-check"]
+     (try
+       @(put db k set-name v ttl)
+       (= v
+          @(get-single db k set-name {:transcoder :payload
+                                      :policy read-policy}))
+       (catch Exception _ex
+         false)))))
 
 ;; etc
 

@@ -7,7 +7,7 @@
             [aerospike-clj.client :as client]
             [aerospike-clj.policy :as policy]
             [cheshire.core :as json]
-            [taoensso.timbre :refer [spy]])
+            [clojure.string :as s])
   (:import [com.aerospike.client AerospikeException Value AerospikeClient]
            [com.aerospike.client.cdt ListOperation ListPolicy ListOrder ListWriteFlags ListReturnType
                                      MapOperation MapPolicy MapOrder MapWriteFlags MapReturnType CTX]
@@ -46,6 +46,13 @@
     (is (= "localhost" (:cluster-name c))))
   (is (thrown-with-msg? Exception #"setting maxCommandsInProcess>0 and maxCommandsInQueue=0 creates an unbounded delay queue"
                         (client/init-simple-aerospike-client ["localhost"] "test" {"maxCommandsInProcess" 1}))))
+
+(deftest info
+  (doseq [node (client/get-nodes *c*)]
+    (= {"health-stats" "stat=test_device_read_latency:value=0:device=/opt/aerospike/data/test.dat:namespace=test"
+        "namespaces" "test"
+        "set-config:context=service;enable-health-check=true" "ok"}
+     @(client/info *c* node ["namespaces" "set-config:context=service;enable-health-check=true" "health-stats"]))))
 
 (deftest health
   (is (true? (client/healthy? *c* 10))))
@@ -174,7 +181,7 @@
     (is (= 2 gen))))
 
 (deftest too-long-key
-  (let [too-long-key (clojure.string/join "" (repeat (inc client/MAX_KEY_LENGTH) "k"))]
+  (let [too-long-key (s/join "" (repeat (inc client/MAX_KEY_LENGTH) "k"))]
     (is (thrown-with-msg? Exception #"key is too long"
                           @(client/put *c* too-long-key _set 1 100)))))
 
