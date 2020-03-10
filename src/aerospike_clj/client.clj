@@ -41,10 +41,12 @@
 (defn create-client
   "Returns the Java `AerospikeClient` instance. To build the Clojure `IAerospikeClient` one,
   use `init-simple-aerospike-client`."
-  [hosts client-policy]
-  (let [hosts-arr (into-array Host (for [h hosts]
-                                     ^Host (Host. h 3000)))]
-    (AerospikeClient. ^ClientPolicy client-policy ^"[Lcom.aerospike.client.Host;" hosts-arr)))
+  ([host client-policy]
+   (create-client host client-policy 3000))
+  ([hosts client-policy port]
+   (let [hosts-arr (into-array Host (for [h hosts]
+                                      ^Host (Host. h port)))]
+     (AerospikeClient. ^ClientPolicy client-policy ^"[Lcom.aerospike.client.Host;" hosts-arr))))
 
 (defn create-event-loops
   "Called internally to create the event loops of for the client.
@@ -54,7 +56,13 @@
     (NioEventLoops. elp 1 true "NioEventLoops")))
 
 (defn init-simple-aerospike-client
-  "hosts should be a seq of known hosts to bootstrap from."
+  "hosts should be a seq of known hosts to bootstrap from. Optional conf map _can_ have:
+  :event-loops - a client compatible event loop instace
+  client policy configuration keys (see policy/create-client-policy)
+  :client-policy - a ready ClientPolicy
+  \"username\"
+  :port (default is 3000)
+  :client-events an implementation of ClientEvents"
   ([hosts aero-ns]
    (init-simple-aerospike-client hosts aero-ns {}))
   ([hosts aero-ns conf]
@@ -62,7 +70,7 @@
          event-loops (:event-loops conf (create-event-loops conf))
          client-policy (:client-policy conf (policy/create-client-policy event-loops conf))]
      (println (format ";; Starting aerospike clients for clusters %s with username %s" cluster-name (get conf "username")))
-     (map->SimpleAerospikeClient {:ac (create-client hosts client-policy)
+     (map->SimpleAerospikeClient {:ac (create-client hosts client-policy (:port conf 3000))
                                   :el event-loops
                                   :dbns aero-ns
                                   :cluster-name cluster-name
