@@ -34,4 +34,6 @@
   (^Key [k ^String as-namesapce ^String set-name]
    (create-key-method k as-namesapce set-name))
   (^Key [#^bytes digest ^String as-namesapce ^String set-name ^Value user-key]
+    (when (not= 20 (alength digest))
+      (throw (Exception. "digest has to exactly 20 bytes long")))
    (Key. as-namesapce digest set-name user-key)))

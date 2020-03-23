@@ -30,8 +30,8 @@
 (deftest create-with-digest-and-byte-array
   (let [as-ns "ns"
         as-set "set"
-        ba (byte-array 10)]
-      (doseq [i (range 10)]
+        ba (byte-array 20)]
+      (doseq [i (range 20)]
         (aset-byte ba i i))
       (let [k (create-key ba as-ns as-set nil)
             k-digest (.digest k)]
@@ -53,5 +53,7 @@
     (is (thrown-with-msg? Exception #"key is too long"
                           (create-key too-long-ba "ns" "set")))
     (is (thrown-with-msg? Exception #"key is too long"
-                          (create-key too-long-value "ns" "set")))))
+                          (create-key too-long-value "ns" "set")))
+    (is (thrown-with-msg? Exception #"digest has to exactly 20 bytes long"
+                          (create-key (byte-array 19) "ns" "set" nil)))))
 
