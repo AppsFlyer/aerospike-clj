@@ -3,6 +3,7 @@
   (:require [aerospike-clj.policy :as policy]
             [aerospike-clj.utils :as utils]
             [aerospike-clj.metrics :as metrics]
+            [aerospike-clj.key :as as-key]
             [manifold.deferred :as d])
   (:import [com.aerospike.client AerospikeClient Host Key Bin Record AerospikeException Operation BatchRead AerospikeException$QueryTerminated]
            [com.aerospike.client.async EventLoop NioEventLoops]
@@ -20,7 +21,6 @@
   ^{:doc "The 0 date reference for returned record TTL"}
   (.getEpochSecond (Instant/parse "2010-01-01T00:00:00Z")))
 
-(def MAX_KEY_LENGTH (dec (bit-shift-left 1 13)))
 
 (def MAX_BIN_NAME_LENGTH 14)
 
@@ -160,11 +160,21 @@
     (^void onSuccess [_this ^List records]
       (d/success! op-future records))))
 
-(defn- ^Key create-key [^String aero-namespace ^String set-name ^String k]
-  (when (< MAX_KEY_LENGTH (.length k))
-    (throw (Exception. (format "key is too long: %s..." (subs k 0 40)))))
-  (Key. aero-namespace set-name k))
+(defprotocol UserKey
+  "Use `create-key` directly to pass a premade custom key to the public API.
+  When passing a simple String/Integer/Long/ByteArray the key will be created
+  automatically for you. If you pass a ready made key, `as-namespace` and 
+  `set-name` are ignored in API calls."
+  (create-key ^Key [this as-namespace set-name]))
 
+(extend-protocol UserKey
+  Key
+  (create-key ^Key [this _ _]
+    this)
+  Object
+  (create-key ^Key [this as-namespace set-name]
+    (as-key/create-key this as-namespace set-name)))
+  
 (defn- ^Bin create-bin [^String bin-name bin-value]
   (when (< MAX_BIN_NAME_LENGTH (.length bin-name))
     (throw (Exception. (format "%s is %s characters. Bin names have to be <= 14 characters..." bin-name (.length bin-name)))))
@@ -231,13 +241,13 @@
             ^EventLoop (.next ^NioEventLoops (:el db))
             (reify-record-listener op-future)
             ^Policy (:policy conf)
-            (create-key (:dbns db) set-name index))
+            (create-key index (:dbns db) set-name))
       ;; For all other cases, bin-names are passed to a different `get` method
       (.get ^AerospikeClient client
             ^EventLoop (.next ^NioEventLoops (:el db))
             (reify-record-listener op-future)
             ^Policy (:policy conf)
-            (create-key (:dbns db) set-name index)
+            (create-key index (:dbns db) set-name)
             ^"[Ljava.lang.String;" (utils/v->array String bin-names)))
     (let [d (d/chain' op-future
                       record->map
@@ -252,7 +262,7 @@
   ([db index set-name conf bin-names] (_get db index set-name conf bin-names)))
 
 (defn- ^BatchRead map->batch-read [batch-read-map dbns]
-  (let [k (create-key dbns (:set batch-read-map) (:index batch-read-map))]
+  (let [k (create-key (:index batch-read-map) dbns (:set batch-read-map))]
     (if (or (= [:all] (:bins batch-read-map))
             (nil? (:bins batch-read-map)))
       (BatchRead. k true)
@@ -306,7 +316,7 @@
               ^EventLoop (.next ^NioEventLoops (:el db))
               (reify-exists-listener op-future)
               ^Policy (:policy conf)
-              (create-key (:dbns db) set-name index))
+              (create-key index (:dbns db) set-name))
      (register-events op-future db "exists" index start-time))))
 
 (defn get-single-no-meta
@@ -325,7 +335,7 @@
           ^EventLoop (.next ^NioEventLoops (:el db))
           ^WriteListener (reify-write-listener op-future)
           ^WritePolicy policy
-          (create-key (:dbns db) set-name index)
+          (create-key index (:dbns db) set-name)
           ^"[Lcom.aerospike.client.Bin;" bins)
     (register-events op-future db "write" index start-time)))
 
@@ -426,7 +436,7 @@
             ^EventLoop (.next ^NioEventLoops (:el db))
             ^WriteListener (reify-write-listener op-future)
             ^WritePolicy (policy/write-policy client expiration RecordExistsAction/UPDATE_ONLY)
-            (create-key (:dbns db) set-name index))
+            (create-key index (:dbns db) set-name))
     (register-events op-future db "touch" index start-time)))
 
 ;; delete
@@ -444,7 +454,7 @@
               ^EventLoop (.next ^NioEventLoops (:el db))
               ^DeleteListener (reify-delete-listener op-future)
               ^WritePolicy (:policy conf)
-              (create-key (:dbns db) set-name index))
+              (create-key index (:dbns db) set-name))
      (register-events op-future db "delete" index start-time))))
 
 (defn- _delete-bins [db index bin-names policy set-name]
@@ -455,7 +465,7 @@
           ^EventLoop (.next ^NioEventLoops (:el db))
           ^WriteListener (reify-write-listener op-future)
           ^WritePolicy policy
-          (create-key (:dbns db) set-name index)
+          (create-key index (:dbns db) set-name)
           ^"[Lcom.aerospike.client.Bin;" (utils/v->array Bin (mapv set-bin-as-null bin-names)))
     (register-events op-future db "write" index start-time)))
 
@@ -489,7 +499,7 @@
                  ^EventLoop (.next ^NioEventLoops (:el db))
                  ^RecordListener (reify-record-listener op-future)
                  ^WritePolicy (:policy conf (policy/write-policy client expiration RecordExistsAction/UPDATE))
-                 (create-key (:dbns db) set-name index)
+                 (create-key index (:dbns db) set-name)
                  (utils/v->array Operation operations))
        (register-events (d/chain' op-future record->map) db "operate" index start-time)))))
 
