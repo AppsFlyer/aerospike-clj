@@ -160,14 +160,14 @@
     (^void onSuccess [_this ^List records]
       (d/success! op-future records))))
 
-(defprotocol CreateKey
+(defprotocol UserKey
   "Use `create-key` directly to pass a premade custom key to the public API.
-  When passing a simple String/Integher/Long/ByteArray the key will be created
+  When passing a simple String/Integer/Long/ByteArray the key will be created
   automatically for you. If you pass a ready made key, `as-namespace` and 
   `set-name` are ignored in API calls."
   (create-key ^Key [this as-namespace set-name]))
 
-(extend-protocol CreateKey
+(extend-protocol UserKey
   Key
   (create-key ^Key [this _ _]
     this)

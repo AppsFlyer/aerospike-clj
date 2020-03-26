@@ -6,14 +6,14 @@
   (create-key-method ^Key [this ^String as-namesapce ^String set-name]))
 
 (extend-protocol AerospikeIndex
-  (Class/forName "[B") 
+  (Class/forName "[B") ;; byte-array 
   (create-key-method ^Key [this ^String as-namesapce ^String set-name]
-    (when (< (ThreadLocalData/DefaultBufferSize) (+ 1 (alength #^bytes this) (.length set-name)))
+    (when (<= (ThreadLocalData/DefaultBufferSize) (+ (alength #^bytes this) (.length set-name)))
       (throw (Exception. (format "key is too long: %s..." this))))
     (Key. ^String as-namesapce ^String set-name #^bytes this))
   String 
   (create-key-method ^Key [this ^String as-namesapce ^String set-name]
-    (when (< (ThreadLocalData/DefaultBufferSize) (+ 1 (.length this) (.length set-name)))
+    (when (<= (ThreadLocalData/DefaultBufferSize) (+ (.length this) (.length set-name)))
       (throw (Exception. (format "key is too long: %s..." (subs this 0 40)))))
     (Key. as-namesapce set-name this))
   Integer 
@@ -24,7 +24,7 @@
     (Key. as-namesapce set-name (.longValue this)))
   Value 
   (create-key-method ^Key [this ^String as-namesapce ^String set-name]
-    (when (< (ThreadLocalData/DefaultBufferSize) (+ 1 (.estimateSize this) (.length set-name)))
+    (when (<= (ThreadLocalData/DefaultBufferSize) (+ (.estimateSize this) (.length set-name)))
       (throw (Exception. (format "key is too long: %s..." (subs (.toString this) 0 40)))))
     (Key. as-namesapce set-name this)))
 
