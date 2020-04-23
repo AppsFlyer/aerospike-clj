@@ -114,6 +114,18 @@
       (is (= [data data2 nil data3 nil] (mapv :payload res)))
       (is (= [1 1 nil 1 nil] (mapv :gen res))))))
 
+(deftest exists-batch
+  (is (true? @(client/create *c* K _set 1 100)))
+  (is (true? @(client/create *c* K2 _set2 1 100)))
+  (is (true? @(client/create *c* K3 _set 1 100)))
+  (let [indices [{:index K2 :set _set}
+                 {:index K2 :set _set2}
+                 {:index K3 :set _set}
+                 {:index K :set _set}
+                 {:index K_not_exists :set _set}]
+        res @(client/exists-batch *c* indices)]
+    (is (= [false true true true false] res))))
+
 (deftest put-get-clj-map
   (let [data {"foo" {"bar" [(rand-int 1000)]}}]
     (is (true? @(client/create *c* K _set data 100)))
@@ -580,7 +592,7 @@
 (deftest scan-test
   (let [conf {:policy (policy/map->write-policy {"sendKey" true})}
         aero-namespace "test"
-        ttl 100
+        ttl 10
         delete-records (fn []
                          @(client/delete *c* K _set)
                          @(client/delete *c* K2 _set)

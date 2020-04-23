@@ -1,3 +1,6 @@
+#### VERSION 0.5.0
+* Added mocking for aerospike client
+
 #### VERSION 0.3.8
 * Bump aerospike lib to 4.4.9
 
@@ -9,7 +12,7 @@
 
 #### VERSION 0.3.5
 * Bump aerospike lib to 4.4.4.
-* Improve CDT tests (requires testing agains aerospike server v4.6)
+* Improve CDT tests (requires testing against aerospike server v4.6)
 
 #### VERSION 0.3.4
 * Rename set to set-single. liraz.meyer@appsflyer.com

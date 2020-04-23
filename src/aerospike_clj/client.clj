@@ -8,7 +8,7 @@
   (:import [com.aerospike.client AerospikeClient Host Key Bin Record AerospikeException Operation BatchRead AerospikeException$QueryTerminated]
            [com.aerospike.client.async EventLoop NioEventLoops]
            [com.aerospike.client.listener RecordListener WriteListener DeleteListener ExistsListener BatchListListener RecordSequenceListener
-                                          InfoListener]
+                                          InfoListener ExistsArrayListener]
            [com.aerospike.client.policy Policy BatchPolicy ClientPolicy RecordExistsAction WritePolicy ScanPolicy InfoPolicy]
            [com.aerospike.client.cluster Node]
            [clojure.lang IPersistentMap IPersistentVector]
@@ -160,6 +160,13 @@
     (^void onSuccess [_this ^List records]
       (d/success! op-future records))))
 
+(defn- ^ExistsArrayListener reify-exists-array-listener [op-future]
+  (reify ExistsArrayListener
+    (^void onFailure [_this ^AerospikeException ex]
+      (d/error! op-future ex))
+    (^void onSuccess [_this ^"[Lcom.aerospike.client.Key;" _keys ^"[Z" exists]
+      (d/success! op-future exists))))
+
 (defprotocol UserKey
   "Use `create-key` directly to pass a premade custom key to the public API.
   When passing a simple String/Integer/Long/ByteArray the key will be created
@@ -290,6 +297,27 @@
                       #(mapv batch-read->map %)
                       (:transcoder conf identity))]
       (register-events d db "read-batch" nil start-time)))))
+
+(defn exists-batch
+  "Check for each key in a batch if it exists. `indices` is a collection of maps
+  of the form `{:index \"key-name\" :set \"set-name\"}`. The result is a
+  vector of booleans in the same order as indices."
+  ([db indices]
+   (exists-batch db indices {}))
+  ([db indices conf]
+   (let [client (get-client db)
+         op-future (d/deferred)
+         start-time (System/nanoTime)
+         indices (utils/v->array Key (mapv #(create-key (:index %) (:dbns db) (:set %)) indices))]
+     (.exists ^AerospikeClient client
+              ^EventLoop (.next ^NioEventLoops (:el db))
+              (reify-exists-array-listener op-future)
+              ^BatchPolicy (:policy conf)
+              ^"[Lcom.aerospike.client.Key;" indices)
+     (let [d (d/chain' op-future
+                       #(vec %)
+                       (:transcoder conf identity))]
+       (register-events d db "read-batch" nil start-time)))))
 
 (defn get-multiple
   "DEPRECATED - use `get-batch` instead.
