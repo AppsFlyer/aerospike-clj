@@ -14,8 +14,12 @@
     [this k set-name conf bin-names])
   (get-multiple [this indices sets]
     [this indices sets conf])
+  (get-batch [this batch-reads]
+    [this batch-reads conf])
   (exists? [this k set-name]
     [this k set-name conf])
+  (exists-batch [this indices]
+    [this indices conf])
   (get-single-no-meta [this k set-name]
     [this k set-name ^IPersistentVector bin-names])
   (put [this k set-name data expiration]
@@ -86,6 +90,9 @@
     (catch AerospikeException ex
       (defer/error-deferred ex))))
 
+(defn- filter-bins [bins record]
+  (clojure.core/update record :payload #(select-keys % bins)))
+
 
 (defrecord MockClient [state]
   AerospikeClient
@@ -104,6 +111,18 @@
     (defer/chain
       (mapv (fn [k set-name] @(get-single this k set-name conf)) indices set-names)))
 
+  (get-batch [this batch-reads]
+    (get-batch this batch-reads {}))
+
+  (get-batch [this batch-reads conf]
+    (defer/chain
+      (mapv
+        (fn [record]
+          (let [bins (if (= [:all] (:bins record)) nil (:bins record))
+                get-bins (if bins (partial filter-bins bins) identity)]
+            (get-bins @(get-single this (:index record) (:set record) conf))))
+        batch-reads)))
+
   (get-single-no-meta [this k set-name]
     (get-single this k set-name {:transcoder :payload}))
 
@@ -115,6 +134,13 @@
 
   (exists? [_ k set-name _]
     (defer/chain (record-exists? @state set-name k)))
+
+  (exists-batch [this indices]
+    (exists-batch this indices {}))
+
+  (exists-batch [_ indices _]
+    (defer/chain
+      (mapv (fn [v] (record-exists? @state (:set v) (:index v))) indices)))
 
   (put [this k set-name data expiration]
     (put this k set-name data expiration {}))
@@ -253,10 +279,7 @@
     (let [state (get-state this set-name)
           callback (:callback conf)
           bins (:bins conf)
-          get-bins (if bins
-                     (fn [record]
-                       (clojure.core/update record :payload #(select-keys % bins)))
-                     identity)]
+          get-bins (if bins (partial filter-bins bins) identity)]
 
       (defer/chain
         (try
@@ -264,10 +287,10 @@
             (when (= (callback k (get-bins v)) :abort-scan)
               (throw (ex-info "" {:abort-scan true}))))
           true
-         (catch Exception ex
-           (if (:abort-scan (ex-data ex))
-             false
-             (throw ex)))))))
+          (catch Exception ex
+            (if (:abort-scan (ex-data ex))
+              false
+              (throw ex)))))))
 
   (healthy? [_ _] true)
 

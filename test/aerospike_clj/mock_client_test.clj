@@ -61,14 +61,56 @@
           actual (mock/get-multiple client ["does-not-exist" "also-not-here"] [nil "some-set"])]
       (is (= @actual expected)))))
 
+(deftest get-batch-test
+  (testing "it should return a deferrable of vector of matched records"
+    (mock/put-multiple client
+                       ["foo" "bar" "fuzz"]
+                       [nil "some-set" "some-set"]
+                       ["is best" "is better" {"rank" "not so good" "solution" "give up"}]
+                       [86400 43200 10])
+
+    (let [expected [{:payload "is best" :ttl 86400 :gen 1} nil]
+          actual (mock/get-batch client [{:index "foo" :set nil} {:index "bar" :set "bar"}])]
+      (is (= @actual expected)))
+
+    (let [expected [{:payload "is better" :ttl 43200 :gen 1} nil {:payload {"rank" "not so good"} :ttl 10 :gen 1}]
+          actual (mock/get-batch client [{:index "bar" :set "some-set"} {:index "bar" :set nil} {:index "fuzz" :set "some-set" :bins ["rank"]}])]
+      (is (= @actual expected)))))
+
 (deftest exists?-test
   (testing "it should return a deferrable of boolean indicating whether a record exists"
     (mock/put client "foo" nil "bar" 30)
-    (is (= @(mock/exists? client "foo" nil) true))
-    (is (= @(mock/exists? client "bar" nil) false))
-    (is (= @(mock/exists? client "FOO" nil) false))
-    (is (= @(mock/exists? client "" nil) false))
-    (is (= @(mock/exists? client nil nil) false))))
+    (is (true? @(mock/exists? client "foo" nil)))
+    (is (false? @(mock/exists? client "bar" nil)))
+    (is (false? @(mock/exists? client "FOO" nil)))
+    (is (false? @(mock/exists? client "" nil)))
+    (is (false? @(mock/exists? client nil nil)))))
+
+(deftest exists-batch-test
+  (testing "it should return a deferrable vector of booleans indicating whether each key exists"
+    (mock/put-multiple client
+                       ["foo" "fuzz" "bar" "baz"]
+                       ["set1" "set2" "set1" "set3"]
+                       [1 1 1 1]
+                       [30 30 30 30])
+
+    (is (= @(mock/exists-batch client [{:index "foo" :set "set1"}
+                                       {:index "fuzz" :set "set2"}
+                                       {:index "bar" :set "set1"}
+                                       {:index "baz" :set "set3"}])
+           [true true true true]))
+
+    (is (= @(mock/exists-batch client [{:index "foo" :set "set1"}
+                                       {:index "fuzz" :set "set1"}
+                                       {:index "bar" :set "set1"}
+                                       {:index "baz" :set "set1"}])
+           [true false true false]))
+
+    (is (= @(mock/exists-batch client [{:index "zoo" :set "set1"}
+                                       {:index "fizz" :set "set1"}
+                                       {:index "vec" :set "set1"}
+                                       {:index "pez" :set "set1"}])
+           [false false false false]))))
 
 (deftest put-test
   (testing "it should create a new record if it doesn't exist"
