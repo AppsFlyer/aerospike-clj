@@ -14,10 +14,10 @@
 (use-fixtures :each rebind-client-to-mock)
 
 (deftest get-single-test
-  (mock/put client "foo" "my-set" {:bar 20} 86400)
+  (mock/put client "foo" "my-set" {"bar" 20} 86400)
 
   (testing "it should return a deferrable of a single record if it exists"
-    (let [expected {:payload {:bar 20} :ttl 86400 :gen 1}
+    (let [expected {:payload {"bar" 20} :ttl 86400 :gen 1}
           actual (mock/get-single client "foo" "my-set")]
       (is (= @actual expected))))
 
@@ -126,17 +126,17 @@
 
 (deftest add-bins-test
   (testing "it should add bins to an existing record without modifying old data"
-    (mock/set-single client "person" nil {:fname "John" :lname "Baker"} 30)
-    (mock/add-bins client "person" nil {:prefix "Mr."} 60)
+    (mock/set-single client "person" nil {"fname" "John" "lname" "Baker"} 30)
+    (mock/add-bins client "person" nil {"prefix" "Mr."} 60)
 
-    (let [expected {:payload {:fname "John" :lname "Baker" :prefix "Mr."} :ttl 60 :gen 1}
+    (let [expected {:payload {"fname" "John" "lname" "Baker" "prefix" "Mr."} :ttl 60 :gen 1}
           actual (mock/get-single client "person" nil)]
       (is (= @actual expected))))
 
   (testing "it should throw an exception if key doesn't exist"
     (try
       (do
-        @(mock/add-bins client "does-not-exist" nil {:prefix "Mr."} 60)
+        @(mock/add-bins client "does-not-exist" nil {"prefix" "Mr."} 60)
         (throw (AssertionError. "Expected AerospikeException to be thrown in `add-bins-test`")))
       (catch AerospikeException ex
         (is (= (.getResultCode ex) ResultCode/KEY_NOT_FOUND_ERROR))))))
@@ -144,13 +144,13 @@
 (deftest create-test
   (testing "it should create a new record"
     (mock/create client "foo" "set1" "bar" 60)
-    (mock/create client "baz" nil {:value 1} 30)
+    (mock/create client "baz" nil {"value" 1} 30)
 
     (let [expected {:payload "bar" :ttl 60 :gen 1}
           actual (mock/get-single client "foo" "set1")]
       (is (= @actual expected)))
 
-    (let [expected {:payload {:value 1} :ttl 30 :gen 1}
+    (let [expected {:payload {"value" 1} :ttl 30 :gen 1}
           actual (mock/get-single client "baz" nil)]
       (is (= @actual expected))))
 
@@ -205,22 +205,22 @@
 
 (deftest delete-bins-test
   (testing "it should delete the given bins in an existing record without modifying others"
-    (mock/create client "person" nil {:fname "John" :lname "Baker" :prefix "Mr." :age 74} 30)
-    (mock/delete-bins client "person" nil [:prefix :age] 60)
+    (mock/create client "person" nil {"fname" "John" "lname" "Baker" "prefix" "Mr." "age" 74} 30)
+    (mock/delete-bins client "person" nil ["prefix" "age"] 60)
 
-    (let [expected {:payload {:fname "John" :lname "Baker"} :ttl 60 :gen 1}
+    (let [expected {:payload {"fname" "John" "lname" "Baker"} :ttl 60 :gen 1}
           actual (mock/get-single client "person" nil)]
       (is (= @actual expected)))
 
-    (mock/delete-bins client "person" nil [:prefix :age] 10)
-    (let [expected {:payload {:fname "John" :lname "Baker"} :ttl 10 :gen 1}
+    (mock/delete-bins client "person" nil ["prefix" "age"] 10)
+    (let [expected {:payload {"fname" "John" "lname" "Baker"} :ttl 10 :gen 1}
           actual (mock/get-single client "person" nil)]
       (is (= @actual expected))))
 
   (testing "it should throw an exception if key doesn't exist"
     (try
       (do
-        @(mock/delete-bins client "does-not-exist" nil [:fname] 60)
+        @(mock/delete-bins client "does-not-exist" nil ["fname"] 60)
         (throw (AssertionError. "Expected AerospikeException to be thrown in `delete-bins-test`")))
       (catch AerospikeException ex
         (is (= (.getResultCode ex) ResultCode/KEY_NOT_FOUND_ERROR))))))
@@ -238,6 +238,36 @@
       (catch RuntimeException _
         (is (= 1 1))))))
 
+(deftest scan-set-test
+  (let [test-data [["John Barker" {"fname" "John" "lname" "Baker" "prefix" "Mr." "age" 74}]
+                   ["Fred Marshall" {"fname" "Fred" "lname" "Marshall" "prefix" "Mr." "age" 45}]
+                   ["Gina Benson" {"fname" "Gina" "lname" "Benson" "prefix" "Mrs." "age" 39}]]]
+
+    (doseq [v test-data]
+      (mock/create client (first v) "people" (second v) 30))
+
+    (testing "it should scan the set and call the user supplied callback for each record"
+      (let [res (atom [])
+            callback (fn [k v] (swap! res conj [k (get (:payload v) "age")]))]
+        (is (true? @(mock/scan-set client nil "people" {:callback callback})))
+        (is (= [["John Barker" 74] ["Fred Marshall" 45] ["Gina Benson" 39]] @res))))
+
+    (testing "it should abort the scan and return false when the callback returns :abort-scan"
+      (let [callback (fn [_ v] (when (= (get (:payload v) "age") 45) :abort-scan))]
+        (is (false? @(mock/scan-set client nil "people" {:callback callback})))))
+
+    (testing "it should include only the bins requested by the user"
+      (let [res (atom [])
+            callback (fn [k v] (swap! res conj [k (:payload v)]))]
+        (is (true? @(mock/scan-set client nil "people" {:bins ["age"] :callback callback})))
+        (is (= [["John Barker" {"age" 74}] ["Fred Marshall" {"age" 45}] ["Gina Benson" {"age" 39}]] @res))))
+
+    (testing "it should scan the given namespace"
+      (let [res (atom [])
+            callback (fn [_ v] (swap! res conj v))]
+        (is (true? @(mock/scan-set client nil "children" {:callback callback})))
+        (is (empty @res))))))
+
 (deftest healthy-test
   (is (= (mock/healthy? client 0) true)))
 
@@ -246,15 +276,15 @@
 
 (deftest apply-transcoder-test
   (testing "it should apply the transcoder function to the payload before inserting it"
-    (let [conf {:transcoder #(clojure.core/update % :bar inc)}
-          expected {:payload {:bar 21} :ttl 86400 :gen 1}]
+    (let [conf {:transcoder #(clojure.core/update % "bar" inc)}
+          expected {:payload {"bar" 21} :ttl 86400 :gen 1}]
 
-      (mock/put client "foo" "my-set" {:bar 20} 86400 conf)
+      (mock/put client "foo" "my-set" {"bar" 20} 86400 conf)
       (is (= @(mock/get-single client "foo" "my-set") expected))))
 
   (testing "it should apply the transcoder function to the whole record before returning it"
-    (let [conf {:transcoder #(clojure.core/update-in % [:payload :bar] inc)}
-          expected {:payload {:bar 22} :ttl 86400 :gen 1}
+    (let [conf {:transcoder #(clojure.core/update-in % [:payload "bar"] inc)}
+          expected {:payload {"bar" 22} :ttl 86400 :gen 1}
           actual (mock/get-single client "foo" "my-set" conf)]
       (is (= @actual expected))))
 

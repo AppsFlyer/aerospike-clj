@@ -39,6 +39,7 @@
     [this k set-name ^IPersistentVector bin-names new-expiration conf])
   (operate [this k set-name expiration operations]
     [this k set-name expiration operations conf])
+  (scan-set [this aero-namespace set-name conf])
   (get-cluster-stats [this])
   (healthy? [this operation-timeout-ms])
   (stop-aerospike-client [this])
@@ -95,13 +96,13 @@
 
   (get-single [_ k set-name conf _]
     (let [transcoder (get-transcoder conf)]
-      (defer/success-deferred (transcoder (get-record @state set-name k)))))
+      (defer/chain (transcoder (get-record @state set-name k)))))
 
   (get-multiple [this indices set-names]
     (get-multiple this indices set-names {}))
 
   (get-multiple [this indices set-names conf]
-    (defer/success-deferred
+    (defer/chain
       (mapv (fn [k set-name] @(get-single this k set-name conf)) indices set-names)))
 
   (get-single-no-meta [this k set-name]
@@ -114,7 +115,7 @@
     (exists? this k set-name {}))
 
   (exists? [_ k set-name _]
-    (defer/success-deferred (record-exists? @state set-name k)))
+    (defer/chain (record-exists? @state set-name k)))
 
   (put [this k set-name data expiration]
     (put this k set-name data expiration {}))
@@ -153,7 +154,7 @@
     (put-multiple this indices set-names payloads expiration-seq {}))
 
   (put-multiple [this indices set-names payloads expiration-seq conf]
-    (defer/success-deferred
+    (defer/chain
       (mapv (fn [k set-name payload expiration]
               @(put this k set-name payload expiration conf))
             indices set-names payloads expiration-seq)))
@@ -249,6 +250,26 @@
   (operate [_ _ _ _ _ _]
     (throw (RuntimeException. "Function not implemented")))
 
+  (scan-set [this _ set-name conf]
+    (let [state (get-state this set-name)
+          callback (:callback conf)
+          bins (:bins conf)
+          get-bins (if bins
+                     (fn [record]
+                       (clojure.core/update record :payload #(select-keys % bins)))
+                     identity)]
+
+      (defer/chain
+        (try
+          (doseq [[k v] state]
+            (when (= (callback k (get-bins v)) :abort-scan)
+              (throw (ex-info "" {:abort-scan true}))))
+          true
+         (catch Exception ex
+           (if (:abort-scan (ex-data ex))
+             false
+             (throw ex)))))))
+
   (healthy? [_ _] true)
 
   (get-cluster-stats [_] [[]])
@@ -290,6 +311,7 @@
      client/delete delete
      client/delete-bins delete-bins
      client/operate operate
+     client/scan-set scan-set
      client/get-cluster-stats get-cluster-stats
      client/healthy? healthy?
      client/expiry-unix expiry-unix]
