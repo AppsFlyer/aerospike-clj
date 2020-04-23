@@ -12,7 +12,8 @@
   (get-single [this k set-name]
     [this k set-name conf]
     [this k set-name conf bin-names])
-  (get-multiple [this indices sets]
+  (get-multiple ^{:deprecated "0.3.2"}
+    [this indices sets]
     [this indices sets conf])
   (get-batch [this batch-reads]
     [this batch-reads conf])

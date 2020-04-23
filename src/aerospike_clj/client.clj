@@ -308,14 +308,15 @@
    (let [client (get-client db)
          op-future (d/deferred)
          start-time (System/nanoTime)
-         indices (utils/v->array Key (mapv #(create-key (:index %) (:dbns db) (:set %)) indices))]
+         aero-namespace (:dbns db)
+         indices (utils/v->array Key (mapv #(create-key (:index %) aero-namespace (:set %)) indices))]
      (.exists ^AerospikeClient client
               ^EventLoop (.next ^NioEventLoops (:el db))
               (reify-exists-array-listener op-future)
               ^BatchPolicy (:policy conf)
               ^"[Lcom.aerospike.client.Key;" indices)
      (let [d (d/chain' op-future
-                       #(vec %)
+                       vec
                        (:transcoder conf identity))]
        (register-events d db "read-batch" nil start-time)))))
 
