@@ -6,8 +6,8 @@
   (:require [clojure.test :refer [deftest testing is use-fixtures]]
             [aerospike-clj.client :as client]
             [aerospike-clj.policy :as policy]
-            [cheshire.core :as json]
-            [taoensso.timbre :refer [spy]])
+            [aerospike-clj.key :as as-key]
+            [cheshire.core :as json])
   (:import [com.aerospike.client AerospikeException Value AerospikeClient]
            [com.aerospike.client.cdt ListOperation ListPolicy ListOrder ListWriteFlags ListReturnType
                                      MapOperation MapPolicy MapOrder MapWriteFlags MapReturnType CTX]
@@ -22,6 +22,7 @@
 (def K_not_exists "k_not_exists")
 (def _set "set")
 (def _set2 "set2")
+(def as-namespace "test")
 (def ^:dynamic *c* nil)
 
 (defn- test-fixture [f]
@@ -33,7 +34,7 @@
 (defn db-connection [f]
   (binding [*c* (client/init-simple-aerospike-client
                   ["localhost"]
-                  "test")]
+                  as-namespace)]
     (f)
     (client/stop-aerospike-client *c*)))
 
@@ -47,6 +48,13 @@
   (is (thrown-with-msg? Exception #"setting maxCommandsInProcess>0 and maxCommandsInQueue=0 creates an unbounded delay queue"
                         (client/init-simple-aerospike-client ["localhost"] "test" {"maxCommandsInProcess" 1}))))
 
+(deftest info
+  (doseq [node (client/get-nodes *c*)]
+    (= {"health-stats" "stat=test_device_read_latency:value=0:device=/opt/aerospike/data/test.dat:namespace=test"
+        "namespaces" "test"
+        "set-config:context=service;enable-health-check=true" "ok"}
+     @(client/info *c* node ["namespaces" "set-config:context=service;enable-health-check=true" "health-stats"]))))
+
 (deftest health
   (is (true? (client/healthy? *c* 10))))
 
@@ -56,6 +64,29 @@
     (let [{:keys [payload gen] } @(client/get-single *c* K _set)]
       (is (= data payload))
       (is (= 1 gen)))))
+
+(deftest get-record-by-digest
+  (let [data (rand-int 1000)
+        akey (as-key/create-key K as-namespace _set)
+        digest (.digest akey)]
+    (is (true? @(client/create *c* K _set data 100)))
+    (let [{:keys [payload] } @(client/get-single *c* akey nil)]
+      (is (= data payload)))
+    (let [key-with-digest (as-key/create-key digest as-namespace _set (Value/get K))
+          {:keys [payload] } @(client/get-single *c* key-with-digest nil)]
+      (is (= data payload)))))
+
+(deftest put-record-by-digest
+  (let [data (rand-int 1000)
+        akey (as-key/create-key K as-namespace _set)
+        digest (.digest akey)
+        key-with-digest (as-key/create-key digest as-namespace _set (Value/get K))]
+    (is (true? @(client/create *c* key-with-digest nil data 100)))
+    (let [{:keys [payload] } @(client/get-single *c* K _set)]
+      (is (= data payload)))
+    (let [key-with-digest (as-key/create-key digest as-namespace _set (Value/get K))
+          {:keys [payload] } @(client/get-single *c* key-with-digest nil)]
+      (is (= data payload)))))
 
 (deftest get-miss
   (let [{:keys [payload gen] } @(client/get-single *c* K _set)]
@@ -172,11 +203,6 @@
   (let [{:keys [payload gen]} @(client/get-single *c* K _set)]
     (is (= 17 payload))
     (is (= 2 gen))))
-
-(deftest too-long-key
-  (let [too-long-key (clojure.string/join "" (repeat (inc client/MAX_KEY_LENGTH) "k"))]
-    (is (thrown-with-msg? Exception #"key is too long"
-                          @(client/put *c* too-long-key _set 1 100)))))
 
 (deftest too-long-bin-name
   (let [long-bin-name "thisstringislongerthan14characters"]

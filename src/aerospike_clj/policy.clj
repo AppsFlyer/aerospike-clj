@@ -2,7 +2,7 @@
   (:import [com.aerospike.client AerospikeClient]
            [com.aerospike.client.async EventPolicy]
            [com.aerospike.client.policy Policy ClientPolicy WritePolicy RecordExistsAction GenerationPolicy BatchPolicy CommitLevel
-                                        AuthMode ReadModeAP ReadModeSC Priority Replica]))
+                                        AuthMode ReadModeAP ReadModeSC Priority Replica])) 
 
 (defmacro set-java [obj conf obj-name]
   `(when (some? (get ~conf ~obj-name))

@@ -1,8 +1,6 @@
 (ns aerospike-clj.metrics
-  (:require [clojure.string :as s]
-            [taoensso.timbre :refer [info warn error spy]])
+  (:require [clojure.string :as s])
   (:import [com.aerospike.client.cluster ClusterStats NodeStats Node]
-           [com.aerospike.client AerospikeClient AerospikeException]
            [com.aerospike.client.async EventLoopStats]))
 
 (defn node-ip [^Node node]
