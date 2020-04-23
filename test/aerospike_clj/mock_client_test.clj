@@ -1,8 +1,9 @@
 (ns aerospike-clj.mock-client-test
   (:refer-clojure :exclude [update])
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [aerospike-clj.mock-client :as mock]
-            [aerospike-clj.client :as client])
+            [aerospike-clj.client :as client]
+            [clojure.string])
   (:import [com.aerospike.client ResultCode AerospikeException]))
 
 (def ^:dynamic ^mock/AerospikeClient client nil)
@@ -135,9 +136,8 @@
 
   (testing "it should throw an exception if key doesn't exist"
     (try
-      (do
-        @(mock/add-bins client "does-not-exist" nil {"prefix" "Mr."} 60)
-        (throw (AssertionError. "Expected AerospikeException to be thrown in `add-bins-test`")))
+      @(mock/add-bins client "does-not-exist" nil {"prefix" "Mr."} 60)
+      (throw (AssertionError. "Expected AerospikeException to be thrown in `add-bins-test`"))
       (catch AerospikeException ex
         (is (= (.getResultCode ex) ResultCode/KEY_NOT_FOUND_ERROR))))))
 
@@ -158,10 +158,9 @@
     (doseq [args [["key1" "set1" "val1" 60] ["key2" nil "val2" 60]]]
       (apply mock/create client args)
       (try
-        (do
-          @(apply mock/create client args)
-          (throw (AssertionError.
-                   (str "Expected AerospikeException to be thrown in `create-test`: " args))))
+        @(apply mock/create client args)
+        (throw (AssertionError.
+                 (str "Expected AerospikeException to be thrown in `create-test`: " args)))
         (catch AerospikeException ex
           (is (= (.getResultCode ex) ResultCode/KEY_EXISTS_ERROR)))))))
 
@@ -176,9 +175,8 @@
 
   (testing "it should throw an exception if a key doesn't exist"
     (try
-      (do
-        @(mock/touch client "does-not-exist" nil 120)
-        (throw (AssertionError. "Expected AerospikeException to be thrown in `touch-test`")))
+      @(mock/touch client "does-not-exist" nil 120)
+      (throw (AssertionError. "Expected AerospikeException to be thrown in `touch-test`"))
       (catch AerospikeException ex
         (is (= (.getResultCode ex) ResultCode/KEY_NOT_FOUND_ERROR))))))
 
@@ -219,9 +217,8 @@
 
   (testing "it should throw an exception if key doesn't exist"
     (try
-      (do
-        @(mock/delete-bins client "does-not-exist" nil ["fname"] 60)
-        (throw (AssertionError. "Expected AerospikeException to be thrown in `delete-bins-test`")))
+      @(mock/delete-bins client "does-not-exist" nil ["fname"] 60)
+      (throw (AssertionError. "Expected AerospikeException to be thrown in `delete-bins-test`"))
       (catch AerospikeException ex
         (is (= (.getResultCode ex) ResultCode/KEY_NOT_FOUND_ERROR))))))
 
@@ -232,9 +229,8 @@
 (deftest operate-test
   (testing "function is not implemented"
     (try
-      (do
-        (mock/operate client "foo" nil 120 [])
-        (throw (AssertionError. "Expected RuntimeException to be thrown in `operate-test`")))
+      (mock/operate client "foo" nil 120 [])
+      (throw (AssertionError. "Expected RuntimeException to be thrown in `operate-test`"))
       (catch RuntimeException _
         (is (= 1 1))))))
 

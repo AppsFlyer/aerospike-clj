@@ -81,9 +81,8 @@
 
 (defn- do-swap [state swap-fn]
   (try
-    (do
-      (swap! state swap-fn)
-      (defer/success-deferred true))
+    (swap! state swap-fn)
+    (defer/success-deferred true)
     (catch AerospikeException ex
       (defer/error-deferred ex))))
 
