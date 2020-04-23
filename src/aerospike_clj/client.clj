@@ -3,13 +3,16 @@
   (:require [aerospike-clj.policy :as policy]
             [aerospike-clj.utils :as utils]
             [aerospike-clj.metrics :as metrics]
+            [aerospike-clj.key :as as-key]
             [manifold.deferred :as d])
   (:import [com.aerospike.client AerospikeClient Host Key Bin Record AerospikeException Operation BatchRead AerospikeException$QueryTerminated]
            [com.aerospike.client.async EventLoop NioEventLoops]
-           [com.aerospike.client.listener RecordListener WriteListener DeleteListener ExistsListener BatchListListener RecordSequenceListener]
-           [com.aerospike.client.policy Policy BatchPolicy ClientPolicy RecordExistsAction WritePolicy ScanPolicy]
+           [com.aerospike.client.listener RecordListener WriteListener DeleteListener ExistsListener BatchListListener RecordSequenceListener
+                                          InfoListener]
+           [com.aerospike.client.policy Policy BatchPolicy ClientPolicy RecordExistsAction WritePolicy ScanPolicy InfoPolicy]
+           [com.aerospike.client.cluster Node]
            [clojure.lang IPersistentMap IPersistentVector]
-           [java.util List Collection ArrayList]
+           [java.util List Collection ArrayList Map]
            [java.time Instant]))
 
 (declare record->map)
@@ -18,7 +21,6 @@
   ^{:doc "The 0 date reference for returned record TTL"}
   (.getEpochSecond (Instant/parse "2010-01-01T00:00:00Z")))
 
-(def MAX_KEY_LENGTH (dec (bit-shift-left 1 13)))
 
 (def MAX_BIN_NAME_LENGTH 14)
 
@@ -39,10 +41,12 @@
 (defn create-client
   "Returns the Java `AerospikeClient` instance. To build the Clojure `IAerospikeClient` one,
   use `init-simple-aerospike-client`."
-  [hosts client-policy]
-  (let [hosts-arr (into-array Host (for [h hosts]
-                                     ^Host (Host. h 3000)))]
-    (AerospikeClient. ^ClientPolicy client-policy ^"[Lcom.aerospike.client.Host;" hosts-arr)))
+  ([host client-policy]
+   (create-client host client-policy 3000))
+  ([hosts client-policy port]
+   (let [hosts-arr (into-array Host (for [h hosts]
+                                      ^Host (Host. h port)))]
+     (AerospikeClient. ^ClientPolicy client-policy ^"[Lcom.aerospike.client.Host;" hosts-arr))))
 
 (defn create-event-loops
   "Called internally to create the event loops of for the client.
@@ -52,7 +56,13 @@
     (NioEventLoops. elp 1 true "NioEventLoops")))
 
 (defn init-simple-aerospike-client
-  "hosts should be a seq of known hosts to bootstrap from."
+  "hosts should be a seq of known hosts to bootstrap from. Optional conf map _can_ have:
+  :event-loops - a client compatible event loop instace
+  client policy configuration keys (see policy/create-client-policy)
+  :client-policy - a ready ClientPolicy
+  \"username\"
+  :port (default is 3000)
+  :client-events an implementation of ClientEvents"
   ([hosts aero-ns]
    (init-simple-aerospike-client hosts aero-ns {}))
   ([hosts aero-ns conf]
@@ -60,7 +70,7 @@
          event-loops (:event-loops conf (create-event-loops conf))
          client-policy (:client-policy conf (policy/create-client-policy event-loops conf))]
      (println (format ";; Starting aerospike clients for clusters %s with username %s" cluster-name (get conf "username")))
-     (map->SimpleAerospikeClient {:ac (create-client hosts client-policy)
+     (map->SimpleAerospikeClient {:ac (create-client hosts client-policy (:port conf 3000))
                                   :el event-loops
                                   :dbns aero-ns
                                   :cluster-name cluster-name
@@ -116,6 +126,14 @@
     (^void onFailure [_this ^AerospikeException ex]
       (d/error! op-future ex))))
 
+(defn- ^InfoListener reify-info-listener [op-future]
+  (reify
+    InfoListener
+    (^void onSuccess [_this ^Map result-map]
+      (d/success! op-future (into {} result-map)))
+    (^void onFailure [_this ^AerospikeException ex]
+      (d/error! op-future ex))))
+
 (defn- ^RecordListener reify-record-listener [op-future]
   (reify RecordListener
     (^void onFailure [_this ^AerospikeException ex]
@@ -142,11 +160,21 @@
     (^void onSuccess [_this ^List records]
       (d/success! op-future records))))
 
-(defn- ^Key create-key [^String aero-namespace ^String set-name ^String k]
-  (when (< MAX_KEY_LENGTH (.length k))
-    (throw (Exception. (format "key is too long: %s..." (subs k 0 40)))))
-  (Key. aero-namespace set-name k))
+(defprotocol UserKey
+  "Use `create-key` directly to pass a premade custom key to the public API.
+  When passing a simple String/Integer/Long/ByteArray the key will be created
+  automatically for you. If you pass a ready made key, `as-namespace` and 
+  `set-name` are ignored in API calls."
+  (create-key ^Key [this as-namespace set-name]))
 
+(extend-protocol UserKey
+  Key
+  (create-key ^Key [this _ _]
+    this)
+  Object
+  (create-key ^Key [this as-namespace set-name]
+    (as-key/create-key this as-namespace set-name)))
+  
 (defn- ^Bin create-bin [^String bin-name bin-value]
   (when (< MAX_BIN_NAME_LENGTH (.length bin-name))
     (throw (Exception. (format "%s is %s characters. Bin names have to be <= 14 characters..." bin-name (.length bin-name)))))
@@ -213,13 +241,13 @@
             ^EventLoop (.next ^NioEventLoops (:el db))
             (reify-record-listener op-future)
             ^Policy (:policy conf)
-            (create-key (:dbns db) set-name index))
+            (create-key index (:dbns db) set-name))
       ;; For all other cases, bin-names are passed to a different `get` method
       (.get ^AerospikeClient client
             ^EventLoop (.next ^NioEventLoops (:el db))
             (reify-record-listener op-future)
             ^Policy (:policy conf)
-            (create-key (:dbns db) set-name index)
+            (create-key index (:dbns db) set-name)
             ^"[Ljava.lang.String;" (utils/v->array String bin-names)))
     (let [d (d/chain' op-future
                       record->map
@@ -234,7 +262,7 @@
   ([db index set-name conf bin-names] (_get db index set-name conf bin-names)))
 
 (defn- ^BatchRead map->batch-read [batch-read-map dbns]
-  (let [k (create-key dbns (:set batch-read-map) (:index batch-read-map))]
+  (let [k (create-key (:index batch-read-map) dbns (:set batch-read-map))]
     (if (or (= [:all] (:bins batch-read-map))
             (nil? (:bins batch-read-map)))
       (BatchRead. k true)
@@ -262,7 +290,6 @@
                       #(mapv batch-read->map %)
                       (:transcoder conf identity))]
       (register-events d db "read-batch" nil start-time)))))
-       
 
 (defn get-multiple
   "DEPRECATED - use `get-batch` instead.
@@ -289,7 +316,7 @@
               ^EventLoop (.next ^NioEventLoops (:el db))
               (reify-exists-listener op-future)
               ^Policy (:policy conf)
-              (create-key (:dbns db) set-name index))
+              (create-key index (:dbns db) set-name))
      (register-events op-future db "exists" index start-time))))
 
 (defn get-single-no-meta
@@ -308,7 +335,7 @@
           ^EventLoop (.next ^NioEventLoops (:el db))
           ^WriteListener (reify-write-listener op-future)
           ^WritePolicy policy
-          (create-key (:dbns db) set-name index)
+          (create-key index (:dbns db) set-name)
           ^"[Lcom.aerospike.client.Bin;" bins)
     (register-events op-future db "write" index start-time)))
 
@@ -409,7 +436,7 @@
             ^EventLoop (.next ^NioEventLoops (:el db))
             ^WriteListener (reify-write-listener op-future)
             ^WritePolicy (policy/write-policy client expiration RecordExistsAction/UPDATE_ONLY)
-            (create-key (:dbns db) set-name index))
+            (create-key index (:dbns db) set-name))
     (register-events op-future db "touch" index start-time)))
 
 ;; delete
@@ -427,7 +454,7 @@
               ^EventLoop (.next ^NioEventLoops (:el db))
               ^DeleteListener (reify-delete-listener op-future)
               ^WritePolicy (:policy conf)
-              (create-key (:dbns db) set-name index))
+              (create-key index (:dbns db) set-name))
      (register-events op-future db "delete" index start-time))))
 
 (defn- _delete-bins [db index bin-names policy set-name]
@@ -438,7 +465,7 @@
           ^EventLoop (.next ^NioEventLoops (:el db))
           ^WriteListener (reify-write-listener op-future)
           ^WritePolicy policy
-          (create-key (:dbns db) set-name index)
+          (create-key index (:dbns db) set-name)
           ^"[Lcom.aerospike.client.Bin;" (utils/v->array Bin (mapv set-bin-as-null bin-names)))
     (register-events op-future db "write" index start-time)))
 
@@ -472,7 +499,7 @@
                  ^EventLoop (.next ^NioEventLoops (:el db))
                  ^RecordListener (reify-record-listener op-future)
                  ^WritePolicy (:policy conf (policy/write-policy client expiration RecordExistsAction/UPDATE))
-                 (create-key (:dbns db) set-name index)
+                 (create-key index (:dbns db) set-name)
                  (utils/v->array Operation operations))
        (register-events (d/chain' op-future record->map) db "operate" index start-time)))))
 
@@ -503,6 +530,28 @@
               (when bin-names ^"[Ljava.lang.String;" (utils/v->array String bin-names)))
     (register-events op-future db "scan" nil start-time)))
 
+(defn info 
+  "Asynchronously make info commands to a node. a node can be retreived from `get-nodes`. commands is a seq
+  of strings available from https://www.aerospike.com/docs/reference/info/index.html the returned future conatains
+  a map from and info command to its response.
+  conf can contain {:policy InfoPolicy} "
+  ([db node info-commands]
+   (info db node info-commands {}))
+  ([db ^Node node info-commands conf]
+   (let [client (get-client db)
+         op-future (d/deferred)
+         start-time (System/nanoTime)]
+     (.info ^AerospikeClient client
+            ^EventLoop (.next ^NioEventLoops (:el db))
+            (reify-info-listener op-future)
+            ^InfoPolicy (:policy conf (.infoPolicyDefault ^AerospikeClient client))
+            node
+            (into-array String info-commands))
+     (register-events op-future db "info" nil start-time))))
+
+(defn get-nodes [db]
+  (.getNodes (get-client db)))
+
 ;; metrics
 (defn get-cluster-stats
   "For each client, return a vector of [metric-name metric-val] 2-tuples.
@@ -518,23 +567,26 @@
 
 (defn healthy?
   "Returns true iff the cluster is reachable and can take reads and writes.
-  Uses __health-check set to avoid data collisions. `operation-timeout-ms` is for total timeout of reads
-  (including 2 retries) so an small over estimation is advised to avoid false negatives."
-  [db operation-timeout-ms]
-  (let [read-policy (let [p (.readPolicyDefault ^AerospikeClient (get-client db ""))]
-                      (set! (.totalTimeout p) operation-timeout-ms)
-                      p)
-        k (str "__health__" (rand-int 1000))
-        v 1
-        ttl (min 1 (int (/ operation-timeout-ms 1000)))
-        set-name "__health-check"]
-    (try
-      @(create db k set-name v ttl)
-      (= v
-         @(get-single db k set-name {:transcoder :payload
-                                     :policy read-policy}))
-      (catch Exception _ex
-        false))))
+  Uses __health-check set to avoid data collisions. `operation-timeout-ms` is
+  for total timeout of reads (default is 1s) including 2 retries so a small
+  over estimation is advised to avoid false negatives."
+  ([db]
+   (healthy? db 1000))
+  ([db operation-timeout-ms]
+   (let [read-policy (let [p (.readPolicyDefault ^AerospikeClient (get-client db ""))]
+                       (set! (.totalTimeout p) operation-timeout-ms)
+                       p)
+         k (str "__health__" (rand-int Integer/MAX_VALUE))
+         v (rand-int Integer/MAX_VALUE)
+         ttl (min 1 (int (/ operation-timeout-ms 1000)))
+         set-name "__health-check"]
+     (try
+       @(put db k set-name v ttl)
+       (= v
+          @(get-single db k set-name {:transcoder :payload
+                                      :policy read-policy}))
+       (catch Exception _ex
+         false)))))
 
 ;; etc
 
