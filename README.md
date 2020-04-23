@@ -116,6 +116,31 @@ $ sudo docker run -d --name aerospike -p 3000:3000 -p 3001:3001 -p 3002:3002 -p 
 $ lein test
 ```
 
+#### Mocking in application unit tests
+When performing unit tests in application code, it is most times undesirable to launch a full aerospike container to 
+run tests again. For those cases the library exposes a mock client that once initialized in a test mocks all the calls 
+to `aerospike-clj.client`.  
+
+Usage:
+
+```clojure
+(ns com-example.app 
+  (:require [clojure.test :refer [deftest use-fixtures]]
+            [aerospike-clj.mock-client :refer [init-mock]]))
+
+(use-fixtures :each init-mock)
+
+(deftest ...) ;; define your application unit tests as usual
+```
+
+The sample code executes on every test run. It initializes the mock and runs
+the test within a `with-redefs` - rebinding all the calls to functions
+in `aerospike-clj.client` to the mock.
+
+Note: If the production client is initiated using a state management framework,
+you would also need to stop and restart the state on each test run.
+
+
 ## Contributing
 PRs are welcome!
 
