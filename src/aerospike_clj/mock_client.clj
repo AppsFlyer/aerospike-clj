@@ -322,6 +322,7 @@
      client/get-single get-single
      client/get-multiple get-multiple
      client/exists? exists?
+     client/exists-batch exists-batch
      client/get-single-no-meta get-single-no-meta
      client/put put
      client/add-bins add-bins
