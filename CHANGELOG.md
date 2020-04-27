@@ -1,3 +1,7 @@
+#### VERSION 0.5.1
+* Added batch-exsits
+* Bump aerospike lib to 4.4.10
+
 #### VERSION 0.5.0
 * Added mocking for aerospike client
 
