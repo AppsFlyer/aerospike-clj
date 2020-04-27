@@ -118,8 +118,7 @@ $ lein test
 
 #### Mocking in application unit tests
 When performing unit tests in application code, it is most times undesirable to launch a full aerospike container to 
-run tests again. For those cases the library exposes a mock client that once initialized in a test mocks all the calls 
-to `aerospike-clj.client`.  
+run tests against. For those cases the library exposes a mock client that replaces all the calls to `aerospike-clj.client`.  
 
 Usage:
 
