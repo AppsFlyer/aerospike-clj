@@ -730,5 +730,41 @@
 
       (delete-records))))
 
+(deftest async-queue-full
+  (let [ttl 1]
+    (testing "An AerospikeException$AsyncQueueFull is thrown on too many concurrent commands."
+      (let [c (client/init-simple-aerospike-client
+                ["localhost"] "test"
+                {"maxCommandsInProcess" 5 
+                 "maxCommandsInQueue" 1})
+            concurrent-commands 10]
+        (is (thrown? AerospikeException$AsyncQueueFull
+                     @(apply d/zip'
+                             (for [_ (range concurrent-commands)]
+                               (client/put c (random-key) _set 42 ttl)))))))
 
+    (testing "when configured with back-pressure the client can block before the commands queue gets
+           overloaded."
+      (let [back-pressure-client (client/init-simple-aerospike-client
+                                   ["localhost"] "test"
+                                   {"maxCommandsInProcess" 5 
+                                    "maxCommandsInQueue" 1
+                                    :block-on-queue-full? true})
+            concurrent-commands 10]
+        @(apply d/zip'
+                (for [_ (range concurrent-commands)]
+                  (client/put back-pressure-client (random-key) _set 42 ttl)))
 
+        (testing "async scan-set respects semaphore"
+          (let [concurrent-commands 10
+                ks (set (repeatedly concurrent-commands random-key))]
+            ;; put 10 keys
+            @(apply d/zip'
+                    (for [k ks]
+                      (client/put back-pressure-client k _set 42 ttl)))
+            ;; issue a scan and touch every key
+            (let [callback (fn [k _v]
+                             (when (ks (str k))
+                               (client/touch back-pressure-client (str k) _set ttl)))]
+
+              @(client/scan-set back-pressure-client as-namespace _set {:callback callback}))))))))

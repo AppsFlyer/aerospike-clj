@@ -3,7 +3,7 @@ Since `aerospike-clj` uses a future based model instead of a callback based mode
 
 By implementing `ClientEvents` 2 hooks are exposed that are called for each API call: `on-success` and `on-failure`.
 
-Those hooks are called with valuable information that can be used, for example to configure automatic logging, or telemtry on your client. Here is an example of a such code, that is reporting useful metrics to [statsd](https://github.com/etsy/statsd). So assuming you have some `statsd` namespace tha can connect and report a statsd server, and some `metrics` namespace that is used to properly format the metric names:
+Those hooks are called with valuable information that can be used, for example to configure automatic logging, or telemetry on your client. Here is an example of a such code, that is reporting useful metrics to [statsd](https://github.com/etsy/statsd). So assuming you have some `statsd` namespace tha can connect and report a statsd server, and some `metrics` namespace that is used to properly format the metric names:
 ```clojure
 (ns af-common-rta-aerospike.core
   (:require [aerospike-clj.client :as aero]
@@ -30,7 +30,9 @@ Those hooks are called with valuable information that can be used, for example t
     (statsd/inc-metric (metrics/format-statsd-metric-fail-aerospike op-ex (:cluster-name client) op-name))
     (d/error-deferred op-ex)))
 ```
+
 A few notes on the above code:
+
 1. Passed arguments:
   * `op-name`, `op-result` and `index` are strings. They partially used for metrics generation in our case.
   * `client` here is the `IAerospikeClient` instace. You can use its fields here, or you can even `assoc` more keys on it when you create it, to be later used here.

@@ -6,14 +6,15 @@
             [aerospike-clj.key :as as-key]
             [manifold.deferred :as d])
   (:import [com.aerospike.client AerospikeClient Host Key Bin Record AerospikeException Operation BatchRead AerospikeException$QueryTerminated]
-           [com.aerospike.client.async EventLoop NioEventLoops]
+           [com.aerospike.client.async EventLoop EventLoops NioEventLoops]
            [com.aerospike.client.listener RecordListener WriteListener DeleteListener ExistsListener BatchListListener RecordSequenceListener
                                           InfoListener ExistsArrayListener]
            [com.aerospike.client.policy Policy BatchPolicy ClientPolicy RecordExistsAction WritePolicy ScanPolicy InfoPolicy]
            [com.aerospike.client.cluster Node]
            [clojure.lang IPersistentMap IPersistentVector]
            [java.util List Collection ArrayList Map]
-           [java.time Instant]))
+           [java.time Instant]
+           [java.util.concurrent Semaphore]))
 
 (declare record->map)
 
@@ -32,6 +33,7 @@
                                   ^NioEventLoops el
                                   ^String dbns
                                   ^String cluster-name
+                                  ^Semaphore commands-sem
                                   client-events]
   IAerospikeClient
   (get-client ^AerospikeClient [_ _] ac)
@@ -57,24 +59,42 @@
 
 (defn init-simple-aerospike-client
   "hosts should be a seq of known hosts to bootstrap from. Optional conf map _can_ have:
-  :event-loops - a client compatible event loop instace
+  `:event-loops` - a client compatible event loop instace
   client policy configuration keys (see policy/create-client-policy)
-  :client-policy - a ready ClientPolicy
-  \"username\"
-  :port (default is 3000)
-  :client-events an implementation of ClientEvents"
+  `:client-policy` - a ready ClientPolicy
+  \"username\" (may be `nil`)
+  `:port` (default is 3000)
+  `:client-events` an implementation of ClientEvents
+  \"maxCommandsInProcess\" should be more than 5 (default `nil`. used by ClientPolicy in EventLoops)
+  \"maxCommandsInQueue\" should be more than 0 (default `nil`. used by ClientPolicy in EventLoops)
+  `block-on-queue-full?` a boolean to enable back-pressure if maxCommandsInProcess and 
+  maxCommandsInQueue are enabled." 
   ([hosts aero-ns]
    (init-simple-aerospike-client hosts aero-ns {}))
   ([hosts aero-ns conf]
    (let [cluster-name (utils/cluster-name hosts)
-         event-loops (:event-loops conf (create-event-loops conf))
-         client-policy (:client-policy conf (policy/create-client-policy event-loops conf))]
+         ^EventLoops event-loops (:event-loops conf (create-event-loops conf))
+         event-loops-size (.getSize event-loops)
+         client-policy (:client-policy conf (policy/create-client-policy event-loops conf))
+         block-on-queue-full? (:block-on-queue-full? conf false)
+         ^Semaphore commands-sem (when (and block-on-queue-full?
+                                            (pos? (get conf "maxCommandsInProcess" 0))
+                                            (pos? (get conf "maxCommandsInQueue" 0)))
+                                   (let [permits (+ (* event-loops-size
+                                                       (get conf "maxCommandsInProcess"))
+                                                    (get conf "maxCommandsInQueue"))]
+                                     (Semaphore. permits true)))]
      (println (format ";; Starting aerospike clients for clusters %s with username %s" cluster-name (get conf "username")))
      (map->SimpleAerospikeClient {:ac (create-client hosts client-policy (:port conf 3000))
                                   :el event-loops
                                   :dbns aero-ns
                                   :cluster-name cluster-name
-                                  :client-events (:client-events conf)}))))
+                                  :client-events (:client-events conf)
+                                  :commands-sem commands-sem}))))
+
+(defn- acquire-permit [client]
+  (when-let [sem (:commands-sem client)]
+    (.acquire ^Semaphore sem)))
 
 (defn stop-aerospike-client
   "gracefully stop a client, waiting until all async operations finish."
@@ -103,68 +123,100 @@
                     (on-failure client-events op-name op-exception index op-start-time db))))
     op-future))
 
-(defn- ^ExistsListener reify-exists-listener [op-future]
+(defn- ^ExistsListener reify-exists-listener [op-future ^Semaphore commands-semaphore]
   (reify ExistsListener
     (^void onFailure [_this ^AerospikeException ex]
+      (when commands-semaphore
+        (.release commands-semaphore))
       (d/error! op-future ex))
     (^void onSuccess [_this ^Key _k ^boolean exists]
+      (when commands-semaphore
+        (.release commands-semaphore))
       (d/success! op-future exists))))
 
-(defn- ^DeleteListener reify-delete-listener [op-future]
+(defn- ^DeleteListener reify-delete-listener [op-future ^Semaphore commands-semaphore]
   (reify
     DeleteListener
     (^void onSuccess [_this ^Key _k ^boolean existed]
+      (when commands-semaphore
+        (.release commands-semaphore))
       (d/success! op-future existed))
     (^void onFailure [_ ^AerospikeException ex]
+      (when commands-semaphore
+        (.release commands-semaphore))
       (d/error! op-future ex))))
 
-(defn- ^WriteListener reify-write-listener [op-future]
+(defn- ^WriteListener reify-write-listener [op-future ^Semaphore commands-semaphore]
   (reify
     WriteListener
     (^void onSuccess [_this ^Key _]
+      (when commands-semaphore
+        (.release commands-semaphore))
       (d/success! op-future true))
     (^void onFailure [_this ^AerospikeException ex]
+      (when commands-semaphore
+        (.release commands-semaphore))
       (d/error! op-future ex))))
 
-(defn- ^InfoListener reify-info-listener [op-future]
+(defn- ^InfoListener reify-info-listener [op-future ^Semaphore commands-semaphore]
   (reify
     InfoListener
     (^void onSuccess [_this ^Map result-map]
+      (when commands-semaphore
+        (.release commands-semaphore))
       (d/success! op-future (into {} result-map)))
     (^void onFailure [_this ^AerospikeException ex]
+      (when commands-semaphore
+        (.release commands-semaphore))
       (d/error! op-future ex))))
 
-(defn- ^RecordListener reify-record-listener [op-future]
+(defn- ^RecordListener reify-record-listener [op-future ^Semaphore commands-semaphore]
   (reify RecordListener
     (^void onFailure [_this ^AerospikeException ex]
+      (when commands-semaphore
+        (.release commands-semaphore))
       (d/error! op-future ex))
     (^void onSuccess [_this ^Key _k ^Record record]
+      (when commands-semaphore
+        (.release commands-semaphore))
       (d/success! op-future record))))
 
-(defn- ^RecordSequenceListener reify-record-sequence-listener [op-future callback]
+(defn- ^RecordSequenceListener reify-record-sequence-listener [op-future callback ^Semaphore commands-semaphore]
   (reify RecordSequenceListener
     (^void onRecord [_this ^Key k ^Record record]
       (when (= :abort-scan (callback (.userKey k) (record->map record)))
         (throw (AerospikeException$QueryTerminated.))))
     (^void onSuccess [_this]
+      (when commands-semaphore
+        (.release commands-semaphore))
       (d/success! op-future true))
     (^void onFailure [_this ^AerospikeException exception]
+      (when commands-semaphore
+        (.release commands-semaphore))
       (if (instance? AerospikeException$QueryTerminated exception)
         (d/success! op-future false)
         (d/error! op-future exception)))))
 
-(defn- ^BatchListListener reify-record-batch-list-listener [op-future]
+(defn- ^BatchListListener reify-record-batch-list-listener [op-future ^Semaphore commands-semaphore]
   (reify BatchListListener
     (^void onFailure [_this ^AerospikeException ex]
+      (when commands-semaphore
+        (.release commands-semaphore))
       (d/error! op-future ex))
     (^void onSuccess [_this ^List records]
+      (when commands-semaphore
+        (.release commands-semaphore))
       (d/success! op-future records))))
 
-(defn- ^ExistsArrayListener reify-exists-array-listener [op-future]
+(defn- ^ExistsArrayListener reify-exists-array-listener [op-future ^Semaphore commands-semaphore]
   (reify ExistsArrayListener
     (^void onFailure [_this ^AerospikeException ex]
+      (when commands-semaphore
+        (.release commands-semaphore))
       (d/error! op-future ex))
     (^void onSuccess [_this ^"[Lcom.aerospike.client.Key;" _keys ^"[Z" exists]
+      (when commands-semaphore
+        (.release commands-semaphore))
       (d/success! op-future exists))))
 
 (defprotocol UserKey
@@ -240,19 +292,20 @@
   (let [client (get-client db index)
         op-future (d/deferred)
         start-time (System/nanoTime)]
+    (acquire-permit db)
     (if (and (= [:all] bin-names)
              (not (utils/single-bin? bin-names)))
       ;; When [:all] is passed as an argument for bin-names and there is more than one bin,
       ;; the `get` method does not require bin-names and the whole record is retrieved
       (.get ^AerospikeClient client
             ^EventLoop (.next ^NioEventLoops (:el db))
-            (reify-record-listener op-future)
+            (reify-record-listener op-future (:commands-sem db))
             ^Policy (:policy conf)
             (create-key index (:dbns db) set-name))
       ;; For all other cases, bin-names are passed to a different `get` method
       (.get ^AerospikeClient client
             ^EventLoop (.next ^NioEventLoops (:el db))
-            (reify-record-listener op-future)
+            (reify-record-listener op-future (:commands-sem db))
             ^Policy (:policy conf)
             (create-key index (:dbns db) set-name)
             ^"[Ljava.lang.String;" (utils/v->array String bin-names)))
@@ -288,9 +341,10 @@
          op-future (d/deferred)
          start-time (System/nanoTime)
          batch-reads-arr (ArrayList. ^Collection (mapv #(map->batch-read % (:dbns db)) batch-reads))]
+     (acquire-permit db)
      (.get ^AerospikeClient client
            ^EventLoop (.next ^NioEventLoops (:el db))
-           (reify-record-batch-list-listener op-future)
+           (reify-record-batch-list-listener op-future (:commands-sem db))
            ^BatchPolicy (:policy conf)
            ^List batch-reads-arr)
      (let [d (d/chain' op-future
@@ -310,9 +364,10 @@
          start-time (System/nanoTime)
          aero-namespace (:dbns db)
          indices (utils/v->array Key (mapv #(create-key (:index %) aero-namespace (:set %)) indices))]
+     (acquire-permit db)
      (.exists ^AerospikeClient client
               ^EventLoop (.next ^NioEventLoops (:el db))
-              (reify-exists-array-listener op-future)
+              (reify-exists-array-listener op-future (:commands-sem db))
               ^BatchPolicy (:policy conf)
               ^"[Lcom.aerospike.client.Key;" indices)
      (let [d (d/chain' op-future
@@ -341,9 +396,10 @@
    (let [client (get-client db index)
          op-future (d/deferred)
          start-time (System/nanoTime)]
+     (acquire-permit db)
      (.exists ^AerospikeClient client
               ^EventLoop (.next ^NioEventLoops (:el db))
-              (reify-exists-listener op-future)
+              (reify-exists-listener op-future (:commands-sem db))
               ^Policy (:policy conf)
               (create-key index (:dbns db) set-name))
      (register-events op-future db "exists" index start-time))))
@@ -360,9 +416,10 @@
         bins (data->bins data)
         op-future (d/deferred)
         start-time (System/nanoTime)]
+    (acquire-permit db)
     (.put ^AerospikeClient client
           ^EventLoop (.next ^NioEventLoops (:el db))
-          ^WriteListener (reify-write-listener op-future)
+          ^WriteListener (reify-write-listener op-future (:commands-sem db))
           ^WritePolicy policy
           (create-key index (:dbns db) set-name)
           ^"[Lcom.aerospike.client.Bin;" bins)
@@ -461,9 +518,10 @@
   (let [client (get-client db index)
         op-future (d/deferred)
         start-time (System/nanoTime)]
+    (acquire-permit db)
     (.touch ^AerospikeClient client
             ^EventLoop (.next ^NioEventLoops (:el db))
-            ^WriteListener (reify-write-listener op-future)
+            ^WriteListener (reify-write-listener op-future (:commands-sem db))
             ^WritePolicy (policy/write-policy client expiration RecordExistsAction/UPDATE_ONLY)
             (create-key index (:dbns db) set-name))
     (register-events op-future db "touch" index start-time)))
@@ -479,9 +537,10 @@
    (let [client (get-client db index)
          op-future (d/deferred)
          start-time (System/nanoTime)]
+     (acquire-permit db)
      (.delete ^AerospikeClient client
               ^EventLoop (.next ^NioEventLoops (:el db))
-              ^DeleteListener (reify-delete-listener op-future)
+              ^DeleteListener (reify-delete-listener op-future (:commands-sem db))
               ^WritePolicy (:policy conf)
               (create-key index (:dbns db) set-name))
      (register-events op-future db "delete" index start-time))))
@@ -490,9 +549,10 @@
   (let [client (get-client db index)
         op-future (d/deferred)
         start-time (System/nanoTime)]
+    (acquire-permit db)
     (.put ^AerospikeClient client
           ^EventLoop (.next ^NioEventLoops (:el db))
-          ^WriteListener (reify-write-listener op-future)
+          ^WriteListener (reify-write-listener op-future (:commands-sem db))
           ^WritePolicy policy
           (create-key index (:dbns db) set-name)
           ^"[Lcom.aerospike.client.Bin;" (utils/v->array Bin (mapv set-bin-as-null bin-names)))
@@ -524,9 +584,10 @@
      (let [client (get-client db index)
            op-future (d/deferred)
            start-time (System/nanoTime)]
+       (acquire-permit db)
        (.operate ^AerospikeClient client
                  ^EventLoop (.next ^NioEventLoops (:el db))
-                 ^RecordListener (reify-record-listener op-future)
+                 ^RecordListener (reify-record-listener op-future (:commands-sem db))
                  ^WritePolicy (:policy conf (policy/write-policy client expiration RecordExistsAction/UPDATE))
                  (create-key index (:dbns db) set-name)
                  (utils/v->array Operation operations))
@@ -550,9 +611,10 @@
         op-future (d/deferred)
         start-time (System/nanoTime)
         bin-names (:bins conf)]
+    (acquire-permit db)
     (.scanAll ^AerospikeClient client
               ^EventLoop (.next ^NioEventLoops (:el db))
-              (reify-record-sequence-listener op-future (:callback conf))
+              (reify-record-sequence-listener op-future (:callback conf) (:commands-sem db))
               ^Policy (:policy conf (ScanPolicy.))
               aero-namespace
               set-name
@@ -570,9 +632,10 @@
    (let [client (get-client db)
          op-future (d/deferred)
          start-time (System/nanoTime)]
+     (acquire-permit db)
      (.info ^AerospikeClient client
             ^EventLoop (.next ^NioEventLoops (:el db))
-            (reify-info-listener op-future)
+            (reify-info-listener op-future (:commands-sem db))
             ^InfoPolicy (:policy conf (.infoPolicyDefault ^AerospikeClient client))
             node
             (into-array String info-commands))
