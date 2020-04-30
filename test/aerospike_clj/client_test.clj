@@ -8,11 +8,9 @@
             [aerospike-clj.policy :as policy]
             [aerospike-clj.key :as as-key]
             [cheshire.core :as json]
-            [manifold.deferred :as d]
-            [taoensso.timbre :refer [spy]]
-            [clojure.data.codec.base64 :as b64])
+            [manifold.deferred :as d])
   (:import [com.aerospike.client AerospikeException Value AerospikeClient 
-            AerospikeException$AsyncQueueFull Key]
+            AerospikeException$AsyncQueueFull]
            [com.aerospike.client.cdt ListOperation ListPolicy ListOrder ListWriteFlags ListReturnType
                                      MapOperation MapPolicy MapOrder MapWriteFlags MapReturnType CTX]
            [com.aerospike.client.policy Priority ReadModeSC ReadModeAP Replica GenerationPolicy RecordExistsAction
