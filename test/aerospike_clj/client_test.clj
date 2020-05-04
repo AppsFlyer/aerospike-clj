@@ -8,6 +8,7 @@
             [aerospike-clj.policy :as policy]
             [aerospike-clj.key :as as-key]
             [cheshire.core :as json]
+            [clj-uuid :as uuid]
             [manifold.deferred :as d])
   (:import [com.aerospike.client AerospikeException Value AerospikeClient 
             AerospikeException$AsyncQueueFull]
@@ -22,6 +23,7 @@
 (def _set2 "set2")
 (def as-namespace "test")
 (def ^:dynamic *c* nil)
+(def TTL 5)
 
 (defn db-connection [f]
   (binding [*c* (client/init-simple-aerospike-client
@@ -50,12 +52,12 @@
   (is (true? (client/healthy? *c* 10))))
 
 (defn random-key [] 
-  (str (rand-int Integer/MAX_VALUE)))
+  (str (uuid/v4)))
 
 (deftest get-record
   (let [data (rand-int 1000)
         k (random-key)]
-    (is (true? @(client/create *c* k _set data 100)))
+    (is (true? @(client/create *c* k _set data TTL)))
     (let [{:keys [payload gen] } @(client/get-single *c* k _set)]
       (is (= data payload))
       (is (= 1 gen)))))
@@ -65,7 +67,7 @@
         k (random-key)
         akey (as-key/create-key k as-namespace _set)
         digest (.digest akey)]
-    (is (true? @(client/create *c* k _set data 100)))
+    (is (true? @(client/create *c* k _set data TTL)))
     (let [{:keys [payload] } @(client/get-single *c* akey nil)]
       (is (= data payload)))
     (let [key-with-digest (as-key/create-key digest as-namespace _set (Value/get k))
@@ -78,7 +80,7 @@
         akey (as-key/create-key k as-namespace _set)
         digest (.digest akey)
         key-with-digest (as-key/create-key digest as-namespace _set (Value/get k))]
-    (is (true? @(client/create *c* key-with-digest nil data 100)))
+    (is (true? @(client/create *c* key-with-digest nil data TTL)))
     (let [{:keys [payload] } @(client/get-single *c* k _set)]
       (is (= data payload)))
     (let [key-with-digest (as-key/create-key digest as-namespace _set (Value/get k))
@@ -94,7 +96,7 @@
 (deftest get-single
   (let [data (rand-int 1000)
         k (random-key)]
-    (is (true? @(client/create *c* k _set data 100)))
+    (is (true? @(client/create *c* k _set data TTL)))
     (is (= data @(client/get-single-no-meta *c* k _set)))))
 
 (deftest get-batch
@@ -102,9 +104,9 @@
         data2 (rand-int 1000)
         data3 (rand-int 1000)
         k (random-key) k2 (random-key) k3 (random-key)]
-    (is (true? @(client/create *c* k _set data 100)))
-    (is (true? @(client/create *c* k2 _set2 data2 100)))
-    (is (true? @(client/create *c* k3 _set data3 100)))
+    (is (true? @(client/create *c* k _set data TTL)))
+    (is (true? @(client/create *c* k2 _set2 data2 TTL)))
+    (is (true? @(client/create *c* k3 _set data3 TTL)))
     (let [brs [{:index k :set _set}
                {:index k2 :set _set2}
                {:index k2 :set _set}
@@ -118,9 +120,9 @@
   (let [k (random-key)
         k2 (random-key)
         k3 (random-key)]
-    (is (true? @(client/create *c* k _set 1 100)))
-    (is (true? @(client/create *c* k2 _set2 1 100)))
-    (is (true? @(client/create *c* k3 _set 1 100)))
+    (is (true? @(client/create *c* k _set 1 TTL)))
+    (is (true? @(client/create *c* k2 _set2 1 TTL)))
+    (is (true? @(client/create *c* k3 _set 1 TTL)))
     (let [indices [{:index k2 :set _set}
                    {:index k2 :set _set2}
                    {:index k3 :set _set}
@@ -132,7 +134,7 @@
 (deftest put-get-clj-map
   (let [data {"foo" {"bar" [(rand-int 1000)]}}
         k (random-key)]
-    (is (true? @(client/create *c* k _set data 100)))
+    (is (true? @(client/create *c* k _set data TTL)))
     (testing "clojure maps can be serialized as-is"
       (let [v @(client/get-single-no-meta *c* k _set)]
         (is (= data v)) ;; per value it is identical
@@ -144,7 +146,7 @@
               "qux" false
               "quuz" nil}
         k (random-key)]
-    (is (true? @(client/create *c* k _set data 100)))
+    (is (true? @(client/create *c* k _set data TTL)))
     (testing "clojure maps can be serialized from bins"
       (let [v @(client/get-single-no-meta *c* k _set)]
         (is (= (get data "foo") (get v "foo"))) ;; per value it is identical
@@ -159,7 +161,7 @@
               "bar"  [(rand-int 1000)]
               "baz" [(rand-int 1000)]}
         k (random-key)]
-    (is (true? @(client/create *c* k _set data 100)))
+    (is (true? @(client/create *c* k _set data TTL)))
     (testing "bin values can be retrieved individually and all together"
       (let [v1 @(client/get-single *c* k _set {} ["foo"])
             v2 @(client/get-single *c* k _set {} ["bar"])
@@ -177,8 +179,8 @@
               "baz" [(rand-int 1000)]}
         k (random-key)
         k2 (random-key)]
-    (is (true? @(client/create *c* k _set data 100)))
-    (is (true? @(client/create *c* k2 _set data 100)))
+    (is (true? @(client/create *c* k _set data TTL)))
+    (is (true? @(client/create *c* k2 _set data TTL)))
     (let [brs [{:index k :set _set :bins [:all]}
                {:index k :set _set}
                {:index k2 :set _set :bins ["bar"]}
@@ -193,15 +195,15 @@
               "baz" [(rand-int 1000)]}
         new-data {"qux" [(rand-int 1000)]}
         k (random-key)]
-    (is (true? @(client/create *c* k _set data 100)))
-    (is (true? @(client/add-bins *c* k _set new-data 100))) ;; adding value to bin
+    (is (true? @(client/create *c* k _set data TTL)))
+    (is (true? @(client/add-bins *c* k _set new-data TTL))) ;; adding value to bin
     (testing "bin values can be added to existing records"
       (let [v @(client/get-single-no-meta *c* k _set)]
         (is (= v (merge data new-data)))
         (is (= (into #{} (keys v)) #{"foo" "bar" "baz" "qux"}))))
     (testing "adding a bin that already exists in the record with a new value"
       (let [existing-bin {"foo" [(rand-int 1000)]}]
-        (is (true? @(client/add-bins *c* k _set existing-bin 100)))
+        (is (true? @(client/add-bins *c* k _set existing-bin TTL)))
         (is (= (get existing-bin "foo")
                (get @(client/get-single-no-meta *c* k _set) "foo")))))))
 
@@ -212,8 +214,8 @@
               "qux" [(rand-int 1000)]}
         bin-keys ["foo" "bar" "baz"]
         k (random-key)]
-    (is (true? @(client/create *c* k _set data 100)))
-    (is (true? @(client/delete-bins *c* k _set bin-keys 100))) ;; removing value from bin
+    (is (true? @(client/create *c* k _set data TTL)))
+    (is (true? @(client/delete-bins *c* k _set bin-keys TTL))) ;; removing value from bin
     (testing "bin values can be removed from existing records"
       (let [v @(client/get-single-no-meta *c* k _set)]
         (is (= v (apply dissoc data bin-keys)))
@@ -221,8 +223,8 @@
 
 (deftest update-test
   (let [k (random-key)]
-    (is (true? @(client/create *c* k _set 16 100)))
-    (is (true? @(client/update *c* k _set 17 1 100)))
+    (is (true? @(client/create *c* k _set 16 TTL)))
+    (is (true? @(client/update *c* k _set 17 1 TTL)))
     (let [{:keys [payload gen]} @(client/get-single *c* k _set)]
       (is (= 17 payload))
       (is (= 2 gen)))))
@@ -232,30 +234,30 @@
         k (random-key)]
     (is (thrown-with-msg?
           Exception #"Bin names have to be <= 14 characters..."
-          @(client/put *c* k _set {long-bin-name "foo"} 100)))))
+          @(client/put *c* k _set {long-bin-name "foo"} TTL)))))
 
 (deftest update-with-wrong-gen
   (let [data (rand-int 1000)
         k (random-key)]
-    (is (true? @(client/create *c* k _set data 100)))
+    (is (true? @(client/create *c* k _set data TTL)))
     (let [{:keys [payload gen]} @(client/get-single *c* k _set)]
       (is (= data payload))
       (is (= 1 gen))
       (is (thrown-with-msg? AerospikeException #"Generation error"
-                            @(client/update *c* k _set (inc data) 42 100))))))
+                            @(client/update *c* k _set (inc data) 42 TTL))))))
 
 (deftest put-create-only-raises-exception
   (let [k (random-key)]
-    (is (true? @(client/create *c* k _set 1 100)))
+    (is (true? @(client/create *c* k _set 1 TTL)))
     (is (thrown-with-msg? AerospikeException #"Key already exists"
-                          @(client/create *c* k _set 1 100)))))
+                          @(client/create *c* k _set 1 TTL)))))
 
 (deftest put-replace-only-raises-exception
   (is (thrown-with-msg? AerospikeException #"Key not found"
-                        @(client/replace-only *c* "not here" _set 1 100))))
+                        @(client/replace-only *c* "not here" _set 1 TTL))))
 (deftest delete
   (let [k (random-key)]
-    (is (true? @(client/put *c* k _set 1 100)))
+    (is (true? @(client/put *c* k _set 1 TTL)))
     (is (true? @(client/delete *c* k _set)))
     (is (false? @(client/delete *c* k _set)))
     (is (nil? @(client/get-single *c* k _set)))))
@@ -265,8 +267,8 @@
         k (random-key)      
         k2 (random-key)
         ks [k k2 "not-there"]]
-    (is (true? @(client/create *c* k _set (first data) 100)))
-    (is (true? @(client/create *c* k2 _set (second data) 100)))
+    (is (true? @(client/create *c* k _set (first data) TTL)))
+    (is (true? @(client/create *c* k2 _set (second data) TTL)))
     (let [[{d1 :payload g1 :gen} {d2 :payload g2 :gen} {d3 :payload g3 :gen}] @(client/get-multiple *c* ks (repeat _set))]
       (is (= d1 (first data)))
       (is (= d2 (second data)))
@@ -279,7 +281,7 @@
         k (random-key)
         k2 (random-key)]
     (is (= [true true]
-           @(client/put-multiple *c* [k k2] (repeat _set) data (repeat 100))))
+           @(client/put-multiple *c* [k k2] (repeat _set) data (repeat TTL))))
     (let [[{d1 :payload g1 :gen} {d2 :payload g2 :gen} {d3 :payload g3 :gen}] 
           @(client/get-batch *c* [{:index k :set _set}
                                   {:index k2 :set _set}
@@ -291,7 +293,7 @@
       (is (nil? g3)))))
 
 (deftest get-multiple-transcoded
-  (let [put-json (fn [k d] (client/put *c* k _set d 100 {:transcoder json/generate-string}))
+  (let [put-json (fn [k d] (client/put *c* k _set d TTL {:transcoder json/generate-string}))
         data [{:a (rand-int 1000)} {:a (rand-int 1000)}]
         k (random-key)
         k2 (random-key)
@@ -309,22 +311,22 @@
 
 (deftest exists
   (let [k (random-key)]
-    (is (true? @(client/create *c* k _set 1 100)))
+    (is (true? @(client/create *c* k _set 1 TTL)))
     (is (true? @(client/exists? *c* k _set)))
     (is (true? @(client/delete *c* k _set)))
     (is (false? @(client/exists? *c* k _set)))))
 
 (deftest touch
   (let [k (random-key)]
-    (is (true? @(client/create *c* k _set 1 100)))
+    (is (true? @(client/create *c* k _set 1 TTL)))
     (let [{:keys [ttl]} @(client/get-single *c* k _set)]
-      (is (true? @(client/touch *c* k _set 1000)))
+      (is (true? @(client/touch *c* k _set (inc TTL))))
       (let [{new-ttl :ttl} @(client/get-single *c* k _set)]
         (is (< ttl new-ttl))))))
 
 (deftest transcoder-failure
   (let [k (random-key)]
-    (is (true? @(client/create *c* k _set 1 100)))
+    (is (true? @(client/create *c* k _set 1 TTL)))
     (let [transcoder (fn [_] (throw (Exception. "oh-no")))]
       (is (thrown-with-msg? Exception #"oh-no" @(client/get-single *c* k _set {:transcoder transcoder}))))))
 
@@ -332,13 +334,13 @@
 
 (deftest operations-lists
   (let [k (random-key)
-        result1 @(client/operate *c* k _set 100
+        result1 @(client/operate *c* k _set TTL
                                  [(ListOperation/append
                                     (ListPolicy. ListOrder/UNORDERED ListWriteFlags/ADD_UNIQUE)
                                     ""
                                     (Value/get "foo")
                                     empty-ctx-varargs)])
-        result2 @(client/operate *c* k _set 100
+        result2 @(client/operate *c* k _set TTL
                                  [(ListOperation/append
                                     (ListPolicy. ListOrder/UNORDERED ListWriteFlags/ADD_UNIQUE)
                                     ""
@@ -346,13 +348,13 @@
                                     empty-ctx-varargs)])]
     (is (thrown-with-msg? AerospikeException
                           #"Map key exists"
-                          @(client/operate *c* k _set 100
+                          @(client/operate *c* k _set TTL
                                            [(ListOperation/append
                                               (ListPolicy. ListOrder/UNORDERED ListWriteFlags/ADD_UNIQUE)
                                               ""
                                               (Value/get "bar")
                                               empty-ctx-varargs)])))
-    (let [result3 @(client/operate *c* k _set 100
+    (let [result3 @(client/operate *c* k _set TTL
                                    [(ListOperation/appendItems
                                       (ListPolicy. ListOrder/UNORDERED (bit-or ListWriteFlags/ADD_UNIQUE
                                                                                ListWriteFlags/PARTIAL
@@ -381,7 +383,7 @@
                  (first 
                    (:payload 
                      @(client/operate 
-                        *c* outer-key _set 100
+                        *c* outer-key _set TTL
                         [(MapOperation/putItems outer-map-policy bin-name (initial-empty-value k) outer-ctx)
                          (ListOperation/append bin-name (Value/get v) (key-ctx k))
                          (ListOperation/removeByRankRange bin-name -1 1 ListReturnType/INVERTED (key-ctx k))
@@ -413,14 +415,14 @@
 
 (deftest operations-maps
   (let [k (random-key)
-        result1 @(client/operate *c* k _set 100
+        result1 @(client/operate *c* k _set TTL
                                  [(MapOperation/put
                                     (MapPolicy. MapOrder/UNORDERED MapWriteFlags/DEFAULT)
                                     ""
                                     (Value/get "foo")
                                     (Value/get "foo1")
                                     empty-ctx-varargs)])
-        result2 @(client/operate *c* k _set 100
+        result2 @(client/operate *c* k _set TTL
                                  [(MapOperation/put
                                     (MapPolicy. MapOrder/UNORDERED MapWriteFlags/DEFAULT)
                                     ""
@@ -429,14 +431,14 @@
                                     empty-ctx-varargs)])]
     (is (thrown-with-msg? AerospikeException
                           #"Map key exists"
-                          @(client/operate *c* k _set 100
+                          @(client/operate *c* k _set TTL
                                            [(MapOperation/put
                                               (MapPolicy. MapOrder/UNORDERED MapWriteFlags/CREATE_ONLY)
                                               ""
                                               (Value/get "foo")
                                               (Value/get "foo2")
                                               empty-ctx-varargs)])))
-    (let [result3 @(client/operate *c* k _set 100
+    (let [result3 @(client/operate *c* k _set TTL
                                    [(MapOperation/putItems
                                       (MapPolicy. MapOrder/UNORDERED (bit-or MapWriteFlags/CREATE_ONLY
                                                                              MapWriteFlags/PARTIAL
@@ -454,7 +456,7 @@
 (deftest operations-sets-maps-based
   (let [k (random-key)]
     (letfn [(set-add [v]
-              (client/operate *c* k _set 100
+              (client/operate *c* k _set TTL
                               [(MapOperation/put
                                  (MapPolicy. MapOrder/UNORDERED (bit-or
                                                                   MapWriteFlags/CREATE_ONLY
@@ -464,7 +466,7 @@
                                  (Value/get (byte 1))
                                  empty-ctx-varargs)]))
             (set-pop [v]
-              (client/operate *c* k _set 100
+              (client/operate *c* k _set TTL
                               [(MapOperation/removeByKey
                                  ""
                                  (Value/get v)
@@ -476,7 +478,7 @@
                                         (into #{})))]
                 @(client/get-single *c* k _set {:transcoder ->set})))
             (set-size []
-              (client/operate *c* k _set 100
+              (client/operate *c* k _set TTL
                               [(MapOperation/size "" empty-ctx-varargs)]))]
 
       (is (= 1 (:payload @(set-add "foo"))))
@@ -492,7 +494,7 @@
 (deftest operations-sets-list-based
   (let [k (random-key)]
     (letfn [(set-add [v]
-              (client/operate *c* k _set 100
+              (client/operate *c* k _set TTL
                               [(ListOperation/append
                                  (ListPolicy. ListOrder/UNORDERED (bit-or ListWriteFlags/ADD_UNIQUE
                                                                           ListWriteFlags/PARTIAL
@@ -501,7 +503,7 @@
                                  (Value/get v)
                                  empty-ctx-varargs)]))
             (set-pop [v]
-              (client/operate *c* k _set 100
+              (client/operate *c* k _set TTL
                               [(ListOperation/removeByValue
                                  ""
                                  (Value/get v)
@@ -511,7 +513,7 @@
               (letfn [(->set [res] (->> res :payload (into #{})))]
                 @(client/get-single *c* k _set {:transcoder ->set})))
             (set-size []
-              (client/operate *c* k _set 100
+              (client/operate *c* k _set TTL
                               [(ListOperation/size "" empty-ctx-varargs)]))]
 
       (is (= 1 (:payload @(set-add "foo"))))
@@ -618,15 +620,15 @@
   (let [data (rand-int 1000)
         update-data (rand-int 1000)
         k (random-key)]
-    (is (true? @(client/set-single *c* k _set data 100)))
+    (is (true? @(client/set-single *c* k _set data TTL)))
     (is (= data @(client/get-single-no-meta *c* k _set)))
-    (is (true? @(client/set-single *c* k _set update-data 100)))
+    (is (true? @(client/set-single *c* k _set update-data TTL)))
     (is (= update-data @(client/get-single-no-meta *c* k _set)))))
 
 (deftest scan-test
   (let [conf {:policy (policy/map->write-policy {"sendKey" true})}
         aero-namespace "test"
-        ttl 10
+        ttl 5
         k (random-key) k2 (random-key) k3 (random-key)
         ks #{k k2 k3}
         delete-records (fn []

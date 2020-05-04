@@ -1,4 +1,4 @@
-(defproject aerospike-clj "0.5.2"
+(defproject aerospike-clj "0.5.4"
   :description "An Aerospike Clojure client."
   :url "https://github.com/AppsFlyer/aerospike-clj"
   :license {:name "Eclipse Public License"
@@ -16,5 +16,6 @@
                                   [criterium "0.4.5"]
                                   [cheshire "5.10.0"]
                                   [com.taoensso/timbre "4.10.0"]
+                                  [danlentz/clj-uuid "0.1.9"]
                                   [com.fasterxml.jackson.core/jackson-databind "2.10.2"]]
                    :global-vars {*warn-on-reflection* true}}})
