@@ -1,4 +1,4 @@
-(defproject aerospike-clj "0.5.2"
+(defproject aerospike-clj "0.5.3"
   :description "An Aerospike Clojure client."
   :url "https://github.com/AppsFlyer/aerospike-clj"
   :license {:name "Eclipse Public License"
