@@ -16,5 +16,6 @@
                                   [criterium "0.4.5"]
                                   [cheshire "5.10.0"]
                                   [com.taoensso/timbre "4.10.0"]
+                                  [danlentz/clj-uuid "0.1.9"]
                                   [com.fasterxml.jackson.core/jackson-databind "2.10.2"]]
                    :global-vars {*warn-on-reflection* true}}})

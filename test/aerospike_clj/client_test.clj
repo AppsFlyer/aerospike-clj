@@ -8,9 +8,8 @@
             [aerospike-clj.policy :as policy]
             [aerospike-clj.key :as as-key]
             [cheshire.core :as json]
-            [manifold.deferred :as d])
-  (:import [com.aerospike.client AerospikeException Value AerospikeClient 
-            AerospikeException$AsyncQueueFull]
+            [clj-uuid :as uuid])
+  (:import [com.aerospike.client AerospikeException Value AerospikeClient] 
            [com.aerospike.client.cdt ListOperation ListPolicy ListOrder ListWriteFlags ListReturnType
                                      MapOperation MapPolicy MapOrder MapWriteFlags MapReturnType CTX]
            [com.aerospike.client.policy Priority ReadModeSC ReadModeAP Replica GenerationPolicy RecordExistsAction
@@ -50,7 +49,7 @@
   (is (true? (client/healthy? *c* 10))))
 
 (defn random-key [] 
-  (str (rand-int Integer/MAX_VALUE)))
+  (str (uuid/v4)))
 
 (deftest get-record
   (let [data (rand-int 1000)
