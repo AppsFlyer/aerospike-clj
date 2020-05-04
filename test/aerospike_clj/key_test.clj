@@ -49,6 +49,8 @@
         too-long-ba (byte-array (ThreadLocalData/DefaultBufferSize))
         too-long-value (Value/get (byte-array (ThreadLocalData/DefaultBufferSize)))]
     (is (thrown-with-msg? Exception #"key is too long"
+                          (create-key too-long-key "ns" nil)))
+    (is (thrown-with-msg? Exception #"key is too long"
                           (create-key too-long-key "ns" "set")))
     (is (thrown-with-msg? Exception #"key is too long"
                           (create-key too-long-ba "ns" "set")))

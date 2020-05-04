@@ -8,13 +8,19 @@
 (extend-protocol AerospikeIndex
   (Class/forName "[B") ;; byte-array 
   (create-key-method ^Key [this ^String as-namesapce ^String set-name]
-    (when (<= (ThreadLocalData/DefaultBufferSize) (+ (alength #^bytes this) (.length set-name)))
-      (throw (Exception. (format "key is too long: %s..." this))))
+    (let [set-name-length (if set-name
+                            (.length set-name)
+                            0)]
+      (when (<= (ThreadLocalData/DefaultBufferSize) (+ (alength #^bytes this) set-name-length))
+        (throw (Exception. (format "key is too long: %s..." this)))))
     (Key. ^String as-namesapce ^String set-name #^bytes this))
   String 
   (create-key-method ^Key [this ^String as-namesapce ^String set-name]
-    (when (<= (ThreadLocalData/DefaultBufferSize) (+ (.length this) (.length set-name)))
-      (throw (Exception. (format "key is too long: %s..." (subs this 0 40)))))
+    (let [set-name-length (if set-name
+                            (.length set-name)
+                            0)]
+      (when (<= (ThreadLocalData/DefaultBufferSize) (+ (.length this) set-name-length))
+        (throw (Exception. (format "key is too long: %s..." (subs this 0 40))))))
     (Key. as-namesapce set-name this))
   Integer 
   (create-key-method ^Key [this ^String as-namesapce ^String set-name]
@@ -24,8 +30,11 @@
     (Key. as-namesapce set-name (.longValue this)))
   Value 
   (create-key-method ^Key [this ^String as-namesapce ^String set-name]
-    (when (<= (ThreadLocalData/DefaultBufferSize) (+ (.estimateSize this) (.length set-name)))
-      (throw (Exception. (format "key is too long: %s..." (subs (.toString this) 0 40)))))
+    (let [set-name-length (if set-name
+                            (.length set-name)
+                            0)]
+      (when (<= (ThreadLocalData/DefaultBufferSize) (+ (.estimateSize this) set-name-length))
+        (throw (Exception. (format "key is too long: %s..." (subs (.toString this) 0 40))))))
     (Key. as-namesapce set-name this)))
 
 (defn create-key
