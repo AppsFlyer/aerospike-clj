@@ -8,7 +8,8 @@
             [aerospike-clj.policy :as policy]
             [aerospike-clj.key :as as-key]
             [cheshire.core :as json]
-            [clj-uuid :as uuid])
+            [clj-uuid :as uuid]
+            [clojure.string :as s])
   (:import [com.aerospike.client AerospikeException Value AerospikeClient]
            [com.aerospike.client.cdt ListOperation ListPolicy ListOrder ListWriteFlags ListReturnType
                                      MapOperation MapPolicy MapOrder MapWriteFlags MapReturnType CTX]
@@ -39,12 +40,12 @@
 
   (letfn [(no-password? [ex]
             (let [conf (:conf (ex-data ex))]
-              (and conf (not (contains? conf "password"))))) ]
+              (and conf (not (contains? conf "password")))))]
    (try
      (client/init-simple-aerospike-client ["localhost"] "test" {"maxCommandsInProcess" 1})
      (is false "it should throw an exception")
      (catch ExceptionInfo ex
-       (is (clojure.string/includes? (ex-message ex) "unbounded delay queue"))
+       (is (s/includes? (ex-message ex) "unbounded delay queue"))
        (is (no-password? ex))))
 
    (with-redefs [client/create-event-loops (constantly nil)]
@@ -52,7 +53,7 @@
        (client/init-simple-aerospike-client ["localhost"] "test")
        (is false "it should throw an exception")
        (catch ExceptionInfo ex
-         (is (clojure.string/includes? (ex-message ex) "event-loops"))
+         (is (s/includes? (ex-message ex) "event-loops"))
          (is (no-password? ex)))))))
 
 (deftest info
