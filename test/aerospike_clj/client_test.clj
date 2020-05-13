@@ -9,13 +9,13 @@
             [aerospike-clj.key :as as-key]
             [cheshire.core :as json]
             [clj-uuid :as uuid])
-  (:import [com.aerospike.client AerospikeException Value AerospikeClient] 
+  (:import [com.aerospike.client AerospikeException Value AerospikeClient]
            [com.aerospike.client.cdt ListOperation ListPolicy ListOrder ListWriteFlags ListReturnType
                                      MapOperation MapPolicy MapOrder MapWriteFlags MapReturnType CTX]
            [com.aerospike.client.policy Priority ReadModeSC ReadModeAP Replica GenerationPolicy RecordExistsAction
                                         WritePolicy BatchPolicy Policy]
            [java.util HashMap ArrayList]
-           [clojure.lang PersistentArrayMap]))
+           [clojure.lang PersistentArrayMap ExceptionInfo]))
 
 (def _set "set")
 (def _set2 "set2")
@@ -36,8 +36,24 @@
   (let [c (client/init-simple-aerospike-client ["localhost"] "test")]
     (is c)
     (is (= "localhost" (:cluster-name c))))
-  (is (thrown-with-msg? Exception #"setting maxCommandsInProcess>0 and maxCommandsInQueue=0 creates an unbounded delay queue"
-                        (client/init-simple-aerospike-client ["localhost"] "test" {"maxCommandsInProcess" 1}))))
+
+  (letfn [(no-password? [ex]
+            (let [conf (:conf (ex-data ex))]
+              (and conf (not (contains? conf "password"))))) ]
+   (try
+     (client/init-simple-aerospike-client ["localhost"] "test" {"maxCommandsInProcess" 1})
+     (is false "it should throw an exception")
+     (catch ExceptionInfo ex
+       (is (clojure.string/includes? (ex-message ex) "unbounded delay queue"))
+       (is (no-password? ex))))
+
+   (with-redefs [client/create-event-loops (constantly nil)]
+     (try
+       (client/init-simple-aerospike-client ["localhost"] "test")
+       (is false "it should throw an exception")
+       (catch ExceptionInfo ex
+         (is (clojure.string/includes? (ex-message ex) "event-loops"))
+         (is (no-password? ex)))))))
 
 (deftest info
   (doseq [node (client/get-nodes *c*)]
