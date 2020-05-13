@@ -318,7 +318,7 @@
      (let [d (d/chain' op-future
                        vec
                        (:transcoder conf identity))]
-       (register-events d db "read-batch" nil start-time)))))
+       (register-events d db "exists-batch" nil start-time)))))
 
 (defn get-multiple
   "DEPRECATED - use `get-batch` instead.
