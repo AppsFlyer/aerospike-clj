@@ -46,7 +46,8 @@
     [this k set-name expiration operations conf])
   (scan-set [this aero-namespace set-name conf])
   (get-cluster-stats [this])
-  (healthy? [this operation-timeout-ms])
+  (healthy? [this]
+    [this operation-timeout-ms])
   (stop-aerospike-client [this])
   (get-state [this] [this set-name])
   (print-state [this]))
@@ -293,6 +294,8 @@
               false
               (throw ex)))))))
 
+  (healthy? [_] true)
+  
   (healthy? [_ _] true)
 
   (get-cluster-stats [_] [[]])
