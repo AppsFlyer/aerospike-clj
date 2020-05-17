@@ -1,6 +1,7 @@
 (ns aerospike-clj.utils
   (:require [clojure.set :as set]
-            [clojure.string :as s]))
+            [clojure.string :as s])
+  (:import [java.util Collection]))
 
 (defn- hosts->cluster [hosts]
   (or
@@ -58,4 +59,4 @@
 (defn v->array
   "An optimized way to convert vectors into Java arrays of type `cls`"
   [cls v]
-  (.toArray ^java.util.Collection v (make-array cls (count v))))
+  (.toArray ^Collection v ^"[Ljava.lang.Object;" (make-array cls (count v))))

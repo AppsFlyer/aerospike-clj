@@ -10,6 +10,6 @@ before_script:
 after_script:
   - bash -ex test/coveralls.sh
 script: lein do clean, javac, test
-#notifications:
-#  recipients:
-#    - ido@appsflyer.com
+notifications:
+  recipients:
+  - ido@appsflyer.com
