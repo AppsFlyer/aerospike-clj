@@ -11,6 +11,7 @@ jobs:
     include:
         - jdk: oraclejdk8
           lein: 2.6.1
+          env: JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk-amd64
         - jdk: openjdk9
           lein: 2.8.3
         - jdk: openjdk11
