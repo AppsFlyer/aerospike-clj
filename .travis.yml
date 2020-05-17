@@ -1,6 +1,6 @@
 language: clojure
 sudo: required
-lein: 2.6.1 # version 2 and up
+lein: 2.8.3 # version 2 and up
 jdk:
 - openjdk8
 before_script:
