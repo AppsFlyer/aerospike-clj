@@ -11,13 +11,12 @@ jobs:
     include:
         - jdk: openjdk8
           before_script:
-              - jdk_switcher  use openjdk8
+              - jdk_switcher use oraclejdk8
               - sudo env LEIN_ROOT=true curl -L -o /usr/local/bin/lein https://raw.githubusercontent.com/technomancy/leiningen/2.6.1/bin/lein
               - lein self-install
           # lein: 2.6.1
         - jdk: openjdk11
           before_script:
-              - jdk_switcher  use openjdk8
               - sudo env LEIN_ROOT=true curl -L -o /usr/local/bin/lein https://raw.githubusercontent.com/technomancy/leiningen/2.8.3/bin/lein
               - lein self-install
           # lein: 2.8.3
