@@ -1,9 +1,7 @@
 dist: xenial
 sudo: required
 language: clojure
-lein: 2.6.1
-jdk:
-- openjdk8
+lein: lein
 before_script:
 - "javac -version"
 - "echo $JAVA_HOME"
