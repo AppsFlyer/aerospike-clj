@@ -10,13 +10,13 @@ sudo: required
 jobs:
     include:
         - jdk: openjdk8
+          before_script:
+              - jdk_switcher  use openjdk8
           lein: 2.6.1
-          before_script:
-              - jdk_switcher  use openjdk8
         - jdk: openjdk11
-          lein: 2.8.3
           before_script:
               - jdk_switcher  use openjdk8
+          lein: 2.8.3
 
 before_script:
 - "javac -version"
