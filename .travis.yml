@@ -1,33 +1,17 @@
-language: clojure
+dist: xenial
 sudo: required
-# lein:
-# - 2.6.1
-# - 2.8.3 
-# jdk:
-# - oraclejdk8
-# - openjdk9
-# - openjdk11
-jobs:
-    include:
-        - jdk: openjdk8
-          before_script:
-              - jdk_switcher use oraclejdk8
-              - sudo env LEIN_ROOT=true curl -L -o /usr/local/bin/lein https://raw.githubusercontent.com/technomancy/leiningen/2.6.1/bin/lein
-              - lein self-install
-          # lein: 2.6.1
-        - jdk: openjdk11
-          before_script:
-              - sudo env LEIN_ROOT=true curl -L -o /usr/local/bin/lein https://raw.githubusercontent.com/technomancy/leiningen/2.8.3/bin/lein
-              - lein self-install
-          # lein: 2.8.3
-
+language: clojure
+lein: 2.6.1
+jdk:
+- openjdk8
 before_script:
 - "javac -version"
+- "echo $JAVA_HOME"
 - "sudo docker rm -vf aerospike || true"
 - "sudo docker run -d --name aerospike -p 3000:3000 -p 3001:3001 -p 3002:3002 -p 3003:3003 aerospike"
 after_script:
   - bash -ex test/coveralls.sh
-script: lein test
-notifications:
-  recipients:
-    - ido@appsflyer.com
+script: lein do clean, javac, test
+#notifications:
+#  recipients:
+#    - ido@appsflyer.com
