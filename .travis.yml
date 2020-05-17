@@ -2,8 +2,11 @@ language: clojure
 sudo: required
 lein: 2.8.3 # version 2 and up
 jdk:
-- openjdk8
+- oraclejdk8
+- openjdk9
+- openjdk11
 before_script:
+- "javac -version"
 - "sudo docker rm -vf aerospike || true"
 - "sudo docker run -d --name aerospike -p 3000:3000 -p 3001:3001 -p 3002:3002 -p 3003:3003 aerospike"
 after_script:
