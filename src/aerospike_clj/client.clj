@@ -4,8 +4,7 @@
             [aerospike-clj.utils :as utils]
             [aerospike-clj.metrics :as metrics]
             [aerospike-clj.key :as as-key]
-            [manifold.deferred :as d]
-            [taoensso.timbre :as log])
+            [manifold.deferred :as d])
   (:import [com.aerospike.client AerospikeClient Host Key Bin Record AerospikeException Operation BatchRead AerospikeException$QueryTerminated]
            [com.aerospike.client.async EventLoop NioEventLoops]
            [com.aerospike.client.listener RecordListener WriteListener DeleteListener ExistsListener BatchListListener RecordSequenceListener
@@ -70,7 +69,7 @@
    (let [cluster-name (utils/cluster-name hosts)
          event-loops (:event-loops conf (create-event-loops conf))
          client-policy (:client-policy conf (policy/create-client-policy event-loops conf))]
-     (log/info (format ";; Starting aerospike clients for clusters %s with username %s" cluster-name (get conf "username")))
+     (println (format ";; Starting aerospike clients for clusters %s with username %s" cluster-name (get conf "username")))
      (map->SimpleAerospikeClient {:ac (create-client hosts client-policy (:port conf 3000))
                                   :el event-loops
                                   :dbns aero-ns
@@ -80,7 +79,7 @@
 (defn stop-aerospike-client
   "gracefully stop a client, waiting until all async operations finish."
   [db]
-  (log/info ";; Stopping aerospike clients")
+  (println ";; Stopping aerospike clients")
   (doseq [^AerospikeClient client (get-all-clients db)]
     (.close client))
   (.close ^NioEventLoops (:el db)))
