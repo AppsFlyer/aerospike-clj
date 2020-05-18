@@ -2,7 +2,7 @@
   (:import [com.aerospike.client AerospikeClient]
            [com.aerospike.client.async EventPolicy]
            [com.aerospike.client.policy Policy ClientPolicy WritePolicy RecordExistsAction GenerationPolicy BatchPolicy CommitLevel
-                                        AuthMode ReadModeAP ReadModeSC Priority Replica])) 
+                                        AuthMode ReadModeAP ReadModeSC Priority Replica]))
 
 (defmacro set-java [obj conf obj-name]
   `(when (some? (get ~conf ~obj-name))
@@ -15,6 +15,9 @@
   `(when (get ~conf ~obj-name)
      (set! (. ~obj ~(symbol (lowercase-first obj-name)))
            (Enum/valueOf ~(symbol obj-name) (get ~conf ~obj-name)))))
+
+(defn- throw-invalid-state [msg conf]
+  (throw (ex-info msg {:conf (dissoc conf "password")})))
 
 (defn ^Policy map->policy
   "Create a (read) `Policy` from a map. Enumeration names should start with capitalized letter.
@@ -117,8 +120,9 @@
   (let [event-policy (EventPolicy.)]
     (when (and (pos? (get conf "maxCommandsInProcess" 0))
                (zero? (get conf "maxCommandsInQueue" 0)))
-      (throw (ex-info "setting maxCommandsInProcess>0 and maxCommandsInQueue=0 creates an unbounded delay queue"
-                      {:conf conf})))
+      (throw-invalid-state
+        "setting maxCommandsInProcess>0 and maxCommandsInQueue=0 creates an unbounded delay queue"
+        conf))
     (set! (.maxCommandsInProcess event-policy) (get conf "maxCommandsInProcess" 0))
     (set! (.maxCommandsInQueue event-policy) (get conf "maxCommandsInQueue" 0))
     (let [ep (EventPolicy.)]
@@ -147,7 +151,7 @@
       (set! (.user cp) username)
       (set! (.password cp) password))
     (when (nil? event-loops)
-      (throw (ex-info "cannot use nil for event-loops" {:conf conf})))
+      (throw-invalid-state "cannot use nil for event-loops" conf))
     (set! (.eventLoops cp) event-loops)
     (set! (.readPolicyDefault cp) (get conf "readPolicyDefault" (map->policy conf)))
     (set! (.writePolicyDefault cp) (get conf "writePolicyDefault" (map->write-policy conf)))

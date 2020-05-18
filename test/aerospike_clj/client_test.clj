@@ -1,5 +1,5 @@
 (ns ^{:author "Ido Barkan"
-      :doc "this test require a local aerospike. This can be achieved via docker:
+      :doc    "this test require a local aerospike. This can be achieved via docker:
            $ sudo docker pull aerospike
            $ sudo docker run -d --name aerospike -p 3000:3000 -p 3001:3001 -p 3002:3002 -p 3003:3003 aerospike"}
   aerospike-clj.client-test
@@ -9,7 +9,7 @@
             [aerospike-clj.key :as as-key]
             [cheshire.core :as json]
             [clj-uuid :as uuid])
-  (:import [com.aerospike.client AerospikeException Value AerospikeClient] 
+  (:import [com.aerospike.client AerospikeException Value AerospikeClient]
            [com.aerospike.client.cdt ListOperation ListPolicy ListOrder ListWriteFlags ListReturnType
                                      MapOperation MapPolicy MapOrder MapWriteFlags MapReturnType CTX]
            [com.aerospike.client.policy Priority ReadModeSC ReadModeAP Replica GenerationPolicy RecordExistsAction
@@ -36,27 +36,35 @@
   (let [c (client/init-simple-aerospike-client ["localhost"] "test")]
     (is c)
     (is (= "localhost" (:cluster-name c))))
-  (is (thrown-with-msg? Exception #"setting maxCommandsInProcess>0 and maxCommandsInQueue=0 creates an unbounded delay queue"
-                        (client/init-simple-aerospike-client ["localhost"] "test" {"maxCommandsInProcess" 1}))))
+
+  (letfn [(no-password? [ex]
+            (let [conf (:conf (ex-data ex))]
+              (and conf (not (contains? conf "password")))))]
+    (let [ex (is (thrown-with-msg? Exception #"unbounded delay queue" (client/init-simple-aerospike-client ["localhost"] "test" {"maxCommandsInProcess" 1})))]
+      (is (no-password? ex)))
+
+    (with-redefs [client/create-event-loops (constantly nil)]
+      (let [ex (is (thrown-with-msg? Exception #"event-loops" (client/init-simple-aerospike-client ["localhost"] "test")))]
+        (is (no-password? ex))))))
 
 (deftest info
   (doseq [node (client/get-nodes *c*)]
-    (= {"health-stats" "stat=test_device_read_latency:value=0:device=/opt/aerospike/data/test.dat:namespace=test"
-        "namespaces" "test"
+    (= {"health-stats"                                        "stat=test_device_read_latency:value=0:device=/opt/aerospike/data/test.dat:namespace=test"
+        "namespaces"                                          "test"
         "set-config:context=service;enable-health-check=true" "ok"}
-     @(client/info *c* node ["namespaces" "set-config:context=service;enable-health-check=true" "health-stats"]))))
+       @(client/info *c* node ["namespaces" "set-config:context=service;enable-health-check=true" "health-stats"]))))
 
 (deftest health
   (is (true? (client/healthy? *c* 10))))
 
-(defn random-key [] 
+(defn random-key []
   (str (uuid/v4)))
 
 (deftest get-record
   (let [data (rand-int 1000)
         k (random-key)]
     (is (true? @(client/create *c* k _set data TTL)))
-    (let [{:keys [payload gen] } @(client/get-single *c* k _set)]
+    (let [{:keys [payload gen]} @(client/get-single *c* k _set)]
       (is (= data payload))
       (is (= 1 gen)))))
 
@@ -66,10 +74,10 @@
         akey (as-key/create-key k as-namespace _set)
         digest (.digest akey)]
     (is (true? @(client/create *c* k _set data TTL)))
-    (let [{:keys [payload] } @(client/get-single *c* akey nil)]
+    (let [{:keys [payload]} @(client/get-single *c* akey nil)]
       (is (= data payload)))
     (let [key-with-digest (as-key/create-key digest as-namespace _set (Value/get k))
-          {:keys [payload] } @(client/get-single *c* key-with-digest nil)]
+          {:keys [payload]} @(client/get-single *c* key-with-digest nil)]
       (is (= data payload)))))
 
 (deftest put-record-by-digest
@@ -79,15 +87,15 @@
         digest (.digest akey)
         key-with-digest (as-key/create-key digest as-namespace _set (Value/get k))]
     (is (true? @(client/create *c* key-with-digest nil data TTL)))
-    (let [{:keys [payload] } @(client/get-single *c* k _set)]
+    (let [{:keys [payload]} @(client/get-single *c* k _set)]
       (is (= data payload)))
     (let [key-with-digest (as-key/create-key digest as-namespace _set (Value/get k))
-          {:keys [payload] } @(client/get-single *c* key-with-digest nil)]
+          {:keys [payload]} @(client/get-single *c* key-with-digest nil)]
       (is (= data payload)))))
 
 (deftest get-miss
   (let [k (random-key)
-        {:keys [payload gen] } @(client/get-single *c* k _set)]
+        {:keys [payload gen]} @(client/get-single *c* k _set)]
     (is (nil? payload))
     (is (nil? gen))))
 
@@ -135,28 +143,28 @@
     (is (true? @(client/create *c* k _set data TTL)))
     (testing "clojure maps can be serialized as-is"
       (let [v @(client/get-single-no-meta *c* k _set)]
-        (is (= data v)) ;; per value it is identical
+        (is (= data v))                                     ;; per value it is identical
         (is (= PersistentArrayMap (type v)))))))
 
 (deftest put-multiple-bins-get-clj-map
-  (let [data {"foo" {"bar" [(rand-int 1000)]}
-              "baz" true
-              "qux" false
+  (let [data {"foo"  {"bar" [(rand-int 1000)]}
+              "baz"  true
+              "qux"  false
               "quuz" nil}
         k (random-key)]
     (is (true? @(client/create *c* k _set data TTL)))
     (testing "clojure maps can be serialized from bins"
       (let [v @(client/get-single-no-meta *c* k _set)]
-        (is (= (get data "foo") (get v "foo"))) ;; per value it is identical
-        (is (= (get data "bar") (get v "bar"))) ;; true value returns the same after being sanitized/desanitized
-        (is (= (get data "baz") (get v "baz"))) ;; false value returns the same after being sanitized/desanitized
-        (is (= (get data "qux") (get v "qux"))) ;; nil value retuns the same after being sanitized/desanitized
-        (is (= PersistentArrayMap (type v))) ;; converted back to a Clojure map instead of HashMap
+        (is (= (get data "foo") (get v "foo")))             ;; per value it is identical
+        (is (= (get data "bar") (get v "bar")))             ;; true value returns the same after being sanitized/desanitized
+        (is (= (get data "baz") (get v "baz")))             ;; false value returns the same after being sanitized/desanitized
+        (is (= (get data "qux") (get v "qux")))             ;; nil value retuns the same after being sanitized/desanitized
+        (is (= PersistentArrayMap (type v)))                ;; converted back to a Clojure map instead of HashMap
         (is (true? (map? v)))))))
 
 (deftest get-single-multiple-bins
-  (let [data {"foo"  [(rand-int 1000)]
-              "bar"  [(rand-int 1000)]
+  (let [data {"foo" [(rand-int 1000)]
+              "bar" [(rand-int 1000)]
               "baz" [(rand-int 1000)]}
         k (random-key)]
     (is (true? @(client/create *c* k _set data TTL)))
@@ -164,7 +172,7 @@
       (let [v1 @(client/get-single *c* k _set {} ["foo"])
             v2 @(client/get-single *c* k _set {} ["bar"])
             v3 @(client/get-single *c* k _set {} ["baz"])
-            v4 @(client/get-single *c* k _set {})] ;; getting all bins for the record
+            v4 @(client/get-single *c* k _set {})]          ;; getting all bins for the record
         (is (= (get data "foo") (get (:payload v1) "foo")))
         (is (= (get data "bar") (get (:payload v2) "bar")))
         (is (= (get data "baz") (get (:payload v3) "baz")))
@@ -172,8 +180,8 @@
         (is (true? (map? (:payload v1))))))))
 
 (deftest get-batch-multiple-bins
-  (let [data {"foo"  [(rand-int 1000)]
-              "bar"  [(rand-int 1000)]
+  (let [data {"foo" [(rand-int 1000)]
+              "bar" [(rand-int 1000)]
               "baz" [(rand-int 1000)]}
         k (random-key)
         k2 (random-key)]
@@ -262,7 +270,7 @@
 
 (deftest get-multiple
   (let [data [(rand-int 1000) (rand-int 1000)]
-        k (random-key)      
+        k (random-key)
         k2 (random-key)
         ks [k k2 "not-there"]]
     (is (true? @(client/create *c* k _set (first data) TTL)))
@@ -280,7 +288,7 @@
         k2 (random-key)]
     (is (= [true true]
            @(client/put-multiple *c* [k k2] (repeat _set) data (repeat TTL))))
-    (let [[{d1 :payload g1 :gen} {d2 :payload g2 :gen} {d3 :payload g3 :gen}] 
+    (let [[{d1 :payload g1 :gen} {d2 :payload g2 :gen} {d3 :payload g3 :gen}]
           @(client/get-batch *c* [{:index k :set _set}
                                   {:index k2 :set _set}
                                   {:index "not-there" :set _set}])]
@@ -301,8 +309,8 @@
     (let [[{d1 :payload g1 :gen}
            {d2 :payload g2 :gen}]
           @(client/get-multiple *c* ks (repeat _set)
-                             {:transcoder (fn [res]
-                                             (update res :payload #(json/parse-string % keyword)))})]
+                                {:transcoder (fn [res]
+                                               (update res :payload #(json/parse-string % keyword)))})]
       (is (= d1 (first data)))
       (is (= d2 (second data)))
       (is (= 1 g1 g2)))))
@@ -378,9 +386,9 @@
         max-entries 4
         initial-empty-value #(hash-map (Value/get %) (Value/get (ArrayList. 1)))
         append (fn [k v]
-                 (first 
-                   (:payload 
-                     @(client/operate 
+                 (first
+                   (:payload
+                     @(client/operate
                         *c* outer-key _set TTL
                         [(MapOperation/putItems outer-map-policy bin-name (initial-empty-value k) outer-ctx)
                          (ListOperation/append bin-name (Value/get v) (key-ctx k))
@@ -526,36 +534,36 @@
 
 (deftest default-read-policy
   (let [rp (.getReadPolicyDefault ^AerospikeClient (client/get-client *c*))]
-    (is (= Priority/DEFAULT (.priority rp))) ;; Priority of request relative to other transactions. Currently, only used for scans.
-    (is (= ReadModeAP/ONE (.readModeAP rp))) ;; Involve single node in the read operation.
-    (is (= Replica/SEQUENCE (.replica rp))) ;; Try node containing master partition first.
+    (is (= Priority/DEFAULT (.priority rp)))                ;; Priority of request relative to other transactions. Currently, only used for scans.
+    (is (= ReadModeAP/ONE (.readModeAP rp)))                ;; Involve single node in the read operation.
+    (is (= Replica/SEQUENCE (.replica rp)))                 ;; Try node containing master partition first.
     ;; If connection fails, all commands try nodes containing replicated partitions.
     ;; If socketTimeout is reached, reads also try nodes containing replicated partitions,
     ;; but writes remain on master node.)))
     ;; This option requires ClientPolicy.requestProleReplicas to be enabled in order to function properly.
-    (is (= 30000 (.socketTimeout rp))) ;; 30 seconds default
-    (is (zero? (.totalTimeout rp))) ;; no time limit
-    (is (= 3000 (.timeoutDelay rp))) ;; no delay, connection closed on timeout
-    (is (= 2 (.maxRetries rp))) ;; initial attempt + 2 retries = 3 attempts
-    (is (zero? (.sleepBetweenRetries rp))) ;; do not sleep between retries
-    (is (false? (.sendKey rp))) ;; do not send the user defined key
-    (is (= ReadModeSC/SESSION (.readModeSC rp))))) ;; Ensures this client will only see an increasing sequence of record versions. Server only reads from master. This is the default..
+    (is (= 30000 (.socketTimeout rp)))                      ;; 30 seconds default
+    (is (zero? (.totalTimeout rp)))                         ;; no time limit
+    (is (= 3000 (.timeoutDelay rp)))                        ;; no delay, connection closed on timeout
+    (is (= 2 (.maxRetries rp)))                             ;; initial attempt + 2 retries = 3 attempts
+    (is (zero? (.sleepBetweenRetries rp)))                  ;; do not sleep between retries
+    (is (false? (.sendKey rp)))                             ;; do not send the user defined key
+    (is (= ReadModeSC/SESSION (.readModeSC rp)))))          ;; Ensures this client will only see an increasing sequence of record versions. Server only reads from master. This is the default..
 
 (deftest configure-read-and-batch-policy
   (let [c (client/init-simple-aerospike-client
             ["localhost"] "test"
-            {"readPolicyDefault" (policy/map->policy {"ReadModeAP" "ALL"
-                                                      "ReadModeSC" "LINEARIZE"
-                                                      "maxRetries" 1
-                                                      "Replica" "RANDOM"
-                                                      "sendKey" true
-                                                      "sleepBetweenRetries" 100
-                                                      "socketTimeout" 1000
-                                                      "timeoutDelay" 2000
-                                                      "totalTimeout" 3000})
-             "batchPolicyDefault" (policy/map->batch-policy {"allowInline" false
+            {"readPolicyDefault"  (policy/map->policy {"ReadModeAP"          "ALL"
+                                                       "ReadModeSC"          "LINEARIZE"
+                                                       "maxRetries"          1
+                                                       "Replica"             "RANDOM"
+                                                       "sendKey"             true
+                                                       "sleepBetweenRetries" 100
+                                                       "socketTimeout"       1000
+                                                       "timeoutDelay"        2000
+                                                       "totalTimeout"        3000})
+             "batchPolicyDefault" (policy/map->batch-policy {"allowInline"          false
                                                              "maxConcurrentThreads" 2
-                                                             "sendSetName" true})})
+                                                             "sendSetName"          true})})
 
 
         rp ^Policy (.getReadPolicyDefault (client/get-client c))
@@ -577,31 +585,31 @@
 
 (deftest default-write-policy
   (let [rp ^WritePolicy (.getWritePolicyDefault (client/get-client *c*))]
-    (is (= Priority/DEFAULT (.priority rp))) ;; Priority of request relative to other transactions. Currently, only used for scans.
-    (is (= ReadModeAP/ONE (.readModeAP rp))) ;; Involve master only in the read operation.
-    (is (= Replica/SEQUENCE (.replica rp))) ;; Try node containing master partition first.
+    (is (= Priority/DEFAULT (.priority rp)))                ;; Priority of request relative to other transactions. Currently, only used for scans.
+    (is (= ReadModeAP/ONE (.readModeAP rp)))                ;; Involve master only in the read operation.
+    (is (= Replica/SEQUENCE (.replica rp)))                 ;; Try node containing master partition first.
     ;; If connection fails, all commands try nodes containing replicated partitions.
     ;; If socketTimeout is reached, reads also try nodes containing replicated partitions,
     ;; but writes remain on master node.)))
     ;; This option requires ClientPolicy.requestProleReplicas to be enabled in order to function properly.
-    (is (= 30000 (.socketTimeout rp))) ;; 30 seconds default
-    (is (zero? (.totalTimeout rp))) ;; no time limit
-    (is (= 3000 (.timeoutDelay rp))) ;; no delay, connection closed on timeout
-    (is (= 2 (.maxRetries rp))) ;; initial attempt + 2 retries = 3 attempts
-    (is (zero? (.sleepBetweenRetries rp))) ;; do not sleep between retries
-    (is (false? (.sendKey rp))) ;; do not send the user defined key
-    (is (= ReadModeSC/SESSION (.readModeSC rp))))) ;; Ensures this client will only see an increasing sequence of record versions. Server only reads from master. This is the default..
+    (is (= 30000 (.socketTimeout rp)))                      ;; 30 seconds default
+    (is (zero? (.totalTimeout rp)))                         ;; no time limit
+    (is (= 3000 (.timeoutDelay rp)))                        ;; no delay, connection closed on timeout
+    (is (= 2 (.maxRetries rp)))                             ;; initial attempt + 2 retries = 3 attempts
+    (is (zero? (.sleepBetweenRetries rp)))                  ;; do not sleep between retries
+    (is (false? (.sendKey rp)))                             ;; do not send the user defined key
+    (is (= ReadModeSC/SESSION (.readModeSC rp)))))          ;; Ensures this client will only see an increasing sequence of record versions. Server only reads from master. This is the default..
 
 (deftest configure-write-policy
   (let [c (client/init-simple-aerospike-client
             ["localhost"] "test"
-            {"writePolicyDefault" (policy/map->write-policy {"CommitLevel" "COMMIT_MASTER"
-                                                             "durableDelete" true
-                                                             "expiration" 1000
-                                                             "generation" 7
-                                                             "GenerationPolicy" "EXPECT_GEN_GT"
+            {"writePolicyDefault" (policy/map->write-policy {"CommitLevel"        "COMMIT_MASTER"
+                                                             "durableDelete"      true
+                                                             "expiration"         1000
+                                                             "generation"         7
+                                                             "GenerationPolicy"   "EXPECT_GEN_GT"
                                                              "RecordExistsAction" "REPLACE_ONLY"
-                                                             "respondAllOps" true})})
+                                                             "respondAllOps"      true})})
 
         wp ^WritePolicy (.getWritePolicyDefault (client/get-client c))]
     (is (= Priority/DEFAULT (.priority wp)))
@@ -636,15 +644,15 @@
 
     (testing "it should throw an IllegalArgumentException when:
              conf is missing, :callback is missing, or :callback is not a function"
-      (is (thrown? IllegalArgumentException 
+      (is (thrown? IllegalArgumentException
                    @(client/scan-set *c* aero-namespace _set nil)))
-      (is (thrown? IllegalArgumentException 
+      (is (thrown? IllegalArgumentException
                    @(client/scan-set *c* aero-namespace _set {})))
-      (is (thrown? IllegalArgumentException 
+      (is (thrown? IllegalArgumentException
                    @(client/scan-set *c* aero-namespace _set {:callback "not a function"}))))
 
     (testing "it should throw a ClassCastException when :bins is not a vector"
-      (is (thrown? ClassCastException 
+      (is (thrown? ClassCastException
                    @(client/scan-set *c* aero-namespace _set {:callback (constantly true) :bins {}}))))
 
     (testing "it should return all the items in the set"
@@ -670,16 +678,16 @@
 
         (let [res (atom [])
               callback (fn [k v]
-                         (when (ks (str k)) 
+                         (when (ks (str k))
                            (swap! res conj [(.toString ^Value k) (:payload v)])))]
 
           @(client/scan-set *c* aero-namespace _set {:callback callback :bins ["occupation"]})
 
           (is (= (sort-by first @res)
                  (sort-by first
-                   [[k {"occupation" "Carpenter"}]
-                    [k2 {"occupation" "Bus Driver"}]
-                    [k3 {"occupation" "Chef"}]]))))
+                          [[k {"occupation" "Carpenter"}]
+                           [k2 {"occupation" "Bus Driver"}]
+                           [k3 {"occupation" "Chef"}]]))))
         (delete-records)))
 
     (testing "it can update items during a scan"
@@ -702,7 +710,7 @@
     (testing "it can delete items during a scan"
       (let [client *c*
             callback (fn [k _]
-                       (when (ks (str k)) 
+                       (when (ks (str k))
                          (client/delete client (.toString ^Value k) _set)))]
 
         @(client/put-multiple *c* [k k2 k3] (repeat _set) [10 20 30] (repeat ttl) conf)
