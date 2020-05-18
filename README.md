@@ -26,8 +26,11 @@ An opinionated Clojure library wrapping Aerospike Java Client.
 - Health-check utility.
 - Functions return Clojure records.
 
+# Stability:
+- stable. Although not 1.x, the API will remain stable.
+
 # Maturity:
-- Feature completeness: mostly.
+- Feature completeness: ~~mostly~~ near complete.
 - Stability: production ready. We actively use this library in production.
 
 # Opinionated:
@@ -40,12 +43,13 @@ If a synchronous behaviour is still desired, the calling code can still deref (`
 - Single client per Aerospike namespace. Namespaces in Aerospike usually indicate different cluster configurations. In order to reduce overhead for clusters with more than a single namespace create 2 client objects and share an event loop between them.
 
 # Limitations/ caveats
-- Currently supports only single bin records.
-- Does not expose batch/scan operations. Batch writes are supported via `put-multiple`.
+- ~~Currently supports only single bin records.~~
+- ~~Does not expose batch/scan operations. Batch writes are supported via `put-multiple`.~~
 
 # TBD
 - ~~Support batch asynchronous APIs.~~
-- Support batch put asynchronous API.
+- ~~Support batch put asynchronous API.~~
+- Support Java 11
 
 ## Usage:
 #### Most of the time just create a simple client (single cluster)
