@@ -74,7 +74,7 @@
                                   :el event-loops
                                   :dbns aero-ns
                                   :cluster-name cluster-name
-                                  :client-events (:client-events conf)}))))
+                                  :client-events (utils/vectorize (:client-events conf))}))))
 
 (defn stop-aerospike-client
   "gracefully stop a client, waiting until all async operations finish."
@@ -95,13 +95,13 @@
               "A continuation function. Registered on the operation future and called when operations fails."))
 
 (defn- register-events [op-future db op-name index op-start-time]
-  (if-let [client-events (:client-events db)]
+  (doseq [ce (:client-events db)]
     (-> op-future
         (d/chain' (fn [op-result]
-                    (on-success client-events op-name op-result    index op-start-time db)))
+                    (on-success ce op-name op-result    index op-start-time db)))
         (d/catch' (fn [op-exception]
-                    (on-failure client-events op-name op-exception index op-start-time db))))
-    op-future))
+                    (on-failure ce op-name op-exception index op-start-time db)))))
+  op-future)
 
 (defn- ^ExistsListener reify-exists-listener [op-future]
   (reify ExistsListener

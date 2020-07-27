@@ -6,3 +6,4 @@ aerospike-clj.iml
 /.lein-failures
 target
 .nrepl-port
+.lsp
