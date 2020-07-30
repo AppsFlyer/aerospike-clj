@@ -1,5 +1,5 @@
 #### VERSION 0.6.0
-* support ClientEvents vector to be a vector of copmletions onstead of a single one.
+* Support ClientEvents vector to be a vector of completions instead of a single one.
 * Bump aerospike lib to 4.4.15
 
 #### VERSION 0.5.1

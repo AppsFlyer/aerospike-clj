@@ -62,7 +62,8 @@
   :client-policy - a ready ClientPolicy
   \"username\"
   :port (default is 3000)
-  :client-events an implementation of ClientEvents"
+  :client-events an implementation of ClientEvents. Either a single one or a vector
+  thereof. In the case of a vector, the client will chain the instances by order."
   ([hosts aero-ns]
    (init-simple-aerospike-client hosts aero-ns {}))
   ([hosts aero-ns conf]
