@@ -9,6 +9,8 @@
   :codox {:output-path "codox"
           :source-uri "http://github.com/AppsFlyer/aerospike-clj/blob/{version}/{filepath}#L{line}"
           :metadata {:doc/format :markdown}}
+  :source-paths ["src/main/clojure"]
+  :java-source-paths ["src/main/java"]
   :profiles {:dev {:plugins [[jonase/eastwood "0.3.5"]
                              [lein-cloverage "1.1.1"]]
                    :dependencies [[org.clojure/clojure "1.10.1"]
