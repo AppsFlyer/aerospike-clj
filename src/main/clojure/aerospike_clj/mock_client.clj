@@ -2,7 +2,7 @@
   (:refer-clojure :exclude [update])
   (:require [aerospike-clj.client :as client]
             [aerospike-clj.utils]
-            [manifold.deferred :as defer]
+            [promesa.core :as p]
             [clojure.pprint :refer [pprint]])
   (:import (clojure.lang IPersistentVector IPersistentMap)
            (com.aerospike.client AerospikeException ResultCode)))
@@ -88,9 +88,9 @@
 (defn- do-swap [state swap-fn]
   (try
     (swap! state swap-fn)
-    (defer/success-deferred true)
+    (p/resolved true)
     (catch AerospikeException ex
-      (defer/error-deferred ex))))
+      (p/rejected ex))))
 
 (defn- filter-bins [bins record]
   (clojure.core/update record :payload #(select-keys % bins)))
@@ -104,20 +104,20 @@
 
   (get-single [_ k set-name conf _]
     (let [transcoder (get-transcoder conf)]
-      (defer/chain (transcoder (get-record @state set-name k)))))
+      (p/resolved (transcoder (get-record @state set-name k)))))
 
   (get-multiple [this indices set-names]
     (get-multiple this indices set-names {}))
 
   (get-multiple [this indices set-names conf]
-    (defer/chain
+    (p/resolved
       (mapv (fn [k set-name] @(get-single this k set-name conf)) indices set-names)))
 
   (get-batch [this batch-reads]
     (get-batch this batch-reads {}))
 
   (get-batch [this batch-reads conf]
-    (defer/chain
+    (p/resolved
       (mapv
         (fn [record]
           (let [bins (if (= [:all] (:bins record)) nil (:bins record))
@@ -135,13 +135,13 @@
     (exists? this k set-name {}))
 
   (exists? [_ k set-name _]
-    (defer/chain (record-exists? @state set-name k)))
+    (p/resolved (record-exists? @state set-name k)))
 
   (exists-batch [this indices]
     (exists-batch this indices {}))
 
   (exists-batch [_ indices _]
-    (defer/chain
+    (p/resolved
       (mapv (fn [v] (record-exists? @state (:set v) (:index v))) indices)))
 
   (put [this k set-name data expiration]
@@ -181,7 +181,7 @@
     (put-multiple this indices set-names payloads expiration-seq {}))
 
   (put-multiple [this indices set-names payloads expiration-seq conf]
-    (defer/chain
+    (p/resolved
       (mapv (fn [k set-name payload expiration]
               @(put this k set-name payload expiration conf))
             indices set-names payloads expiration-seq)))
@@ -254,7 +254,7 @@
                         (reset! success? false)
                         current-state)))]
       (do-swap state swap-fn)
-      (defer/success-deferred @success?)))
+      (p/resolved @success?)))
 
   (delete-bins [this k set-name bin-names new-expiration]
     (delete-bins this k set-name bin-names new-expiration {}))
@@ -283,7 +283,7 @@
           bins (:bins conf)
           get-bins (if bins (partial filter-bins bins) identity)]
 
-      (defer/chain
+      (p/resolved
         (try
           (doseq [[k v] state]
             (when (= (callback k (get-bins v)) :abort-scan)

@@ -9,12 +9,13 @@
             [aerospike-clj.key :as as-key]
             [cheshire.core :as json]
             [clj-uuid :as uuid])
-  (:import [com.aerospike.client AerospikeException Value AerospikeClient]
+  (:import [com.aerospike.client Value AerospikeClient]
            [com.aerospike.client.cdt ListOperation ListPolicy ListOrder ListWriteFlags ListReturnType
                                      MapOperation MapPolicy MapOrder MapWriteFlags MapReturnType CTX]
            [com.aerospike.client.policy Priority ReadModeSC ReadModeAP Replica GenerationPolicy RecordExistsAction
                                         WritePolicy BatchPolicy Policy]
            [java.util HashMap ArrayList]
+           [java.util.concurrent ExecutionException]
            [clojure.lang PersistentArrayMap]))
 
 (def _set "set")
@@ -249,17 +250,17 @@
     (let [{:keys [payload gen]} @(client/get-single *c* k _set)]
       (is (= data payload))
       (is (= 1 gen))
-      (is (thrown-with-msg? AerospikeException #"Generation error"
+      (is (thrown-with-msg? ExecutionException #"Generation error"
                             @(client/update *c* k _set (inc data) 42 TTL))))))
 
 (deftest put-create-only-raises-exception
   (let [k (random-key)]
     (is (true? @(client/create *c* k _set 1 TTL)))
-    (is (thrown-with-msg? AerospikeException #"Key already exists"
+    (is (thrown-with-msg? ExecutionException #"Key already exists"
                           @(client/create *c* k _set 1 TTL)))))
 
 (deftest put-replace-only-raises-exception
-  (is (thrown-with-msg? AerospikeException #"Key not found"
+  (is (thrown-with-msg? ExecutionException #"Key not found"
                         @(client/replace-only *c* "not here" _set 1 TTL))))
 (deftest delete
   (let [k (random-key)]
@@ -352,7 +353,7 @@
                                     ""
                                     (Value/get "bar")
                                     empty-ctx-varargs)])]
-    (is (thrown-with-msg? AerospikeException
+    (is (thrown-with-msg? ExecutionException
                           #"Map key exists"
                           @(client/operate *c* k _set TTL
                                            [(ListOperation/append
@@ -435,7 +436,7 @@
                                     (Value/get "bar")
                                     (Value/get "bar1")
                                     empty-ctx-varargs)])]
-    (is (thrown-with-msg? AerospikeException
+    (is (thrown-with-msg? ExecutionException
                           #"Map key exists"
                           @(client/operate *c* k _set TTL
                                            [(MapOperation/put
