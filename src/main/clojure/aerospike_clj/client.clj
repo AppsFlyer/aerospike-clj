@@ -4,14 +4,16 @@
             [aerospike-clj.utils :as utils]
             [aerospike-clj.metrics :as metrics]
             [aerospike-clj.key :as as-key]
-            [aerospike-clj.listeners :as listeners]
+            [aerospike-clj.listeners]
             [aerospike-clj.aerospike-record :as record]
             [promesa.core :as p])
   (:import [com.aerospike.client AerospikeClient Host Key Bin Operation BatchRead]
            [com.aerospike.client.async EventLoop NioEventLoops]
-           [com.aerospike.client.listener RecordListener WriteListener DeleteListener]
            [com.aerospike.client.policy Policy BatchPolicy ClientPolicy RecordExistsAction WritePolicy ScanPolicy InfoPolicy]
            [com.aerospike.client.cluster Node]
+           [aerospike_clj.listeners AsyncExistsListener AsyncDeleteListener AsyncWriteListener 
+            AsyncInfoListener AsyncRecordListener AsyncRecordSequenceListener AsyncBatchListListener
+            AsyncExistsArrayListener]
            [clojure.lang IPersistentMap IPersistentVector]
            [java.util List Collection ArrayList]
            [java.time Instant]))
@@ -165,13 +167,13 @@
       ;; the `get` method does not require bin-names and the whole record is retrieved
       (.get ^AerospikeClient client
             ^EventLoop (.next ^NioEventLoops (:el db))
-            (listeners/reify-record-listener op-future)
+            (AsyncRecordListener. op-future)
             ^Policy (:policy conf)
             (create-key index (:dbns db) set-name))
       ;; For all other cases, bin-names are passed to a different `get` method
       (.get ^AerospikeClient client
             ^EventLoop (.next ^NioEventLoops (:el db))
-            (listeners/reify-record-listener op-future)
+            (AsyncRecordListener. op-future)
             ^Policy (:policy conf)
             (create-key index (:dbns db) set-name)
             ^"[Ljava.lang.String;" (utils/v->array String bin-names)))
@@ -209,7 +211,7 @@
          batch-reads-arr (ArrayList. ^Collection (mapv #(map->batch-read % (:dbns db)) batch-reads))]
      (.get ^AerospikeClient client
            ^EventLoop (.next ^NioEventLoops (:el db))
-           (listeners/reify-record-batch-list-listener op-future)
+           (AsyncBatchListListener. op-future)
            ^BatchPolicy (:policy conf)
            ^List batch-reads-arr)
      (let [d (p/chain op-future
@@ -231,7 +233,7 @@
          indices (utils/v->array Key (mapv #(create-key (:index %) aero-namespace (:set %)) indices))]
      (.exists ^AerospikeClient client
               ^EventLoop (.next ^NioEventLoops (:el db))
-              (listeners/reify-exists-array-listener op-future)
+              (AsyncExistsArrayListener. op-future)
               ^BatchPolicy (:policy conf)
               ^"[Lcom.aerospike.client.Key;" indices)
      (let [d (p/chain op-future
@@ -262,7 +264,7 @@
          start-time (System/nanoTime)]
      (.exists ^AerospikeClient client
               ^EventLoop (.next ^NioEventLoops (:el db))
-              (listeners/reify-exists-listener op-future)
+              (AsyncExistsListener. op-future)
               ^Policy (:policy conf)
               (create-key index (:dbns db) set-name))
      (register-events op-future db "exists" index start-time))))
@@ -281,7 +283,7 @@
         start-time (System/nanoTime)]
     (.put ^AerospikeClient client
           ^EventLoop (.next ^NioEventLoops (:el db))
-          ^WriteListener (listeners/reify-write-listener op-future)
+          (AsyncWriteListener. op-future)
           ^WritePolicy policy
           (create-key index (:dbns db) set-name)
           ^"[Lcom.aerospike.client.Bin;" bins)
@@ -382,7 +384,7 @@
         start-time (System/nanoTime)]
     (.touch ^AerospikeClient client
             ^EventLoop (.next ^NioEventLoops (:el db))
-            ^WriteListener (listeners/reify-write-listener op-future)
+            (AsyncWriteListener. op-future)
             ^WritePolicy (policy/write-policy client expiration RecordExistsAction/UPDATE_ONLY)
             (create-key index (:dbns db) set-name))
     (register-events op-future db "touch" index start-time)))
@@ -400,7 +402,7 @@
          start-time (System/nanoTime)]
      (.delete ^AerospikeClient client
               ^EventLoop (.next ^NioEventLoops (:el db))
-              ^DeleteListener (listeners/reify-delete-listener op-future)
+              (AsyncDeleteListener. op-future)
               ^WritePolicy (:policy conf)
               (create-key index (:dbns db) set-name))
      (register-events op-future db "delete" index start-time))))
@@ -411,7 +413,7 @@
         start-time (System/nanoTime)]
     (.put ^AerospikeClient client
           ^EventLoop (.next ^NioEventLoops (:el db))
-          ^WriteListener (listeners/reify-write-listener op-future)
+          (AsyncWriteListener. op-future)
           ^WritePolicy policy
           (create-key index (:dbns db) set-name)
           ^"[Lcom.aerospike.client.Bin;" (utils/v->array Bin (mapv set-bin-as-null bin-names)))
@@ -445,7 +447,7 @@
            start-time (System/nanoTime)]
        (.operate ^AerospikeClient client
                  ^EventLoop (.next ^NioEventLoops (:el db))
-                 ^RecordListener (listeners/reify-record-listener op-future)
+                 (AsyncRecordListener. op-future)
                  ^WritePolicy (:policy conf (policy/write-policy client expiration RecordExistsAction/UPDATE))
                  (create-key index (:dbns db) set-name)
                  (utils/v->array Operation operations))
@@ -471,7 +473,7 @@
         bin-names (:bins conf)]
     (.scanAll ^AerospikeClient client
               ^EventLoop (.next ^NioEventLoops (:el db))
-              (listeners/reify-record-sequence-listener op-future (:callback conf))
+              (AsyncRecordSequenceListener. op-future (:callback conf))
               ^Policy (:policy conf (ScanPolicy.))
               aero-namespace
               set-name
@@ -491,7 +493,7 @@
          start-time (System/nanoTime)]
      (.info ^AerospikeClient client
             ^EventLoop (.next ^NioEventLoops (:el db))
-            (listeners/reify-info-listener op-future)
+            (AsyncInfoListener. op-future)
             ^InfoPolicy (:policy conf (.infoPolicyDefault ^AerospikeClient client))
             node
             (into-array String info-commands))
