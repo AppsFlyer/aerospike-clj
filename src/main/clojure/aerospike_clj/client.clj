@@ -102,9 +102,9 @@
           ([op-future ce]
            (-> op-future
                (p/then (fn [op-result]
-                         (on-success  ce op-name op-result index op-start-time db))) 
-               (p/catch (fn [op-result]
-                          (on-success ce op-name op-result index op-start-time db))))))]
+                         (on-success  ce op-name op-result    index op-start-time db))) 
+               (p/catch (fn [op-exception]
+                          (on-success ce op-name op-exception index op-start-time db))))))]
     (reduce reducer op-future (:client-events db))))
 
 (defn- ^ExistsListener reify-exists-listener [op-future]
