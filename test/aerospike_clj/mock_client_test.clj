@@ -4,7 +4,8 @@
             [aerospike-clj.mock-client :as mock]
             [aerospike-clj.client :as client]
             [clojure.string])
-  (:import [com.aerospike.client ResultCode AerospikeException]))
+  (:import [com.aerospike.client ResultCode]
+           [java.util.concurrent ExecutionException]))
 
 (def ^:dynamic ^mock/AerospikeClient client nil)
 
@@ -167,6 +168,9 @@
       (is (= @put-result [true true]))
       (is (= @actual expected)))))
 
+(defn get-ex-code [ex]
+  (-> ex .getCause .getResultCode))
+
 (deftest add-bins-test
   (testing "it should add bins to an existing record without modifying old data"
     (mock/set-single client "person" nil {"fname" "John" "lname" "Baker"} 30)
@@ -180,8 +184,8 @@
     (try
       @(mock/add-bins client "does-not-exist" nil {"prefix" "Mr."} 60)
       (throw (AssertionError. "Expected AerospikeException to be thrown in `add-bins-test`"))
-      (catch AerospikeException ex
-        (is (= (.getResultCode ex) ResultCode/KEY_NOT_FOUND_ERROR))))))
+      (catch ExecutionException ex
+        (is (= (get-ex-code ex) ResultCode/KEY_NOT_FOUND_ERROR))))))
 
 (deftest create-test
   (testing "it should create a new record"
@@ -203,8 +207,8 @@
         @(apply mock/create client args)
         (throw (AssertionError.
                  (str "Expected AerospikeException to be thrown in `create-test`: " args)))
-        (catch AerospikeException ex
-          (is (= (.getResultCode ex) ResultCode/KEY_EXISTS_ERROR)))))))
+        (catch ExecutionException ex
+          (is (= (get-ex-code ex) ResultCode/KEY_EXISTS_ERROR)))))))
 
 (deftest touch-test
   (testing "it should update the record's ttl if it exists"
@@ -219,8 +223,8 @@
     (try
       @(mock/touch client "does-not-exist" nil 120)
       (throw (AssertionError. "Expected AerospikeException to be thrown in `touch-test`"))
-      (catch AerospikeException ex
-        (is (= (.getResultCode ex) ResultCode/KEY_NOT_FOUND_ERROR))))))
+      (catch ExecutionException ex
+        (is (= (get-ex-code ex) ResultCode/KEY_NOT_FOUND_ERROR))))))
 
 (deftest delete-test
   (testing "it should delete a record if it exists"
@@ -261,8 +265,8 @@
     (try
       @(mock/delete-bins client "does-not-exist" nil ["fname"] 60)
       (throw (AssertionError. "Expected AerospikeException to be thrown in `delete-bins-test`"))
-      (catch AerospikeException ex
-        (is (= (.getResultCode ex) ResultCode/KEY_NOT_FOUND_ERROR))))))
+      (catch ExecutionException ex
+        (is (= (get-ex-code ex) ResultCode/KEY_NOT_FOUND_ERROR))))))
 
 (deftest expiry-unix-test
   (testing "it should proxy to aerospike-clj"
