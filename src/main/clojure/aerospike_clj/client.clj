@@ -105,7 +105,7 @@
                (p/then (fn [op-result]
                          (on-success  ce op-name op-result    index op-start-time db))) 
                (p/catch (fn [op-exception]
-                          (on-success ce op-name op-exception index op-start-time db))))))]
+                          (on-failure ce op-name op-exception index op-start-time db))))))]
     (reduce reducer op-future (:client-events db))))
 (defprotocol UserKey
   "Use `create-key` directly to pass a premade custom key to the public API.
