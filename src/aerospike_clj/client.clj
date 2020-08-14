@@ -6,7 +6,7 @@
             [aerospike-clj.key :as as-key]
             [manifold.deferred :as d])
   (:import [com.aerospike.client AerospikeClient Host Key Bin Record AerospikeException Operation BatchRead AerospikeException$QueryTerminated]
-           [com.aerospike.client.async EventLoop NioEventLoops]
+           [com.aerospike.client.async EventLoop NioEventLoops EventLoops]
            [com.aerospike.client.listener RecordListener WriteListener DeleteListener ExistsListener BatchListListener RecordSequenceListener
                                           InfoListener ExistsArrayListener]
            [com.aerospike.client.policy Policy BatchPolicy ClientPolicy RecordExistsAction WritePolicy ScanPolicy InfoPolicy]
@@ -29,10 +29,11 @@
   (get-all-clients [_] "Returns a sequence of all AerospikeClient objects."))
 
 (defrecord SimpleAerospikeClient [^AerospikeClient ac
-                                  ^NioEventLoops el
+                                  ^EventLoops el
                                   ^String dbns
                                   ^String cluster-name
-                                  client-events]
+                                  client-events
+                                  close-event-loops?]
   IAerospikeClient
   (get-client ^AerospikeClient [_ _] ac)
   (get-client ^AerospikeClient [_] ac)
@@ -49,7 +50,7 @@
      (AerospikeClient. ^ClientPolicy client-policy ^"[Lcom.aerospike.client.Host;" hosts-arr))))
 
 (defn create-event-loops
-  "Called internally to create the event loops of for the client.
+  "Called internally to create the event loops for the client.
   Can also be used to share event loops between several clients."
   [conf]
   (let [elp (policy/map->event-policy conf)]
@@ -63,19 +64,22 @@
   \"username\"
   :port (default is 3000)
   :client-events an implementation of ClientEvents. Either a single one or a vector
-  thereof. In the case of a vector, the client will chain the instances by order."
+  thereof. In the case of a vector, the client will chain the instances by order.
+  If no event-loops instance is provided, single-threaded one is created automatically."
   ([hosts aero-ns]
    (init-simple-aerospike-client hosts aero-ns {}))
   ([hosts aero-ns conf]
    (let [cluster-name (utils/cluster-name hosts)
-         event-loops (:event-loops conf (create-event-loops conf))
+         event-loops (:event-loops conf)
+         close-event-loops? (nil? event-loops)
          client-policy (:client-policy conf (policy/create-client-policy event-loops conf))]
      (println (format ";; Starting aerospike clients for clusters %s with username %s" cluster-name (get conf "username")))
      (map->SimpleAerospikeClient {:ac (create-client hosts client-policy (:port conf 3000))
-                                  :el event-loops
+                                  :el (or event-loops (create-event-loops conf))
                                   :dbns aero-ns
                                   :cluster-name cluster-name
-                                  :client-events (utils/vectorize (:client-events conf))}))))
+                                  :client-events (utils/vectorize (:client-events conf))
+                                  :close-event-loops? close-event-loops?}))))
 
 (defn stop-aerospike-client
   "gracefully stop a client, waiting until all async operations finish."
@@ -83,7 +87,8 @@
   (println ";; Stopping aerospike clients")
   (doseq [^AerospikeClient client (get-all-clients db)]
     (.close client))
-  (.close ^NioEventLoops (:el db)))
+  (when (:close-event-loops? db)
+    (.close ^EventLoops (:el db))))
 
 ;; listeners
 (defprotocol ClientEvents
@@ -246,13 +251,13 @@
       ;; When [:all] is passed as an argument for bin-names and there is more than one bin,
       ;; the `get` method does not require bin-names and the whole record is retrieved
       (.get ^AerospikeClient client
-            ^EventLoop (.next ^NioEventLoops (:el db))
+            ^EventLoop (.next ^EventLoops (:el db))
             (reify-record-listener op-future)
             ^Policy (:policy conf)
             (create-key index (:dbns db) set-name))
       ;; For all other cases, bin-names are passed to a different `get` method
       (.get ^AerospikeClient client
-            ^EventLoop (.next ^NioEventLoops (:el db))
+            ^EventLoop (.next ^EventLoops (:el db))
             (reify-record-listener op-future)
             ^Policy (:policy conf)
             (create-key index (:dbns db) set-name)
@@ -290,7 +295,7 @@
          start-time (System/nanoTime)
          batch-reads-arr (ArrayList. ^Collection (mapv #(map->batch-read % (:dbns db)) batch-reads))]
      (.get ^AerospikeClient client
-           ^EventLoop (.next ^NioEventLoops (:el db))
+           ^EventLoop (.next ^EventLoops (:el db))
            (reify-record-batch-list-listener op-future)
            ^BatchPolicy (:policy conf)
            ^List batch-reads-arr)
@@ -312,7 +317,7 @@
          aero-namespace (:dbns db)
          indices (utils/v->array Key (mapv #(create-key (:index %) aero-namespace (:set %)) indices))]
      (.exists ^AerospikeClient client
-              ^EventLoop (.next ^NioEventLoops (:el db))
+              ^EventLoop (.next ^EventLoops (:el db))
               (reify-exists-array-listener op-future)
               ^BatchPolicy (:policy conf)
               ^"[Lcom.aerospike.client.Key;" indices)
@@ -343,7 +348,7 @@
          op-future (d/deferred)
          start-time (System/nanoTime)]
      (.exists ^AerospikeClient client
-              ^EventLoop (.next ^NioEventLoops (:el db))
+              ^EventLoop (.next ^EventLoops (:el db))
               (reify-exists-listener op-future)
               ^Policy (:policy conf)
               (create-key index (:dbns db) set-name))
@@ -362,7 +367,7 @@
         op-future (d/deferred)
         start-time (System/nanoTime)]
     (.put ^AerospikeClient client
-          ^EventLoop (.next ^NioEventLoops (:el db))
+          ^EventLoop (.next ^EventLoops (:el db))
           ^WriteListener (reify-write-listener op-future)
           ^WritePolicy policy
           (create-key index (:dbns db) set-name)
@@ -463,7 +468,7 @@
         op-future (d/deferred)
         start-time (System/nanoTime)]
     (.touch ^AerospikeClient client
-            ^EventLoop (.next ^NioEventLoops (:el db))
+            ^EventLoop (.next ^EventLoops (:el db))
             ^WriteListener (reify-write-listener op-future)
             ^WritePolicy (policy/write-policy client expiration RecordExistsAction/UPDATE_ONLY)
             (create-key index (:dbns db) set-name))
@@ -481,7 +486,7 @@
          op-future (d/deferred)
          start-time (System/nanoTime)]
      (.delete ^AerospikeClient client
-              ^EventLoop (.next ^NioEventLoops (:el db))
+              ^EventLoop (.next ^EventLoops (:el db))
               ^DeleteListener (reify-delete-listener op-future)
               ^WritePolicy (:policy conf)
               (create-key index (:dbns db) set-name))
@@ -492,7 +497,7 @@
         op-future (d/deferred)
         start-time (System/nanoTime)]
     (.put ^AerospikeClient client
-          ^EventLoop (.next ^NioEventLoops (:el db))
+          ^EventLoop (.next ^EventLoops (:el db))
           ^WriteListener (reify-write-listener op-future)
           ^WritePolicy policy
           (create-key index (:dbns db) set-name)
@@ -526,7 +531,7 @@
            op-future (d/deferred)
            start-time (System/nanoTime)]
        (.operate ^AerospikeClient client
-                 ^EventLoop (.next ^NioEventLoops (:el db))
+                 ^EventLoop (.next ^EventLoops (:el db))
                  ^RecordListener (reify-record-listener op-future)
                  ^WritePolicy (:policy conf (policy/write-policy client expiration RecordExistsAction/UPDATE))
                  (create-key index (:dbns db) set-name)
@@ -552,7 +557,7 @@
         start-time (System/nanoTime)
         bin-names (:bins conf)]
     (.scanAll ^AerospikeClient client
-              ^EventLoop (.next ^NioEventLoops (:el db))
+              ^EventLoop (.next ^EventLoops (:el db))
               (reify-record-sequence-listener op-future (:callback conf))
               ^Policy (:policy conf (ScanPolicy.))
               aero-namespace
@@ -572,7 +577,7 @@
          op-future (d/deferred)
          start-time (System/nanoTime)]
      (.info ^AerospikeClient client
-            ^EventLoop (.next ^NioEventLoops (:el db))
+            ^EventLoop (.next ^EventLoops (:el db))
             (reify-info-listener op-future)
             ^InfoPolicy (:policy conf (.infoPolicyDefault ^AerospikeClient client))
             node
