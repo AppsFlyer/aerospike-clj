@@ -90,7 +90,7 @@
 
 (defn stop-aerospike-client
   "Gracefully stop a client, waiting until all async operations finish.
-  The underlying EventLoops instance is closes iff it was not provided externally."
+  The underlying EventLoops instance is closed iff it was not provided externally."
   [db]
   (println ";; Stopping aerospike clients")
   (doseq [^AerospikeClient client (get-all-clients db)]
