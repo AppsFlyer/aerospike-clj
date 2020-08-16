@@ -57,15 +57,20 @@
     (NioEventLoops. elp 1 true "NioEventLoops")))
 
 (defn init-simple-aerospike-client
-  "hosts should be a seq of known hosts to bootstrap from. Optional conf map _can_ have:
-  :event-loops - a client compatible event loop instace
-  client policy configuration keys (see policy/create-client-policy)
-  :client-policy - a ready ClientPolicy
-  \"username\"
-  :port (default is 3000)
-  :client-events an implementation of ClientEvents. Either a single one or a vector
-  thereof. In the case of a vector, the client will chain the instances by order.
-  If no event-loops instance is provided, single-threaded one is created automatically."
+  "`hosts` should be a seq of known hosts to bootstrap from.
+
+  Optional `conf` map _can_ have:
+  - :event-loops - a client compatible EventLoops instance.
+    If no EventLoops instance is provided, a single-threaded one of type NioEventLoops is created automatically.
+    The EventLoops instance for this client will be closed during `stop-aerospike-client` iff it was provided externally.
+    In this case it's a responsibility of the owner to close it properly.
+
+  Client policy configuration keys (see policy/create-client-policy)
+  - :client-policy - a ready ClientPolicy
+  - \"username\"
+  - :port (default is 3000)
+  - :client-events an implementation of ClientEvents. Either a single one or a vector
+    thereof. In the case of a vector, the client will chain the instances by order."
   ([hosts aero-ns]
    (init-simple-aerospike-client hosts aero-ns {}))
   ([hosts aero-ns conf]
