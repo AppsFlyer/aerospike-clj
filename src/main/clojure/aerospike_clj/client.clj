@@ -61,8 +61,10 @@
 
   Optional `conf` map _can_ have:
   - :event-loops - a client compatible EventLoops instance.
-    If no EventLoops instance is provided, a single-threaded one of type NioEventLoops is created automatically.
-    The EventLoops instance for this client will be closed during `stop-aerospike-client` iff it was provided externally.
+    If no EventLoops instance is provided,
+    a single-threaded one of type NioEventLoops is created automatically.
+    The EventLoops instance for this client will be closed
+    during `stop-aerospike-client` iff it was not provided externally.
     In this case it's a responsibility of the owner to close it properly.
 
   Client policy configuration keys (see policy/create-client-policy)
@@ -87,7 +89,8 @@
                                   :close-event-loops? close-event-loops?}))))
 
 (defn stop-aerospike-client
-  "gracefully stop a client, waiting until all async operations finish."
+  "Gracefully stop a client, waiting until all async operations finish.
+  The underlying EventLoops instance is closes iff it was not provided externally."
   [db]
   (println ";; Stopping aerospike clients")
   (doseq [^AerospikeClient client (get-all-clients db)]
