@@ -77,12 +77,12 @@
    (init-simple-aerospike-client hosts aero-ns {}))
   ([hosts aero-ns conf]
    (let [cluster-name (utils/cluster-name hosts)
-         event-loops (:event-loops conf)
-         close-event-loops? (nil? event-loops)
+         close-event-loops? (nil? (:event-loops conf))
+         event-loops (or (:event-loops conf) (create-event-loops conf))
          client-policy (:client-policy conf (policy/create-client-policy event-loops conf))]
      (println (format ";; Starting aerospike clients for clusters %s with username %s" cluster-name (get conf "username")))
      (map->SimpleAerospikeClient {:ac (create-client hosts client-policy (:port conf 3000))
-                                  :el (or event-loops (create-event-loops conf))
+                                  :el event-loops
                                   :dbns aero-ns
                                   :cluster-name cluster-name
                                   :client-events (utils/vectorize (:client-events conf))
