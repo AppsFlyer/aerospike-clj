@@ -10,7 +10,7 @@ git clean -fdx
 cd ..
 echo "regenerate docs..."
 
-lein codox
+lein with-profile docs codox
 
 echo "commit changes"
 cd codox

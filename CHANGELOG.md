@@ -1,3 +1,10 @@
+#### VERSION 1.0.0
+#### This is a breaking change.
+* Chaining via implementing `ClientEvents` now supports passing also a vector,
+  and results in chaining all completion by order they were given.
+* The returned result is now a Java(8<) `CompletableFuture` instead of `manifold/Deferred`.
+* All listeners factored out of the main `client` namespace.
+
 #### VERSION 0.6.0
 * Support ClientEvents vector to be a vector of completions instead of a single one.
 * Bump aerospike lib to 4.4.15

@@ -6,8 +6,6 @@ An opinionated Clojure library wrapping Aerospike Java Client.
 
 [![Build Status](https://travis-ci.com/AppsFlyer/aerospike-clj.svg?branch=master)](https://travis-ci.com/AppsFlyer/aerospike-clj)
 
-[![Coverage Status](https://coveralls.io/repos/github/AppsFlyer/aerospike-clj/badge.svg?branch=master)](https://coveralls.io/github/AppsFlyer/aerospike-clj?branch=master)
-
 # Docs:
 [Generated docs](https://appsflyer.github.io/aerospike-clj/)
 ## Tutorial:
@@ -21,8 +19,8 @@ An opinionated Clojure library wrapping Aerospike Java Client.
 - Clojure 1.8
 
 # Features:
-- Converts Java client's callback model into a future (manifold/deferred) based API.
-- Expose passing functional transcoders over payloads (both put/get).
+- Converts Java client's callback model into Java(8) `CompletableFuture` based API.
+- Expose passing functional (asynchronous) transcoders over payloads (both put/get).
 - Health-check utility.
 - Functions return Clojure records.
 
@@ -31,24 +29,20 @@ An opinionated Clojure library wrapping Aerospike Java Client.
 
 # Maturity:
 - Feature completeness: ~~mostly~~ near complete.
-- Stability: production ready. We actively use this library in production.
+- Stability: production ready. Actively and widely used in production.
 
 # Opinionated:
 - Non blocking only: Expose only the non-blocking API. Block with `deref` if you like.
 - Futures instead of callbacks. Futures (and functional chaining) are more composable and less cluttered.
-If a synchronous behaviour is still desired, the calling code can still deref (`@`) the returned future object. For a more sophisticated coordination, a variety of control mechanisms are supplied by [manifold/deferred](https://github.com/ztellman/manifold/blob/master/docs/deferred.md), or via the library using [transcoders](https://appsflyer.github.io/aerospike-clj/index.html) or [hooks](https://appsflyer.github.io/aerospike-clj/advanced-async-hooks.html).
+If a synchronous behaviour is still desired, the calling code can still `deref` (`@`) the returned future object. For a more sophisticated coordination, a variety of control mechanisms can be used by directly using Java's `CompletableFuture` API or the more Clojure friendly [promesa](https://github.com/funcool/promesa) (which is also used internallly), or via the library using [transcoders](https://appsflyer.github.io/aerospike-clj/index.html) or [hooks](https://appsflyer.github.io/aerospike-clj/advanced-async-hooks.html).
 - Follows the method names of the underlying Java APIs.
-- TTLs should be explicit, and developers should think about them. Forces passing a ttl and not use the cluster default.
+- TTLs should be explicit, and developers should think about them. Forces passing a TTL and not use the cluster default (This can be still achieved by passing the [special values](https://www.aerospike.com/apidocs/java/com/aerospike/client/policy/WritePolicy.html#expiration) -2,-1 or 0).
 - Minimal dependencies.
 - Single client per Aerospike namespace. Namespaces in Aerospike usually indicate different cluster configurations. In order to reduce overhead for clusters with more than a single namespace create 2 client objects and share an event loop between them.
 
 # Limitations/ caveats
-- ~~Currently supports only single bin records.~~
-- ~~Does not expose batch/scan operations. Batch writes are supported via `put-multiple`.~~
 
 # TBD
-- ~~Support batch asynchronous APIs.~~
-- ~~Support batch put asynchronous API.~~
 - Support Java 11
 
 ## Usage:
@@ -74,6 +68,7 @@ It is possible to inject additional asynchronous user-defined behaviour. To do t
                               (println "oh-no" op-name "failed on index" index)))})]
 
   (get-single c "index" "set-name"))
+; for better performence, a `deftype` might be preferred over `reify`, if possible.
 ```
 
 ### Query/Put
@@ -88,22 +83,22 @@ user=> (def c (aero/init-simple-aerospike-client ["localhost"] "test"))
 ```
 
 ```clojure
-user=> (require '[manifold.deferred :as d])
+user=> (require '[promesa.core :as p])
 nil
 user=> (aero/put c "index" "set-name" 42 1000)
-<< … >>
+#object[java.util.concurrent.CompletableFuture 0x6264b083 "pending"]
 user=> (def f (aero/get-single c "index" "set-name"))
 #'user/f
-user=> (d/chain (aero/get-single c "index" "set-name")
+user=> (p/chain (aero/get-single c "index" "set-name")
   #_=>          :ttl
   #_=>          aero/expiry-unix
   #_=>          #(java.time.Instant/ofEpochSecond %)
   #_=>          str
   #_=>          println)
-<< … >>
-2019-01-10T09:02:45Z
+2020-08-13T09:52:49Z
+#object[java.util.concurrent.CompletableFuture 0x654830f5 "pending"]
 ```
-We actually get back a record with the payload, the DB generation and the ttl (in an Aerospike style EPOCH format).
+We actually get back a record with the payload, the DB generation and the TTL (in an Aerospike style EPOCH format).
 ```clojure
 user=> @(aero/get-single c "index" "set-name")
 #aerospike_clj.client.AerospikeRecord{:payload 42, :gen 1, :ttl 285167713}
@@ -121,7 +116,7 @@ $ lein test
 ```
 
 #### Mocking in application unit tests
-When performing unit tests in application code, it is most times undesirable to launch a full aerospike container to 
+When performing unit tests in application code, it is most times undesirable to launch a full Aerospike container to 
 run tests against. For those cases the library exposes a mock client that replaces all the calls to `aerospike-clj.client`.  
 
 Usage:
