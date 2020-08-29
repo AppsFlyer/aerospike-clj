@@ -121,7 +121,9 @@
                {:index "not there" :set _set}]
           res @(client/get-batch *c* brs)]
       (is (= [data data2 nil data3 nil] (mapv :payload res)))
-      (is (= [1 1 nil 1 nil] (mapv :gen res))))))
+      (is (= [1 1 nil 1 nil] (mapv :gen res)))
+      (is (= [k k2 k2 k3 "not there"] (mapv :index res)))
+      (is (= [_set _set2 _set _set _set] (mapv :set res))))))
 
 (deftest exists-batch
   (let [k (random-key)
