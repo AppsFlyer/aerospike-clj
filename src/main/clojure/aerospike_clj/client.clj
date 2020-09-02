@@ -11,6 +11,7 @@
            [com.aerospike.client.async EventLoop NioEventLoops EventLoops]
            [com.aerospike.client.policy Policy BatchPolicy ClientPolicy RecordExistsAction WritePolicy ScanPolicy InfoPolicy]
            [com.aerospike.client.cluster Node]
+           [com.aerospike.client Key]
            [aerospike_clj.listeners AsyncExistsListener AsyncDeleteListener AsyncWriteListener 
             AsyncInfoListener AsyncRecordListener AsyncRecordSequenceListener AsyncBatchListListener
             AsyncExistsArrayListener]
@@ -146,9 +147,10 @@
   (Bin/asNull bin-name))
 
 (defn- batch-read->map [^BatchRead batch-read]
-  (assoc (record/record->map (.record batch-read))
-         :index
-         (.toString (.userKey (.key batch-read)))))
+  (let [^Key key (.key batch-read)]
+    (-> (record/record->map (.record batch-read))
+        (assoc :index (.toString (.userKey key)))
+        (assoc :set (.setName key)))))
 
 (def ^:private x-bin-convert
   (comp
