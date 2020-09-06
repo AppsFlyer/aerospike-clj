@@ -117,22 +117,24 @@
 
 (defn ^EventPolicy map->event-policy
   "Create an `EventPolicy` from a map. Usage same as `map->write-policy`."
-  [conf]
-  (let [event-policy (EventPolicy.)
-        max-commands-in-process (get conf "maxCommandsInProcess" 0)
-        max-commands-in-queue (get conf "maxCommandsInQueue" 0)]
-    (when (and (pos? max-commands-in-process)
-               (zero? max-commands-in-queue))
-      (throw-invalid-state
-        "setting maxCommandsInProcess>0 and maxCommandsInQueue=0 creates an unbounded delay queue"
-        conf))
-    (set! (.maxCommandsInProcess event-policy) max-commands-in-process)
-    (set! (.maxCommandsInQueue event-policy)  max-commands-in-queue)
-    (set-java event-policy conf "commandsPerEventLoop")
-    (set-java event-policy conf "minTimeout")
-    (set-java event-policy conf "queueInitialCapacity")
-    (set-java event-policy conf "ticksPerWheel")
-    event-policy))
+  ([]
+   (map->event-policy {}))
+  ([conf]
+   (let [event-policy (EventPolicy.)
+         max-commands-in-process (get conf "maxCommandsInProcess" 0)
+         max-commands-in-queue (get conf "maxCommandsInQueue" 0)]
+     (when (and (pos? max-commands-in-process)
+                (zero? max-commands-in-queue))
+       (throw-invalid-state
+         "setting maxCommandsInProcess>0 and maxCommandsInQueue=0 creates an unbounded delay queue"
+         conf))
+     (set! (.maxCommandsInProcess event-policy) max-commands-in-process)
+     (set! (.maxCommandsInQueue event-policy)  max-commands-in-queue)
+     (set-java event-policy conf "commandsPerEventLoop")
+     (set-java event-policy conf "minTimeout")
+     (set-java event-policy conf "queueInitialCapacity")
+     (set-java event-policy conf "ticksPerWheel")
+     event-policy)))
 
 (defn ^ClientPolicy create-client-policy [event-loops conf]
   (when (get "infoPolicyDefault" conf)
