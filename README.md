@@ -26,7 +26,7 @@ An opinionated Clojure library wrapping Aerospike Java Client.
 
 # Stability:
 - stable. Although not 1.x, the API will remain stable.
-
+- GraalVM compatible [used here](https://github.com/ashwinbhaskar/aerospike-migration).
 # Maturity:
 - Feature completeness: ~~mostly~~ near complete.
 - Stability: production ready. Actively and widely used in production.
