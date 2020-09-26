@@ -8,49 +8,7 @@
            (com.aerospike.client AerospikeException ResultCode)))
 
 
-(defprotocol AerospikeClient
-  (get-single [this k set-name]
-    [this k set-name conf]
-    [this k set-name conf bin-names])
-  (get-multiple ^{:deprecated "0.3.2"}
-    [this indices sets]
-    [this indices sets conf])
-  (get-batch [this batch-reads]
-    [this batch-reads conf])
-  (exists? [this k set-name]
-    [this k set-name conf])
-  (exists-batch [this indices]
-    [this indices conf])
-  (get-single-no-meta [this k set-name]
-    [this k set-name ^IPersistentVector bin-names])
-  (put [this k set-name data expiration]
-    [this k set-name data expiration conf])
-  (add-bins [this k set-name ^IPersistentMap new-data new-expiration]
-    [this k set-name ^IPersistentMap new-data new-expiration conf])
-  (put-multiple [this indices set-names payloads expiration-seq]
-    [this indices set-names payloads expiration-seq conf])
-  (create [this k set-name data expiration]
-    [this k set-name data expiration conf])
-  (replace-only [this k set-name data expiration]
-    [this k set-name data expiration conf])
-  (update [this k set-name new-record generation new-expiration]
-    [this k set-name new-record generation new-expiration conf])
-  (set-single [this k set-name data expiration]
-    [this k set-name data expiration conf])
-  (touch [this k set-name expiration])
-  (delete [this k set-name]
-    [this k set-name conf])
-  (delete-bins [this k set-name ^IPersistentVector bin-names new-expiration]
-    [this k set-name ^IPersistentVector bin-names new-expiration conf])
-  (operate [this k set-name expiration operations]
-    [this k set-name expiration operations conf])
-  (scan-set [this aero-namespace set-name conf])
-  (get-cluster-stats [this])
-  (healthy? [this]
-    [this operation-timeout-ms])
-  (stop-aerospike-client [this])
-  (get-state [this] [this set-name])
-  (print-state [this]))
+
 
 
 
@@ -97,7 +55,7 @@
 
 
 (defrecord MockClient [state]
-  AerospikeClient
+  IAerospikeClient
   (get-single [this k set-name] (get-single this k set-name {} nil))
 
   (get-single [this k set-name conf] (get-single this k set-name conf nil))
@@ -295,7 +253,7 @@
               (throw ex)))))))
 
   (healthy? [_] true)
-  
+
   (healthy? [_ _] true)
 
   (get-cluster-stats [_] [[]])
