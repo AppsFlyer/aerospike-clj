@@ -35,7 +35,7 @@
   "Predicate function to determine whether data will be stored as a single bin or
   multiple bin record."
   [bin-names]
-  (= bin-names [""]))
+  (= bin-names [""])) ;; TODO Check performance
 
 (defn string-keys?
   "Predicate function to determine whether all keys provided for bins are strings."
@@ -61,7 +61,7 @@
   [cls v]
   (.toArray ^Collection v ^"[Ljava.lang.Object;" (make-array cls (count v))))
 
-(defn vectorize 
+(defn vectorize
   "convert a single value to a vector or any collection to the equivalent vector.
   NOTE: a map or a set have no defined order so vectorize them is not allowed"
   [v]
@@ -69,4 +69,4 @@
     (or (map? v) (set? v)) (throw (IllegalArgumentException. "undefined sequence order for argument"))
     (or (nil? v) (vector? v) (seq? v)) (vec v)
     :else [v]))
-  
+

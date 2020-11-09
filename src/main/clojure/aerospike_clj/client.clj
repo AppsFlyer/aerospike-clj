@@ -79,7 +79,19 @@
   (on-failure [_ op-name op-ex index op-start-time opts #_db]
     "A continuation function. Registered on the operation future and called when operations fails."))
 
+(defn- client-events-reducer [op-future ce opts]
+  (-> op-future
+      (p/then (fn [op-result]
+                (on-success ce op-name op-result opts)))
+      (p/catch (fn [op-exception]
+                 (on-failure ce op-name op-exception opts)))))
+
 (defn- register-events [op-future client-events op-name index op-start-time opts]
+  (if (seq client-events)
+    (reduce client-events-reducer op-future client-events)
+    op-future))
+
+#_(defn- register-events [op-future client-events op-name index op-start-time opts]
   (if (seq client-events)
     (letfn [(reducer [op-future ce]
               (-> op-future
@@ -140,6 +152,22 @@
   (if (map? data)
     (map->multiple-bins data)
     (utils/v->array Bin [^Bin (Bin. "" (utils/sanitize-bin-value data))])))
+
+(defn- make-as [f config]
+  (reify IAerospikeClient clojure.lang.IDeref
+    (get-single [_this...])
+    (get-batch [_this]
+      (f))
+    (deref [_this]
+      config)))
+
+(defn make-sharded-as []
+  (make-as :whatever))
+
+(defn make-simple-as []
+  (make-as :simple))
+
+
 
 (defprotocol IAerospikeClient
   (get-single [this index set-name] [this index set-name conf] [this index set-name conf bin-names]
@@ -277,7 +305,7 @@
     (let [client     (get-client-by-index selector index)
           op-future  (p/deferred)
           start-time (System/nanoTime)]
-      (if (and (= [:all] bin-names)
+      (if (and (identical? :all bin-names) ;; TODO check performance
                (not (utils/single-bin? bin-names)))
         ;; When [:all] is passed as an argument for bin-names and there is more than one bin,
         ;; the `get` method does not require bin-names and the whole record is retrieved
@@ -307,13 +335,13 @@
   (get-batch [this batch-reads]
     (get-batch this batch-reads {}))
 
-  (get-batch [db batch-reads conf]
+  (get-batch [_this batch-reads conf]
     (let [client          (get-client-by-index selector (:index (first batch-reads)))
           op-future       (p/deferred)
           start-time      (System/nanoTime)
           batch-reads-arr (ArrayList. ^Collection (mapv #(map->batch-read % dbns) batch-reads))]
       (.get ^AerospikeClient client
-            ^EventLoop (.next ^EventLoops (:el db))
+            ^EventLoop (.next ^EventLoops el)
             (AsyncBatchListListener. op-future)
             ^BatchPolicy (:policy conf)
             ^List batch-reads-arr)
