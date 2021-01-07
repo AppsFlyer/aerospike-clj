@@ -1,11 +1,10 @@
 (ns aerospike-clj.mock-client
   (:refer-clojure :exclude [update])
-  (:require [aerospike-clj.client :as client]
-            [aerospike-clj.utils]
+  (:require [clojure.pprint :refer [pprint]]
             [promesa.core :as p]
-            [clojure.pprint :refer [pprint]])
-  (:import (clojure.lang IPersistentVector IPersistentMap)
-           (com.aerospike.client AerospikeException ResultCode)))
+            [aerospike-clj.client :as client]
+            [aerospike-clj.utils])
+  (:import (com.aerospike.client AerospikeException ResultCode)))
 
 
 
@@ -55,97 +54,97 @@
 
 
 (defrecord MockClient [state]
-  IAerospikeClient
-  (get-single [this k set-name] (get-single this k set-name {} nil))
+  client/IAerospikeClient2
+  (get-single [this k set-name] (client/get-single this k set-name {} nil))
 
-  (get-single [this k set-name conf] (get-single this k set-name conf nil))
+  (get-single [this k set-name conf] (client/get-single this k set-name conf nil))
 
   (get-single [_ k set-name conf _]
     (let [transcoder (get-transcoder conf)]
       (p/resolved (transcoder (get-record @state set-name k)))))
 
   (get-multiple [this indices set-names]
-    (get-multiple this indices set-names {}))
+    (client/get-multiple this indices set-names {}))
 
   (get-multiple [this indices set-names conf]
     (p/resolved
-      (mapv (fn [k set-name] @(get-single this k set-name conf)) indices set-names)))
+      (mapv (fn [k set-name] @(client/get-single this k set-name conf)) indices set-names)))
 
   (get-batch [this batch-reads]
-    (get-batch this batch-reads {}))
+    (client/get-batch this batch-reads {}))
 
   (get-batch [this batch-reads conf]
     (p/resolved
       (mapv
         (fn [record]
-          (let [bins (if (= [:all] (:bins record)) nil (:bins record))
+          (let [bins     (if (= [:all] (:bins record)) nil (:bins record))
                 get-bins (if bins (partial filter-bins bins) identity)]
-            (get-bins @(get-single this (:index record) (:set record) conf))))
+            (get-bins @(client/get-single this (:index record) (:set record) conf))))
         batch-reads)))
 
   (get-single-no-meta [this k set-name]
-    (get-single this k set-name {:transcoder :payload}))
+    (client/get-single this k set-name {:transcoder :payload}))
 
   (get-single-no-meta [this k set-name bin-names]
-    (get-single this k set-name {:transcoder :payload} bin-names))
+    (client/get-single this k set-name {:transcoder :payload} bin-names))
 
   (exists? [this k set-name]
-    (exists? this k set-name {}))
+    (client/exists? this k set-name {}))
 
   (exists? [_ k set-name _]
     (p/resolved (record-exists? @state set-name k)))
 
   (exists-batch [this indices]
-    (exists-batch this indices {}))
+    (client/exists-batch this indices {}))
 
   (exists-batch [_ indices _]
     (p/resolved
       (mapv (fn [v] (record-exists? @state (:set v) (:index v))) indices)))
 
   (put [this k set-name data expiration]
-    (put this k set-name data expiration {}))
+    (client/put this k set-name data expiration {}))
 
   (put [_ k set-name data expiration conf]
     (let [transcoder (get-transcoder conf)
           new-record (create-record (transcoder data) expiration)
-          swap-fn (fn [current-state] (set-record current-state new-record set-name k))]
+          swap-fn    (fn [current-state] (set-record current-state new-record set-name k))]
       (do-swap state swap-fn)))
 
   (set-single [this k set-name data expiration]
-    (set-single this k set-name data expiration {}))
+    (client/set-single this k set-name data expiration {}))
 
   (set-single [this k set-name data expiration conf]
     (let [generation (get-generation @state set-name k)]
-      (update this k set-name data generation expiration conf)))
+      (client/update this k set-name data generation expiration conf)))
 
   (add-bins [this k set-name new-data new-expiration]
-    (add-bins this k set-name new-data new-expiration {}))
+    (client/add-bins this k set-name new-data new-expiration {}))
 
   (add-bins [_ k set-name new-data new-expiration conf]
     (let [transcoder (get-transcoder conf)
-          swap-fn (fn [current-state]
-                    (if-let [old-data (:payload (get-record current-state set-name k))]
-                      (let [merged-data (merge old-data new-data)
-                            generation (get-generation current-state set-name k)
-                            new-record (create-record
-                                         (transcoder merged-data) new-expiration generation)]
-                        (set-record current-state new-record set-name k))
-                      (throw (AerospikeException.
-                               (ResultCode/KEY_NOT_FOUND_ERROR)
-                               (str "Call to `add-bins` on non-existing key '" k "'")))))]
+          swap-fn    (fn [current-state]
+                       (if-let [old-data (:payload (get-record current-state set-name k))]
+                         (let [merged-data (merge old-data new-data)
+                               generation  (get-generation current-state set-name k)
+                               new-record  (create-record
+                                             (transcoder merged-data) new-expiration generation)]
+                           (set-record current-state new-record set-name k))
+                         (throw (AerospikeException.
+                                  (ResultCode/KEY_NOT_FOUND_ERROR)
+                                  (str "Call to `add-bins` on non-existing key '" k "'")))))]
       (do-swap state swap-fn)))
 
   (put-multiple [this indices set-names payloads expiration-seq]
-    (put-multiple this indices set-names payloads expiration-seq {}))
+    (client/put-multiple this indices set-names payloads expiration-seq {}))
 
   (put-multiple [this indices set-names payloads expiration-seq conf]
     (p/resolved
       (mapv (fn [k set-name payload expiration]
-              @(put this k set-name payload expiration conf))
+              @(client/put this k set-name payload expiration conf))
             indices set-names payloads expiration-seq)))
 
   (create [this k set-name data expiration]
-    (create this k set-name data expiration {}))
+    (client/create this k set-name data expiration {}))
 
   (create [_ k set-name data expiration conf]
     (let [swap-fn (fn [current-state]
@@ -160,7 +159,7 @@
       (do-swap state swap-fn)))
 
   (replace-only [this k set-name data expiration]
-    (replace-only this k set-name data expiration {}))
+    (client/replace-only this k set-name data expiration {}))
 
   (replace-only [_ k set-name data expiration conf]
     (let [swap-fn (fn [current-state]
@@ -174,7 +173,7 @@
       (do-swap state swap-fn)))
 
   (update [this k set-name new-record generation new-expiration]
-    (update this k set-name new-record generation new-expiration {}))
+    (client/update this k set-name new-record generation new-expiration {}))
 
   (update [_ k set-name new-record expected-generation new-expiration conf]
     (let [swap-fn (fn [current-state]
@@ -203,26 +202,26 @@
 
   (delete [_ k set-name]
     (let [success? (atom nil)
-          swap-fn (fn [current-state]
-                    (if (record-exists? current-state set-name k)
-                      (do
-                        (reset! success? true)
-                        (delete-record current-state set-name k))
-                      (do
-                        (reset! success? false)
-                        current-state)))]
+          swap-fn  (fn [current-state]
+                     (if (record-exists? current-state set-name k)
+                       (do
+                         (reset! success? true)
+                         (delete-record current-state set-name k))
+                       (do
+                         (reset! success? false)
+                         current-state)))]
       (do-swap state swap-fn)
       (p/resolved @success?)))
 
   (delete-bins [this k set-name bin-names new-expiration]
-    (delete-bins this k set-name bin-names new-expiration {}))
+    (client/delete-bins this k set-name bin-names new-expiration {}))
 
   (delete-bins [_ k set-name bin-names new-expiration _]
     (let [swap-fn (fn [current-state]
                     (if-let [old-data (:payload (get-record current-state set-name k))]
                       (let [merged-data (apply dissoc old-data bin-names)
-                            generation (get-generation current-state set-name k)
-                            new-record (create-record merged-data new-expiration generation)]
+                            generation  (get-generation current-state set-name k)
+                            new-record  (create-record merged-data new-expiration generation)]
                         (set-record current-state new-record set-name k))
                       (throw (AerospikeException.
                                (ResultCode/KEY_NOT_FOUND_ERROR)
@@ -230,15 +229,15 @@
       (do-swap state swap-fn)))
 
   (operate [this k set-name expiration operations]
-    (operate this k set-name expiration operations nil))
+    (client/operate this k set-name expiration operations nil))
 
   (operate [_ _ _ _ _ _]
     (throw (RuntimeException. "Function not implemented")))
 
-  (scan-set [this _ set-name conf]
-    (let [state (get-state this set-name)
+  (scan-set [_this _ set-name conf]
+    (let [state    (get @state set-name)
           callback (:callback conf)
-          bins (:bins conf)
+          bins     (:bins conf)
           get-bins (if bins (partial filter-bins bins) identity)]
 
       (p/resolved
@@ -258,46 +257,22 @@
 
   (get-cluster-stats [_] [[]])
 
-  (stop-aerospike-client [_]
-    (reset! state {DEFAULT_SET {}}))
+  (stop [_]
+    (reset! state {DEFAULT_SET {}})))
 
-  (get-state [this]
-    (get-state this DEFAULT_SET))
+(defprotocol ITestAerospike
+  (get-state [this] [this set-name]))
 
-  (get-state [_ set-name]
-    (get @state set-name))
-
-  (print-state [_]
-    (pprint @state)))
+(extend-type MockClient
+  ITestAerospike
+  (get-state
+    ([this]
+     (get-state this DEFAULT_SET))
+    ([this set-name]
+     (get @(:state this) set-name))))
 
 (defn expiry-unix [ttl]
   (client/expiry-unix ttl))
 
 (defn create-instance [& _]
   (MockClient. (atom {DEFAULT_SET {}})))
-
-(defn init-mock [test-fn]
-  (with-redefs
-    [client/init-simple-aerospike-client create-instance
-     client/stop-aerospike-client stop-aerospike-client
-     client/get-single get-single
-     client/get-multiple get-multiple
-     client/exists? exists?
-     client/exists-batch exists-batch
-     client/get-single-no-meta get-single-no-meta
-     client/put put
-     client/add-bins add-bins
-     client/put-multiple put-multiple
-     client/create create
-     client/replace-only replace-only
-     client/update update
-     client/set-single set-single
-     client/touch touch
-     client/delete delete
-     client/delete-bins delete-bins
-     client/operate operate
-     client/scan-set scan-set
-     client/get-cluster-stats get-cluster-stats
-     client/healthy? healthy?
-     client/expiry-unix expiry-unix]
-    (test-fn)))

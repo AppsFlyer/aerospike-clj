@@ -57,9 +57,9 @@
        first))
 
 (defn v->array
-  "An optimized way to convert vectors into Java arrays of type `cls`"
-  [cls v]
-  (.toArray ^Collection v ^"[Ljava.lang.Object;" (make-array cls (count v))))
+  "An optimized way to convert vectors into Java arrays of type `clazz`."
+  [clazz v]
+  (.toArray ^Collection v ^"[Ljava.lang.Object;" (make-array clazz (count v))))
 
 (defn vectorize
   "convert a single value to a vector or any collection to the equivalent vector.

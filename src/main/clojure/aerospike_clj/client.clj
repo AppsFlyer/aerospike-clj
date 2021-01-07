@@ -7,11 +7,11 @@
             [aerospike-clj.listeners]
             [aerospike-clj.aerospike-record :as record]
             [promesa.core :as p])
-  (:import [com.aerospike.client AerospikeClient Host Key Bin Operation BatchRead]
+  (:import [com.aerospike.client IAerospikeClient AerospikeClient Key Bin Operation BatchRead]
            [com.aerospike.client.async EventLoop NioEventLoops EventLoops]
            [com.aerospike.client.policy Policy BatchPolicy ClientPolicy RecordExistsAction WritePolicy ScanPolicy InfoPolicy]
            [com.aerospike.client.cluster Node]
-           [com.aerospike.client Key]
+           [com.aerospike.client Key Host]
            [aerospike_clj.listeners AsyncExistsListener AsyncDeleteListener AsyncWriteListener
                                     AsyncInfoListener AsyncRecordListener AsyncRecordSequenceListener AsyncBatchListListener
                                     AsyncExistsArrayListener]
@@ -25,32 +25,6 @@
 
 
 (def MAX_BIN_NAME_LENGTH 14)
-
-#_(defprotocol IAerospikeClient
-    (^AerospikeClient get-client [ac] [ac index] "Returns the relevant AerospikeClient object for the specific shard")
-    (get-all-clients [_] "Returns a sequence of all AerospikeClient objects."))
-
-(defprotocol ClientSelector
-  (get-client [this])
-  (get-client-by-index [this index])
-  (get-clients [this]))
-
-(deftype SimpleClientSelector [ac]
-  ClientSelector
-  (get-client [_this] ac)
-  (get-client-by-index [_this _index] ac)
-  (get-clients [_this] [ac]))
-
-#_(defrecord SimpleAerospikeClient [^AerospikeClient ac
-                                    ^EventLoops el
-                                    ^String dbns
-                                    ^String cluster-name
-                                    client-events
-                                    close-event-loops?]
-    IAerospikeClient
-    (get-client ^AerospikeClient [_ _] ac)
-    (get-client ^AerospikeClient [_] ac)
-    (get-all-clients [_] [ac]))
 
 (defn- create-client
   "Returns the Java `AerospikeClient` instance. To build the Clojure `IAerospikeClient` one,
@@ -143,7 +117,7 @@
     (map->multiple-bins data)
     (utils/v->array Bin [^Bin (Bin. "" (utils/sanitize-bin-value data))])))
 
-(defprotocol IAerospikeClient
+(defprotocol IAerospikeClient2
   (get-single
     [this index set-name]
     [this index set-name conf]
@@ -164,6 +138,15 @@
     bins for the batched keys or missing/[:all] to get all the bins (see `_get`). The result is a
     vector of `AerospikeRecord`s in the same order of keys. Missing keys result in `nil` in corresponding
     positions.")
+
+  (get-multiple
+    [this indices sets]
+    [this indices sets conf]
+    "DEPRECATED - use `get-batch` instead.
+
+    Returns a (future) sequence of AerospikeRecords returned by `get-single`
+    with records in corresponding places to the required keys. Indices and sets should be sequences.
+    The `conf` map is passed to all `get-single` invocations.")
 
   (exists-batch
     [this indices]
@@ -302,35 +285,34 @@
           ^"[Lcom.aerospike.client.Bin;" bins)
     (register-events op-future client-events "write" index start-time {})))
 
-(defrecord SimpleAerospikeClient [selector
-                                  el
+(defrecord SimpleAerospikeClient [^AerospikeClient client
+                                  ^EventLoops el
                                   dbns
                                   cluster-name
                                   client-events
                                   close-event-loops?]
-  IAerospikeClient
+  IAerospikeClient2
   (get-single [this index set-name]
-    (get-single this index set-name {} [:all]))
+    (get-single this index set-name {} :all))
 
   (get-single [this index set-name conf]
-    (get-single this index set-name conf [:all]))
+    (get-single this index set-name conf :all))
 
   (get-single [_this index set-name conf bin-names]
-    (let [client     (get-client-by-index selector index)
-          op-future  (p/deferred)
+    (let [op-future  (p/deferred)
           start-time (System/nanoTime)]
-      (if (and (identical? :all bin-names) ;; TODO check performance
+      (if (and (identical? :all bin-names)
                (not (utils/single-bin? bin-names)))
-        ;; When [:all] is passed as an argument for bin-names and there is more than one bin,
+        ;; When :all is passed as an argument for bin-names and there is more than one bin,
         ;; the `get` method does not require bin-names and the whole record is retrieved
-        (.get ^AerospikeClient client
-              ^EventLoop (.next ^EventLoops el)
+        (.get client
+              ^EventLoop (.next el)
               (AsyncRecordListener. op-future)
               ^Policy (:policy conf)
               (create-key index dbns set-name))
         ;; For all other cases, bin-names are passed to a different `get` method
         (.get ^AerospikeClient client
-              ^EventLoop (.next ^EventLoops el)
+              ^EventLoop (.next el)
               (AsyncRecordListener. op-future)
               ^Policy (:policy conf)
               (create-key index dbns set-name)
@@ -343,19 +325,18 @@
   (get-single-no-meta [this index set-name]
     (get-single this index set-name {:transcoder :payload}))
 
-  (get-single-no-meta [this index set-name ^IPersistentVector bin-names]
+  (get-single-no-meta [this index set-name bin-names]
     (get-single this index set-name {:transcoder :payload} bin-names))
 
   (get-batch [this batch-reads]
     (get-batch this batch-reads {}))
 
   (get-batch [_this batch-reads conf]
-    (let [client          (get-client-by-index selector (:index (first batch-reads)))
-          op-future       (p/deferred)
+    (let [op-future       (p/deferred)
           start-time      (System/nanoTime)
           batch-reads-arr (ArrayList. ^Collection (mapv #(map->batch-read % dbns) batch-reads))]
-      (.get ^AerospikeClient client
-            ^EventLoop (.next ^EventLoops el)
+      (.get client
+            ^EventLoop (.next el)
             (AsyncBatchListListener. op-future)
             ^BatchPolicy (:policy conf)
             ^List batch-reads-arr)
@@ -364,17 +345,24 @@
                        (:transcoder conf identity))]
         (register-events d client-events "read-batch" nil start-time {}))))
 
+  (get-multiple [this indices sets]
+    (get-multiple this indices sets {}))
+
+  (get-multiple [db indices sets conf]
+    (p/all
+      (map (fn [[index set-name]] (get-single db index set-name conf))
+           (map vector indices sets))))
+
   (exists-batch [this indices]
     (exists-batch this indices {}))
 
   (exists-batch [this indices conf]
-    (let [client         (get-client selector)
-          op-future      (p/deferred)
+    (let [op-future      (p/deferred)
           start-time     (System/nanoTime)
           aero-namespace (:dbns this)
           indices        (utils/v->array Key (mapv #(create-key (:index %) aero-namespace (:set %)) indices))]
-      (.exists ^AerospikeClient client
-               ^EventLoop (.next ^EventLoops (:el this))
+      (.exists client
+               ^EventLoop (.next (:el this))
                (AsyncExistsArrayListener. op-future)
                ^BatchPolicy (:policy conf)
                ^"[Lcom.aerospike.client.Key;" indices)
@@ -387,11 +375,10 @@
     (exists? this index set-name {}))
 
   (exists? [this index set-name conf]
-    (let [client     (get-client-by-index selector index)
-          op-future  (p/deferred)
+    (let [op-future  (p/deferred)
           start-time (System/nanoTime)]
       (.exists ^AerospikeClient client
-               ^EventLoop (.next ^EventLoops (:el this))
+               ^EventLoop (.next (:el this))
                (AsyncExistsListener. op-future)
                ^Policy (:policy conf)
                (create-key index (:dbns this) set-name))
@@ -401,13 +388,13 @@
     (put this index set-name data expiration {}))
 
   (put [_this index set-name data expiration conf]
-    (_put (get-client-by-index selector index)
+    (_put client
           el
           dbns
           client-events
           index
           ((:transcoder conf identity) data)
-          (:policy conf (policy/write-policy (get-client selector) expiration))
+          (:policy conf (policy/write-policy client expiration))
           set-name))
 
   (put-multiple [this indices set-names payloads expirations]
@@ -423,73 +410,72 @@
     (set-single this index set-name data expiration {}))
 
   (set-single [_this index set-name data expiration conf]
-    (_put (get-client-by-index selector index)
+    (_put client
           el
           dbns
           client-events
           index
           ((:transcoder conf identity) data)
-          (policy/set-policy (get-client selector) expiration)
+          (policy/set-policy client expiration)
           set-name))
 
   (create [this index set-name data expiration]
     (create this index set-name data expiration {}))
 
   (create [_this index set-name data expiration conf]
-    (_put (get-client-by-index selector index)
+    (_put client
           el
           dbns
           client-events
           index
           ((:transcoder conf identity) data)
-          (policy/create-only-policy (get-client selector) expiration)
+          (policy/create-only-policy client expiration)
           set-name))
 
   (replace-only [this index set-name data expiration]
     (replace-only this index set-name data expiration {}))
 
   (replace-only [_this index set-name data expiration conf]
-    (_put (get-client-by-index selector index)
+    (_put client
           el
           dbns
           client-events
           index
           ((:transcoder conf identity) data)
-          (policy/replace-only-policy (get-client selector) expiration)
+          (policy/replace-only-policy client expiration)
           set-name))
 
   (update [this index set-name new-record generation new-expiration]
     (update this index set-name new-record generation new-expiration {}))
 
   (update [_this index set-name new-record generation new-expiration conf]
-    (_put (get-client-by-index selector index)
+    (_put client
           el
           dbns
           client-events
           index
           ((:transcoder conf identity) new-record)
-          (policy/update-policy (get-client selector) generation new-expiration)
+          (policy/update-policy client generation new-expiration)
           set-name))
 
-  (add-bins [this index set-name ^IPersistentMap new-data new-expiration]
+  (add-bins [this index set-name new-data new-expiration]
     (add-bins this index set-name new-data new-expiration {}))
 
-  (add-bins [_this index set-name ^IPersistentMap new-data new-expiration conf]
-    (_put (get-client-by-index selector index)
+  (add-bins [_this index set-name new-data new-expiration conf]
+    (_put client
           el
           dbns
           client-events
           index
           ((:transcoder conf identity) new-data)
-          (policy/update-only-policy (get-client selector) new-expiration)
+          (policy/update-only-policy client new-expiration)
           set-name))
 
   (touch [this index set-name expiration]
-    (let [client     (get-client-by-index selector index)
-          op-future  (p/deferred)
+    (let [op-future  (p/deferred)
           start-time (System/nanoTime)]
-      (.touch ^AerospikeClient client
-              ^EventLoop (.next ^EventLoops (:el this))
+      (.touch client
+              ^EventLoop (.next (:el this))
               (AsyncWriteListener. op-future)
               ^WritePolicy (policy/write-policy client expiration RecordExistsAction/UPDATE_ONLY)
               (create-key index (:dbns this) set-name))
@@ -499,27 +485,25 @@
     (delete this index set-name {}))
 
   (delete [this index set-name conf]
-    (let [client     (get-client-by-index selector index)
-          op-future  (p/deferred)
+    (let [op-future  (p/deferred)
           start-time (System/nanoTime)]
-      (.delete ^AerospikeClient client
-               ^EventLoop (.next ^EventLoops (:el this))
+      (.delete client
+               ^EventLoop (.next (:el this))
                (AsyncDeleteListener. op-future)
                ^WritePolicy (:policy conf)
                (create-key index (:dbns this) set-name))
       (register-events op-future client-events "delete" index start-time {})))
 
-  (delete-bins [this index set-name ^IPersistentVector bin-names new-expiration]
+  (delete-bins [this index set-name bin-names new-expiration]
     (delete-bins this index set-name bin-names new-expiration {}))
 
-  (delete-bins [_this index set-name ^IPersistentVector bin-names new-expiration conf]
-    (let [client     (get-client-by-index selector index)
-          bin-names  ((:transcoder conf identity) bin-names)
-          policy     (policy/update-only-policy (get-client selector) new-expiration)
+  (delete-bins [_this index set-name bin-names new-expiration conf]
+    (let [bin-names  ((:transcoder conf identity) bin-names)
+          policy     (policy/update-only-policy client new-expiration)
           op-future  (p/deferred)
           start-time (System/nanoTime)]
-      (.put ^AerospikeClient client
-            ^EventLoop (.next ^EventLoops el)
+      (.put client
+            ^EventLoop (.next el)
             (AsyncWriteListener. op-future)
             ^WritePolicy policy
             (create-key index dbns set-name)
@@ -532,11 +516,10 @@
   (operate [this index set-name expiration operations conf]
     (if (empty? operations)
       (p/resolved nil)
-      (let [client     (get-client-by-index selector index)
-            op-future  (p/deferred)
+      (let [op-future  (p/deferred)
             start-time (System/nanoTime)]
-        (.operate ^AerospikeClient client
-                  ^EventLoop (.next ^EventLoops (:el this))
+        (.operate client
+                  ^EventLoop (.next (:el this))
                   (AsyncRecordListener. op-future)
                   ^WritePolicy (:policy conf (policy/write-policy client expiration RecordExistsAction/UPDATE))
                   (create-key index (:dbns this) set-name)
@@ -546,12 +529,11 @@
   (scan-set [this aero-namespace set-name conf]
     (when-not (fn? (:callback conf))
       (throw (IllegalArgumentException. "(:callback conf) must be a function")))
-    (let [client     (get-client selector)
-          op-future  (p/deferred)
+    (let [op-future  (p/deferred)
           start-time (System/nanoTime)
           bin-names  (:bins conf)]
-      (.scanAll ^AerospikeClient client
-                ^EventLoop (.next ^EventLoops (:el this))
+      (.scanAll client
+                ^EventLoop (.next (:el this))
                 (AsyncRecordSequenceListener. op-future (:callback conf))
                 ^Policy (:policy conf (ScanPolicy.))
                 aero-namespace
@@ -560,34 +542,36 @@
       (register-events op-future client-events "scan" nil start-time {})))
 
   (info [this node info-commands]
-    (info this node info-commands))
+    (info this node info-commands {}))
 
-  (info [this ^Node node info-commands conf]
-    (let [client     (get-client selector)
-          op-future  (p/deferred)
+  (info [this node info-commands conf]
+    (let [op-future  (p/deferred)
           start-time (System/nanoTime)]
-      (.info ^AerospikeClient client
-             ^EventLoop (.next ^EventLoops (:el this))
+      (.info client
+             ^EventLoop (.next (:el this))
              (AsyncInfoListener. op-future)
              ^InfoPolicy (:policy conf (.infoPolicyDefault ^AerospikeClient client))
-             node
+             ^Node node
              (into-array String info-commands))
       (register-events op-future client-events "info" nil start-time {})))
 
   (get-nodes [_this]
-    (.getNodes (get-client selector)))
+    (.getNodes client))
 
   (get-cluster-stats [_this]
-    (let [clients (get-clients selector)]
-      (->> clients
-           (mapv #(metrics/construct-cluster-metrics (.getClusterStats ^AerospikeClient %)))
-           (mapv metrics/cluster-metrics->dotted))))
+    (-> (.getClusterStats client)
+        metrics/construct-cluster-metrics
+        metrics/cluster-metrics->dotted)
+    #_(let [clients (get-clients selector)]
+        (->> clients
+             (mapv #(metrics/construct-cluster-metrics (.getClusterStats ^AerospikeClient %)))
+             (mapv metrics/cluster-metrics->dotted))))
 
   (healthy? [this]
     (healthy? this 1000))
 
   (healthy? [this operation-timeout-ms]
-    (let [read-policy (let [p (.readPolicyDefault ^AerospikeClient (get-client-by-index selector ""))]
+    (let [read-policy (let [p (.readPolicyDefault client)]
                         (set! (.totalTimeout p) operation-timeout-ms)
                         p)
           k           (str "__health__" (rand-int Integer/MAX_VALUE))
@@ -604,7 +588,7 @@
 
   (stop [_this] ;; HOW TO HANDLE MULTI-CLUSTERS???
     (println ";; Stopping aerospike clients")
-    (.close (get-client selector))
+    (.close client)
     (when close-event-loops?
       (.close ^EventLoops el))))
 
@@ -621,7 +605,7 @@
     If no EventLoops instance is provided,
     a single-threaded one of type NioEventLoops is created automatically.
     The EventLoops instance for this client will be closed
-    during `stop-aerospike-client` iff it was not provided externally.
+    during `stop` iff it was not provided externally.
     In this case it's a responsibility of the owner to close it properly.
 
   Client policy configuration keys (see policy/create-client-policy)
@@ -638,7 +622,7 @@
          event-loops        (or (:event-loops conf) (create-event-loops conf))
          client-policy      (:client-policy conf (policy/create-client-policy event-loops conf))]
      (println (format ";; Starting aerospike clients for clusters %s with username %s" cluster-name (get conf "username")))
-     (map->SimpleAerospikeClient {:selector           (->SimpleClientSelector (create-client hosts client-policy (:port conf 3000)))
+     (map->SimpleAerospikeClient {:client             (create-client hosts client-policy (:port conf 3000))
                                   :el                 event-loops
                                   :dbns               aero-ns
                                   :cluster-name       cluster-name

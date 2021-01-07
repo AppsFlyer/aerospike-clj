@@ -8,6 +8,7 @@ An opinionated Clojure library wrapping Aerospike Java Client.
 
 # Docs:
 [Generated docs](https://appsflyer.github.io/aerospike-clj/)
+
 ## Tutorial:
 [here.](https://appsflyer.github.io/aerospike-clj/tutorial.html)
 ## More advanced docs:
@@ -24,9 +25,6 @@ An opinionated Clojure library wrapping Aerospike Java Client.
 - Health-check utility.
 - Functions return Clojure records.
 
-# Stability:
-- stable. Although not 1.x, the API will remain stable.
-
 # Maturity:
 - Feature completeness: ~~mostly~~ near complete.
 - Stability: production ready. Actively and widely used in production.
@@ -34,13 +32,20 @@ An opinionated Clojure library wrapping Aerospike Java Client.
 # Opinionated:
 - Non blocking only: Expose only the non-blocking API. Block with `deref` if you like.
 - Futures instead of callbacks. Futures (and functional chaining) are more composable and less cluttered.
-If a synchronous behaviour is still desired, the calling code can still `deref` (`@`) the returned future object. For a more sophisticated coordination, a variety of control mechanisms can be used by directly using Java's `CompletableFuture` API or the more Clojure friendly [promesa](https://github.com/funcool/promesa) (which is also used internallly), or via the library using [transcoders](https://appsflyer.github.io/aerospike-clj/index.html) or [hooks](https://appsflyer.github.io/aerospike-clj/advanced-async-hooks.html).
+If synchronous behaviour is still desired, the calling code can still `deref` (`@`) the returned future object.
+For a more sophisticated coordination, a variety of control mechanisms can be used by directly using Java's
+`CompletableFuture` API or the more Clojure friendly [promesa](https://github.com/funcool/promesa) (which is also used internally),
+or via the library using [transcoders](https://appsflyer.github.io/aerospike-clj/index.html) or
+[hooks](https://appsflyer.github.io/aerospike-clj/advanced-async-hooks.html).
 - Follows the method names of the underlying Java APIs.
-- TTLs should be explicit, and developers should think about them. Forces passing a TTL and not use the cluster default (This can be still achieved by passing the [special values](https://www.aerospike.com/apidocs/java/com/aerospike/client/policy/WritePolicy.html#expiration) -2,-1 or 0).
+- TTLs should be explicit, and developers should think about them. Forces passing a TTL and not use the cluster default
+(This can be still achieved by passing the [special values](https://www.aerospike.com/apidocs/java/com/aerospike/client/policy/WritePolicy.html#expiration) -2,-1 or 0).
 - Minimal dependencies.
-- Single client per Aerospike namespace. Namespaces in Aerospike usually indicate different cluster configurations. In order to reduce overhead for clusters with more than a single namespace create 2 client objects and share an event loop between them.
+- Single client per Aerospike namespace. Namespaces in Aerospike usually indicate different cluster configurations.
+In order to reduce overhead for clusters with more than a single namespace create 2 client instances and share an event
+loop between them.
 
-# Limitations/ caveats
+# Limitations/caveats
 
 # TBD
 - Support Java 11
@@ -54,7 +59,10 @@ user=> (def c (aero/init-simple-aerospike-client
   #_=>          ["aerospike-001.com", "aerospik-002.com"] "my-ns" {:enable-logging true}))
 ```
 
-It is possible to inject additional asynchronous user-defined behaviour. To do that add an instance of `ClientEvents`. Some useful info is passed in in-order to support metering and to read client configuration. `op-start-time` is `(System/nanoTime)` [more here](https://appsflyer.github.io/aerospike-clj/advanced-async-hooks.html).
+It is possible to inject additional asynchronous user-defined behaviour. To do that add an implementation of  the
+`ClientEvents` protocol.
+Some useful info is passed in-order to support metering and to read client configuration. `op-start-time` is
+`(System/nanoTime)`, see more [here](https://appsflyer.github.io/aerospike-clj/advanced-async-hooks.html).
 
 ```clojure
 (let [c (aero/init-simple-aerospike-client
@@ -68,7 +76,7 @@ It is possible to inject additional asynchronous user-defined behaviour. To do t
                               (println "oh-no" op-name "failed on index" index)))})]
 
   (get-single c "index" "set-name"))
-; for better performence, a `deftype` might be preferred over `reify`, if possible.
+; for better performance, a `deftype` might be preferred over `reify`, if possible.
 ```
 
 ### Query/Put
@@ -105,10 +113,11 @@ user=> @(aero/get-single c "index" "set-name")
 ```
 
 #### Unix EPOCH TTL
-Aerospike returns a TTL on the queried records that is Epoch style, but with a different "beginning of time" which is "2010-01-01T00:00:00Z". Call `expiry-unix` with the returned TTL to get a UNIX TTL if you want to convert it later to a more standard timestamp.
+Aerospike returns a TTL on the queried records that is epoch style, but with a different "beginning of time" which is "2010-01-01T00:00:00Z".
+Call `expiry-unix` with the returned TTL to get a TTL relative to the UNIX epoch.
 
 ## Testing
-Testing is performed against a local Aerospike running in the latest docker
+Testing is performed against a local Aerospike instance. You can also run an instance inside a docker container:
 
 ```shell
 $ sudo docker run -d --name aerospike -p 3000:3000 -p 3001:3001 -p 3002:3002 -p 3003:3003 aerospike
@@ -116,8 +125,7 @@ $ lein test
 ```
 
 #### Mocking in application unit tests
-When performing unit tests in application code, it is most times undesirable to launch a full Aerospike container to 
-run tests against. For those cases the library exposes a mock client that replaces all the calls to `aerospike-clj.client`.  
+For unit tests purposes you can use a mock client that implements the client protocol.  
 
 Usage:
 
