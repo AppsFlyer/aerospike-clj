@@ -79,28 +79,18 @@
   (on-failure [_ op-name op-ex index op-start-time opts #_db]
     "A continuation function. Registered on the operation future and called when operations fails."))
 
-(defn- client-events-reducer [op-future ce opts]
-  (-> op-future
-      (p/then (fn [op-result]
-                (on-success ce op-name op-result opts)))
-      (p/catch (fn [op-exception]
-                 (on-failure ce op-name op-exception opts)))))
+(defn- client-events-reducer [op-name index op-start-time opts]
+  (fn [op-future client-events]
+    (-> op-future
+        (p/then (fn [op-result]
+                  (on-success client-events op-name op-result index op-start-time opts)))
+        (p/catch (fn [op-exception]
+                   (on-failure client-events op-name op-exception index op-start-time opts))))))
 
 (defn- register-events [op-future client-events op-name index op-start-time opts]
-  (if (seq client-events)
-    (reduce client-events-reducer op-future client-events)
-    op-future))
-
-#_(defn- register-events [op-future client-events op-name index op-start-time opts]
-  (if (seq client-events)
-    (letfn [(reducer [op-future ce]
-              (-> op-future
-                  (p/then (fn [op-result]
-                            (on-success ce op-name op-result index op-start-time opts #_db)))
-                  (p/catch (fn [op-exception]
-                             (on-failure ce op-name op-exception index op-start-time opts #_db)))))]
-      (reduce reducer op-future client-events))
-    op-future))
+  (if (empty? client-events)
+    op-future
+    (reduce (client-events-reducer op-name index op-start-time opts) op-future client-events)))
 
 (defprotocol UserKey
   "Use `create-key` directly to pass a pre-made custom key to the public API.
@@ -153,45 +143,43 @@
     (map->multiple-bins data)
     (utils/v->array Bin [^Bin (Bin. "" (utils/sanitize-bin-value data))])))
 
-(defn- make-as [f config]
-  (reify IAerospikeClient clojure.lang.IDeref
-    (get-single [_this...])
-    (get-batch [_this]
-      (f))
-    (deref [_this]
-      config)))
-
-(defn make-sharded-as []
-  (make-as :whatever))
-
-(defn make-simple-as []
-  (make-as :simple))
-
-
-
 (defprotocol IAerospikeClient
-  (get-single [this index set-name] [this index set-name conf] [this index set-name conf bin-names]
+  (get-single
+    [this index set-name]
+    [this index set-name conf]
+    [this index set-name conf bin-names]
     "Returns a single record: `(transcoder AerospikeRecord)`. The default transcoder is `identity`.
     Pass a `:policy` in `conf` to use a non-default `ReadPolicy`")
 
-  (get-single-no-meta [this index set-name] [this index set-name ^IPersistentVector bin-names]
+  (get-single-no-meta
+    [this index set-name]
+    [this index set-name ^IPersistentVector bin-names]
     "Shorthand to return a single record payload only.")
 
-  (get-batch [this batch-reads] [this batch-reads conf]
+  (get-batch
+    [this batch-reads]
+    [this batch-reads conf]
     "Get a batch of records from the cluster asynchronously. `batch-reads` is a collection of maps
     of the form `{:index \"foo\" :set \"someset\" :bins [...]}` the `:bins` key can have required
     bins for the batched keys or missing/[:all] to get all the bins (see `_get`). The result is a
     vector of `AerospikeRecord`s in the same order of keys. Missing keys result in `nil` in corresponding
     positions.")
 
-  (exists-batch [this indices] [this indices conf]
+  (exists-batch
+    [this indices]
+    [this indices conf]
     "Check for each key in a batch if it exists. `indices` is a collection of maps
     of the form `{:index \"key-name\" :set \"set-name\"}`. The result is a
     vector of booleans in the same order as indices.")
 
-  (exists? [this index set-name] [this index set-name conf] "Test if an index exists.")
+  (exists?
+    [this index set-name]
+    [this index set-name conf]
+    "Test if an index exists.")
 
-  (put [this index set-name data expiration] [this index set-name data expiration conf]
+  (put
+    [this index set-name data expiration]
+    [this index set-name data expiration conf]
     "Writes `data` into a record with the key `index`, with the ttl of `expiration` seconds.
     `index` should be string. Pass a function in `(:trascoder conf)` to modify `data` before it
     is sent to the DB.
@@ -200,26 +188,38 @@
     Each key-value pair in the map will be treated as a bin-name, bin-value pair. Bin-names must be
     strings. Bin-values can be any nested data structure.")
 
-  (put-multiple [this indices set-names payloads expirations] [this indices set-names payloads expirations conf]
+  (put-multiple
+    [this indices set-names payloads expirations]
+    [this indices set-names payloads expirations conf]
     "Put multiple payloads by invoking `put`. All arguments should be mutually
     corresponding sequences.")
 
-  (set-single [this index set-name data expiration] [this index set-name data expiration conf]
+  (set-single
+    [this index set-name data expiration]
+    [this index set-name data expiration conf]
     "`put` with an update policy")
 
-  (create [this index set-name data expiration] [this index set-name data expiration conf]
+  (create
+    [this index set-name data expiration]
+    [this index set-name data expiration conf]
     "`put` with a create-only policy")
 
-  (replace-only [this index set-name data expiration] [this index set-name data expiration conf]
+  (replace-only
+    [this index set-name data expiration]
+    [this index set-name data expiration conf]
     "`put` with a replace-only policy")
 
-  (update [this index set-name new-record generation new-expiration] [this index set-name new-record generation new-expiration conf]
+  (update
+    [this index set-name new-record generation new-expiration]
+    [this index set-name new-record generation new-expiration conf]
     "Writing a new value for the key `index`.
     Generation: the expected modification count of the record (i.e. how many times was it
     modified before my current action). Pass a function in `(:trascoder conf)` to modify
     `data` before it is sent to the DB.")
 
-  (add-bins [this index set-name ^IPersistentMap new-data new-expiration] [this index set-name ^IPersistentMap new-data new-expiration conf]
+  (add-bins
+    [this index set-name ^IPersistentMap new-data new-expiration]
+    [this index set-name ^IPersistentMap new-data new-expiration conf]
     "Add bins to an existing record without modifying old data. The `new-data` must be a
     Clojure map.")
 
@@ -227,18 +227,25 @@
     "Updates the ttl of the record stored under at `index` to `expiration` seconds from now.
     Expects records to exist.")
 
-  (delete [this index set-name] [this index set-name conf]
+  (delete
+    [this index set-name]
+    [this index set-name conf]
     "Delete the record stored for key <index>.
     Returns async true/false for deletion success (hit).")
 
-  (delete-bins [this index set-name ^IPersistentVector bin-names new-expiration] [this index set-name ^IPersistentVector bin-names new-expiration conf]
+  (delete-bins
+    [this index set-name ^IPersistentVector bin-names new-expiration]
+    [this index set-name ^IPersistentVector bin-names new-expiration conf]
     "Delete bins from an existing record. The `bin-names` must be a vector of strings.")
 
-  (operate [this index set-name expiration operations] [this index set-name expiration operations conf]
+  (operate
+    [this index set-name expiration operations]
+    [this index set-name expiration operations conf]
     "Asynchronously perform multiple read/write operations on a single key in one batch call.
     This method registers the command with an event loop and returns. The event loop thread
     will process the command and send the results to the listener.
     `commands` is a sequence of Aerospike CDT operations.")
+
   (scan-set [this aero-namespace set-name conf]
     "Scans through the given set and calls a user defined callback for each record that was found.
     Returns a deferred response that resolves once the scan completes. When the scan completes
@@ -250,7 +257,9 @@
       :policy -   Optional. com.aerospike.client.policy.ScanPolicy.
       :bins -     Optional. Vector of bin names to return. Returns all bins by default.")
 
-  (info [this node info-commands] [this node info-commands conf]
+  (info
+    [this node info-commands]
+    [this node info-commands conf]
     "Asynchronously make info commands to a node. a node can be retreived from `get-nodes`. commands is a seq
     of strings available from https://www.aerospike.com/docs/reference/info/index.html the returned future conatains
     a map from and info command to its response.
@@ -291,9 +300,14 @@
           ^WritePolicy policy
           (create-key index dbns set-name)
           ^"[Lcom.aerospike.client.Bin;" bins)
-    (register-events op-future client-events "write" index start-time)))
+    (register-events op-future client-events "write" index start-time {})))
 
-(defrecord SimpleAerospikeClient [selector el dbns cluster-name client-events close-event-loops?]
+(defrecord SimpleAerospikeClient [selector
+                                  el
+                                  dbns
+                                  cluster-name
+                                  client-events
+                                  close-event-loops?]
   IAerospikeClient
   (get-single [this index set-name]
     (get-single this index set-name {} [:all]))
@@ -324,7 +338,7 @@
       (let [p (p/chain op-future
                        record/record->map
                        (:transcoder conf identity))]
-        (register-events p client-events "read" index start-time))))
+        (register-events p client-events "read" index start-time {}))))
 
   (get-single-no-meta [this index set-name]
     (get-single this index set-name {:transcoder :payload}))
@@ -348,7 +362,7 @@
       (let [d (p/chain op-future
                        #(mapv batch-read->map %)
                        (:transcoder conf identity))]
-        (register-events d client-events "read-batch" nil start-time))))
+        (register-events d client-events "read-batch" nil start-time {}))))
 
   (exists-batch [this indices]
     (exists-batch this indices {}))
@@ -367,7 +381,7 @@
       (let [d (p/chain op-future
                        vec
                        (:transcoder conf identity))]
-        (register-events d client-events "exists-batch" nil start-time))))
+        (register-events d client-events "exists-batch" nil start-time {}))))
 
   (exists? [this index set-name]
     (exists? this index set-name {}))
@@ -381,7 +395,7 @@
                (AsyncExistsListener. op-future)
                ^Policy (:policy conf)
                (create-key index (:dbns this) set-name))
-      (register-events op-future client-events "exists" index start-time)))
+      (register-events op-future client-events "exists" index start-time {})))
 
   (put [this index set-name data expiration]
     (put this index set-name data expiration {}))
@@ -479,7 +493,7 @@
               (AsyncWriteListener. op-future)
               ^WritePolicy (policy/write-policy client expiration RecordExistsAction/UPDATE_ONLY)
               (create-key index (:dbns this) set-name))
-      (register-events op-future client-events "touch" index start-time)))
+      (register-events op-future client-events "touch" index start-time {})))
 
   (delete [this index set-name]
     (delete this index set-name {}))
@@ -493,7 +507,7 @@
                (AsyncDeleteListener. op-future)
                ^WritePolicy (:policy conf)
                (create-key index (:dbns this) set-name))
-      (register-events op-future client-events "delete" index start-time)))
+      (register-events op-future client-events "delete" index start-time {})))
 
   (delete-bins [this index set-name ^IPersistentVector bin-names new-expiration]
     (delete-bins this index set-name bin-names new-expiration {}))
@@ -510,7 +524,7 @@
             ^WritePolicy policy
             (create-key index dbns set-name)
             ^"[Lcom.aerospike.client.Bin;" (utils/v->array Bin (mapv set-bin-as-null bin-names)))
-      (register-events op-future client-events "write" index start-time)))
+      (register-events op-future client-events "write" index start-time {})))
 
   (operate [this index set-name expiration operations]
     (operate this index set-name expiration operations {}))
@@ -527,7 +541,7 @@
                   ^WritePolicy (:policy conf (policy/write-policy client expiration RecordExistsAction/UPDATE))
                   (create-key index (:dbns this) set-name)
                   (utils/v->array Operation operations))
-        (register-events (p/then op-future record/record->map) client-events "operate" index start-time))))
+        (register-events (p/then op-future record/record->map) client-events "operate" index start-time {}))))
 
   (scan-set [this aero-namespace set-name conf]
     (when-not (fn? (:callback conf))
@@ -543,7 +557,7 @@
                 aero-namespace
                 set-name
                 (when bin-names ^"[Ljava.lang.String;" (utils/v->array String bin-names)))
-      (register-events op-future client-events "scan" nil start-time)))
+      (register-events op-future client-events "scan" nil start-time {})))
 
   (info [this node info-commands]
     (info this node info-commands))
@@ -558,7 +572,7 @@
              ^InfoPolicy (:policy conf (.infoPolicyDefault ^AerospikeClient client))
              node
              (into-array String info-commands))
-      (register-events op-future client-events "info" nil start-time)))
+      (register-events op-future client-events "info" nil start-time {})))
 
   (get-nodes [_this]
     (.getNodes (get-client selector)))
