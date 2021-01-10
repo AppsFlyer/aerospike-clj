@@ -131,17 +131,17 @@
                                   close-event-loops?]
   pt/AerospikeReadOps
   (get-single [this index set-name]
-    (pt/get-single this index set-name {} :all))
+    (pt/get-single this index set-name {} [:all]))
 
   (get-single [this index set-name conf]
-    (pt/get-single this index set-name conf :all))
+    (pt/get-single this index set-name conf [:all]))
 
   (get-single [_this index set-name conf bin-names]
     (let [op-future  (p/deferred)
           start-time (System/nanoTime)]
-      (if (and (identical? :all bin-names)
+      (if (and (= [:all] bin-names)
                (not (utils/single-bin? bin-names)))
-        ;; When :all is passed as an argument for bin-names and there is more than one bin,
+        ;; When [:all] is passed as an argument for bin-names and there is more than one bin,
         ;; the `get` method does not require bin-names and the whole record is retrieved
         (.get client
               ^EventLoop (.next el)
