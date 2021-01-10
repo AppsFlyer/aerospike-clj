@@ -66,9 +66,10 @@
 
 (defn ^WritePolicy write-policy
   "Create a write policy to be passed to put methods via `{:policy wp}`.
-  Also used in `update` and `create`"
+  Also used in `update` and `create`.
+  The default policy in case the record exists it `RecordExistsAction/REPLACE`."
   ([client expiration]
-   (write-policy client expiration (RecordExistsAction/REPLACE))) ;; TODO document this
+   (write-policy client expiration (RecordExistsAction/REPLACE)))
   ([client expiration record-exists-action]
    (let [wp (WritePolicy. (.getWritePolicyDefault ^AerospikeClient client))]
      (set! (.expiration wp) expiration)

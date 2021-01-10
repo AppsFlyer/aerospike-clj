@@ -6,30 +6,29 @@ An opinionated Clojure library wrapping Aerospike Java Client.
 
 [![Build Status](https://travis-ci.com/AppsFlyer/aerospike-clj.svg?branch=master)](https://travis-ci.com/AppsFlyer/aerospike-clj)
 
-# Docs:
+# Docs
 [Generated docs](https://appsflyer.github.io/aerospike-clj/)
 
-## Tutorial:
+## Tutorial
 [here.](https://appsflyer.github.io/aerospike-clj/tutorial.html)
-## More advanced docs:
+## More advanced docs
 * [Advanced asynchronous hooks.](https://appsflyer.github.io/aerospike-clj/advanced-async-hooks.html)
-* [Implementing your own client.](https://appsflyer.github.io/aerospike-clj/implementing-clients.html)
 
-# Requirements:
+# Requirements
 - Java 8
 - Clojure 1.8
 
-# Features:
+# Features
 - Converts Java client's callback model into Java(8) `CompletableFuture` based API.
 - Expose passing functional (asynchronous) transcoders over payloads (both put/get).
 - Health-check utility.
 - Functions return Clojure records.
 
-# Maturity:
+# Maturity
 - Feature completeness: ~~mostly~~ near complete.
 - Stability: production ready. Actively and widely used in production.
 
-# Opinionated:
+# Opinionated
 - Non blocking only: Expose only the non-blocking API. Block with `deref` if you like.
 - Futures instead of callbacks. Futures (and functional chaining) are more composable and less cluttered.
 If synchronous behaviour is still desired, the calling code can still `deref` (`@`) the returned future object.
@@ -45,13 +44,8 @@ or via the library using [transcoders](https://appsflyer.github.io/aerospike-clj
 In order to reduce overhead for clusters with more than a single namespace create 2 client instances and share an event
 loop between them.
 
-# Limitations/caveats
-
-# TBD
-- Support Java 11
-
-## Usage:
-#### Most of the time just create a simple client (single cluster)
+## Usage
+### Most of the time just create a simple client (single cluster)
 ```clojure
 user=> (require '[aerospike-clj.client :as aero])
 nil
@@ -125,23 +119,30 @@ $ lein test
 ```
 
 #### Mocking in application unit tests
-For unit tests purposes you can use a mock client that implements the client protocol.  
+For unit tests purposes you can use a mock client that implements the client protocols: `MockClient`.
 
 Usage:
 
 ```clojure
 (ns com-example.app 
   (:require [clojure.test :refer [deftest use-fixtures]]
-            [aerospike-clj.mock-client :refer [init-mock]]))
+            [aerospike-clj.protocols :as pt]
+            [aerospike-clj.mock-client :as mock])
+  (:import [aerospike_clj.client SimpleAerospikeClient]))
 
-(use-fixtures :each init-mock)
+(def ^:dynamic ^SimpleAerospikeClient client nil)
+
+(defn- rebind-client-to-mock [test-fn]
+  (binding [client (mock/create-instance)]
+    (test-fn)))
+
+(use-fixtures :each rebind-client-to-mock)
 
 (deftest ...) ;; define your application unit tests as usual
 ```
 
-The sample code executes on every test run. It initializes the mock and runs
-the test within a `with-redefs` - rebinding all the calls to functions
-in `aerospike-clj.client` to the mock.
+The sample code executes on every test run. It initializes the mock with a proper type hint
+so you can just invoke all client protocol methods on it.
 
 Note: If the production client is initiated using a state management framework,
 you would also need to stop and restart the state on each test run.

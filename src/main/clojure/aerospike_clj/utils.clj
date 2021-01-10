@@ -35,7 +35,7 @@
   "Predicate function to determine whether data will be stored as a single bin or
   multiple bin record."
   [bin-names]
-  (= bin-names [""])) ;; TODO Check performance
+  (= bin-names [""]))
 
 (defn string-keys?
   "Predicate function to determine whether all keys provided for bins are strings."

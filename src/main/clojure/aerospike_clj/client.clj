@@ -11,7 +11,7 @@
   (:import [java.time Instant]
            [java.util List Collection ArrayList]
            [clojure.lang IPersistentMap]
-           [com.aerospike.client IAerospikeClient AerospikeClient Key Bin Operation BatchRead]
+           [com.aerospike.client AerospikeClient Key Bin Operation BatchRead]
            [com.aerospike.client.async EventLoop NioEventLoops EventLoops]
            [com.aerospike.client.cluster Node]
            [com.aerospike.client.policy Policy BatchPolicy ClientPolicy
@@ -29,7 +29,7 @@
 
 (def MAX_BIN_NAME_LENGTH 14)
 
-(defn- create-client
+(defn create-client
   "Returns the Java `AerospikeClient` instance. To build the Clojure `IAerospikeClient` one,
   use `init-simple-aerospike-client`."
   ([host client-policy]
