@@ -111,11 +111,15 @@ Aerospike returns a TTL on the queried records that is epoch style, but with a d
 Call `expiry-unix` with the returned TTL to get a TTL relative to the UNIX epoch.
 
 ## Testing
+### Unit tests
+Executed via running `lein test`.
+
+### Integration tests
 Testing is performed against a local Aerospike instance. You can also run an instance inside a docker container:
 
 ```shell
 $ sudo docker run -d --name aerospike -p 3000:3000 -p 3001:3001 -p 3002:3002 -p 3003:3003 aerospike
-$ lein test
+$ lein test :integration
 ```
 
 #### Mocking in application unit tests
