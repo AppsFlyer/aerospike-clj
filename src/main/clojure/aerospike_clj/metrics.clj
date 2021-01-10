@@ -1,7 +1,7 @@
 (ns aerospike-clj.metrics
   (:require [clojure.string :as s])
-  (:import [com.aerospike.client.cluster ClusterStats NodeStats Node]
-           [com.aerospike.client.async EventLoopStats]))
+  (:import [com.aerospike.client.async EventLoopStats]
+           [com.aerospike.client.cluster ClusterStats NodeStats Node]))
 
 (defn node-ip [^Node node]
   (s/replace (.. node getAddress getAddress getHostAddress) "." "-"))

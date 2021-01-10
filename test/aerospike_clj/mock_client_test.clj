@@ -5,7 +5,7 @@
             [aerospike-clj.mock-client :as mock]
             [aerospike-clj.protocols :as pt]
             [clojure.string])
-  (:import [com.aerospike.client ResultCode]
+  (:import [com.aerospike.client ResultCode AerospikeException]
            [java.util.concurrent ExecutionException]
            [aerospike_clj.client SimpleAerospikeClient]))
 
@@ -171,7 +171,7 @@
       (is (= @actual expected)))))
 
 (defn get-ex-code [ex]
-  (-> ex .getCause .getResultCode))
+  (.getResultCode ^AerospikeException (ex-cause ex)))
 
 (deftest add-bins-test
   (testing "it should add bins to an existing record without modifying old data"

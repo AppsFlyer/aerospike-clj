@@ -295,8 +295,8 @@
            @(pt/put-multiple *c* [k k2] (repeat _set) data (repeat TTL))))
     (let [[{d1 :payload g1 :gen} {d2 :payload g2 :gen} {d3 :payload g3 :gen}]
           @(pt/get-batch *c* [{:index k :set _set}
-                                  {:index k2 :set _set}
-                                  {:index "not-there" :set _set}])]
+                              {:index k2 :set _set}
+                              {:index "not-there" :set _set}])]
       (is (= d1 (first data)))
       (is (= d2 (second data)))
       (is (= 1 g1 g2))
@@ -314,8 +314,8 @@
     (let [[{d1 :payload g1 :gen}
            {d2 :payload g2 :gen}]
           @(pt/get-multiple *c* ks (repeat _set)
-                                {:transcoder (fn [res]
-                                               (update res :payload #(json/parse-string % keyword)))})]
+                            {:transcoder (fn [res]
+                                           (update res :payload #(json/parse-string % keyword)))})]
       (is (= d1 (first data)))
       (is (= d2 (second data)))
       (is (= 1 g1 g2)))))
@@ -346,33 +346,33 @@
 (deftest operations-lists
   (let [k       (random-key)
         result1 @(pt/operate *c* k _set TTL
-                                 [(ListOperation/append
-                                    (ListPolicy. ListOrder/UNORDERED ListWriteFlags/ADD_UNIQUE)
-                                    ""
-                                    (Value/get "foo")
-                                    empty-ctx-varargs)])
+                             [(ListOperation/append
+                                (ListPolicy. ListOrder/UNORDERED ListWriteFlags/ADD_UNIQUE)
+                                ""
+                                (Value/get "foo")
+                                empty-ctx-varargs)])
         result2 @(pt/operate *c* k _set TTL
-                                 [(ListOperation/append
-                                    (ListPolicy. ListOrder/UNORDERED ListWriteFlags/ADD_UNIQUE)
-                                    ""
-                                    (Value/get "bar")
-                                    empty-ctx-varargs)])]
+                             [(ListOperation/append
+                                (ListPolicy. ListOrder/UNORDERED ListWriteFlags/ADD_UNIQUE)
+                                ""
+                                (Value/get "bar")
+                                empty-ctx-varargs)])]
     (is (thrown-with-msg? ExecutionException
                           #"Map key exists"
                           @(pt/operate *c* k _set TTL
-                                           [(ListOperation/append
-                                              (ListPolicy. ListOrder/UNORDERED ListWriteFlags/ADD_UNIQUE)
-                                              ""
-                                              (Value/get "bar")
-                                              empty-ctx-varargs)])))
+                                       [(ListOperation/append
+                                          (ListPolicy. ListOrder/UNORDERED ListWriteFlags/ADD_UNIQUE)
+                                          ""
+                                          (Value/get "bar")
+                                          empty-ctx-varargs)])))
     (let [result3 @(pt/operate *c* k _set TTL
-                                   [(ListOperation/appendItems
-                                      (ListPolicy. ListOrder/UNORDERED (bit-or ListWriteFlags/ADD_UNIQUE
-                                                                               ListWriteFlags/PARTIAL
-                                                                               ListWriteFlags/NO_FAIL))
-                                      ""
-                                      [(Value/get "bar") (Value/get "baz")]
-                                      empty-ctx-varargs)])
+                               [(ListOperation/appendItems
+                                  (ListPolicy. ListOrder/UNORDERED (bit-or ListWriteFlags/ADD_UNIQUE
+                                                                           ListWriteFlags/PARTIAL
+                                                                           ListWriteFlags/NO_FAIL))
+                                  ""
+                                  [(Value/get "bar") (Value/get "baz")]
+                                  empty-ctx-varargs)])
           result4 @(pt/get-single *c* k _set)]
       (is (= 1 (:payload result1)))
       (is (= 2 (:payload result2)))
@@ -427,37 +427,37 @@
 (deftest operations-maps
   (let [k       (random-key)
         result1 @(pt/operate *c* k _set TTL
-                                 [(MapOperation/put
-                                    (MapPolicy. MapOrder/UNORDERED MapWriteFlags/DEFAULT)
-                                    ""
-                                    (Value/get "foo")
-                                    (Value/get "foo1")
-                                    empty-ctx-varargs)])
+                             [(MapOperation/put
+                                (MapPolicy. MapOrder/UNORDERED MapWriteFlags/DEFAULT)
+                                ""
+                                (Value/get "foo")
+                                (Value/get "foo1")
+                                empty-ctx-varargs)])
         result2 @(pt/operate *c* k _set TTL
-                                 [(MapOperation/put
-                                    (MapPolicy. MapOrder/UNORDERED MapWriteFlags/DEFAULT)
-                                    ""
-                                    (Value/get "bar")
-                                    (Value/get "bar1")
-                                    empty-ctx-varargs)])]
+                             [(MapOperation/put
+                                (MapPolicy. MapOrder/UNORDERED MapWriteFlags/DEFAULT)
+                                ""
+                                (Value/get "bar")
+                                (Value/get "bar1")
+                                empty-ctx-varargs)])]
     (is (thrown-with-msg? ExecutionException
                           #"Map key exists"
                           @(pt/operate *c* k _set TTL
-                                           [(MapOperation/put
-                                              (MapPolicy. MapOrder/UNORDERED MapWriteFlags/CREATE_ONLY)
-                                              ""
-                                              (Value/get "foo")
-                                              (Value/get "foo2")
-                                              empty-ctx-varargs)])))
+                                       [(MapOperation/put
+                                          (MapPolicy. MapOrder/UNORDERED MapWriteFlags/CREATE_ONLY)
+                                          ""
+                                          (Value/get "foo")
+                                          (Value/get "foo2")
+                                          empty-ctx-varargs)])))
     (let [result3 @(pt/operate *c* k _set TTL
-                                   [(MapOperation/putItems
-                                      (MapPolicy. MapOrder/UNORDERED (bit-or MapWriteFlags/CREATE_ONLY
-                                                                             MapWriteFlags/PARTIAL
-                                                                             MapWriteFlags/NO_FAIL))
-                                      ""
-                                      {(Value/get "foo") (Value/get "foo2")
-                                       (Value/get "baz") (Value/get "baz1")}
-                                      empty-ctx-varargs)])
+                               [(MapOperation/putItems
+                                  (MapPolicy. MapOrder/UNORDERED (bit-or MapWriteFlags/CREATE_ONLY
+                                                                         MapWriteFlags/PARTIAL
+                                                                         MapWriteFlags/NO_FAIL))
+                                  ""
+                                  {(Value/get "foo") (Value/get "foo2")
+                                   (Value/get "baz") (Value/get "baz1")}
+                                  empty-ctx-varargs)])
           result4 @(pt/get-single *c* k _set)]
       (is (= 1 (:payload result1)))
       (is (= 2 (:payload result2)))
@@ -468,21 +468,21 @@
   (let [k (random-key)]
     (letfn [(set-add [v]
               (pt/operate *c* k _set TTL
-                              [(MapOperation/put
-                                 (MapPolicy. MapOrder/UNORDERED (bit-or
-                                                                  MapWriteFlags/CREATE_ONLY
-                                                                  MapWriteFlags/NO_FAIL))
-                                 ""
-                                 (Value/get v)
-                                 (Value/get (byte 1))
-                                 empty-ctx-varargs)]))
+                          [(MapOperation/put
+                             (MapPolicy. MapOrder/UNORDERED (bit-or
+                                                              MapWriteFlags/CREATE_ONLY
+                                                              MapWriteFlags/NO_FAIL))
+                             ""
+                             (Value/get v)
+                             (Value/get (byte 1))
+                             empty-ctx-varargs)]))
             (set-pop [v]
               (pt/operate *c* k _set TTL
-                              [(MapOperation/removeByKey
-                                 ""
-                                 (Value/get v)
-                                 MapReturnType/KEY
-                                 empty-ctx-varargs)]))
+                          [(MapOperation/removeByKey
+                             ""
+                             (Value/get v)
+                             MapReturnType/KEY
+                             empty-ctx-varargs)]))
             (set-getall []
               (letfn [(->set [res] (->> ^HashMap (:payload res)
                                         .keySet
@@ -490,7 +490,7 @@
                 @(pt/get-single *c* k _set {:transcoder ->set})))
             (set-size []
               (pt/operate *c* k _set TTL
-                              [(MapOperation/size "" empty-ctx-varargs)]))]
+                          [(MapOperation/size "" empty-ctx-varargs)]))]
 
       (is (= 1 (:payload @(set-add "foo"))))
       (is (= 1 (:payload @(set-size))))
@@ -506,26 +506,26 @@
   (let [k (random-key)]
     (letfn [(set-add [v]
               (pt/operate *c* k _set TTL
-                              [(ListOperation/append
-                                 (ListPolicy. ListOrder/UNORDERED (bit-or ListWriteFlags/ADD_UNIQUE
-                                                                          ListWriteFlags/PARTIAL
-                                                                          ListWriteFlags/NO_FAIL))
-                                 ""
-                                 (Value/get v)
-                                 empty-ctx-varargs)]))
+                          [(ListOperation/append
+                             (ListPolicy. ListOrder/UNORDERED (bit-or ListWriteFlags/ADD_UNIQUE
+                                                                      ListWriteFlags/PARTIAL
+                                                                      ListWriteFlags/NO_FAIL))
+                             ""
+                             (Value/get v)
+                             empty-ctx-varargs)]))
             (set-pop [v]
               (pt/operate *c* k _set TTL
-                              [(ListOperation/removeByValue
-                                 ""
-                                 (Value/get v)
-                                 ListReturnType/VALUE
-                                 empty-ctx-varargs)]))
+                          [(ListOperation/removeByValue
+                             ""
+                             (Value/get v)
+                             ListReturnType/VALUE
+                             empty-ctx-varargs)]))
             (set-getall []
               (letfn [(->set [res] (->> res :payload (into #{})))]
                 @(pt/get-single *c* k _set {:transcoder ->set})))
             (set-size []
               (pt/operate *c* k _set TTL
-                              [(ListOperation/size "" empty-ctx-varargs)]))]
+                          [(ListOperation/size "" empty-ctx-varargs)]))]
 
       (is (= 1 (:payload @(set-add "foo"))))
       (is (= 1 (:payload @(set-size))))
@@ -640,7 +640,9 @@
   (let [conf           {:policy (policy/map->write-policy {"sendKey" true})}
         aero-namespace "test"
         ttl            5
-        k              (random-key) k2 (random-key) k3 (random-key)
+        k              (random-key)
+        k2             (random-key)
+        k3             (random-key)
         ks             #{k k2 k3}
         delete-records (fn []
                          @(pt/delete *c* k _set)
@@ -706,8 +708,8 @@
         @(pt/scan-set *c* aero-namespace _set {:callback callback})
 
         (let [res @(pt/get-batch *c* [{:index k :set _set}
-                                          {:index k2 :set _set}
-                                          {:index k3 :set _set}])]
+                                      {:index k2 :set _set}
+                                      {:index k3 :set _set}])]
 
           (is (= (sort (mapv :payload res)) [11 21 31]))))
       (delete-records))
@@ -723,8 +725,8 @@
         @(pt/scan-set *c* aero-namespace _set {:callback callback})
 
         (is (empty? (filter :payload @(pt/get-batch *c* [{:index k :set _set}
-                                                             {:index k2 :set _set}
-                                                             {:index k3 :set _set}])))))
+                                                         {:index k2 :set _set}
+                                                         {:index k3 :set _set}])))))
       (delete-records))
 
     (testing "it should stop the scan when the callback returns :abort-scan"
@@ -742,6 +744,3 @@
         (is (= 1 (count @res))))
 
       (delete-records))))
-
-
-

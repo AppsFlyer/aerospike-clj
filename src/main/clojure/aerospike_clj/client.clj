@@ -46,37 +46,20 @@
   (let [elp (policy/map->event-policy conf)]
     (NioEventLoops. elp 1 true "NioEventLoops")))
 
-;; listeners
-(defprotocol ClientEvents
-  "Continuation functions that are registered when an async DB operation is called.
-  The DB passed is an `IAerospikeClient` instance.
-  The value returned from those function will be the value of the returned deferred from the async operation."
-  (on-success [_ op-name op-result index op-start-time]
-    "A continuation function. Registered on the operation future and called when operations succeeds.")
-  (on-failure [_ op-name op-ex index op-start-time]
-    "A continuation function. Registered on the operation future and called when operations fails."))
-
 (defn- client-events-reducer [op-name index op-start-time]
   (fn [op-future client-events]
     (-> op-future
         (p/then (fn [op-result]
-                  (on-success client-events op-name op-result index op-start-time)))
+                  (pt/on-success client-events op-name op-result index op-start-time)))
         (p/catch (fn [op-exception]
-                   (on-failure client-events op-name op-exception index op-start-time))))))
+                   (pt/on-failure client-events op-name op-exception index op-start-time))))))
 
 (defn- register-events [op-future client-events op-name index op-start-time]
   (if (empty? client-events)
     op-future
     (reduce (client-events-reducer op-name index op-start-time) op-future client-events)))
 
-(defprotocol UserKey
-  "Use `create-key` directly to pass a pre-made custom key to the public API.
-  When passing a simple String/Integer/Long/ByteArray the key will be created
-  automatically for you. If you pass a ready made key, `as-namespace` and
-  `set-name` are ignored in API calls."
-  (create-key ^Key [this as-namespace set-name]))
-
-(extend-protocol UserKey
+(extend-protocol pt/UserKey
   Key
   (create-key ^Key [this _ _]
     this)
@@ -121,14 +104,14 @@
     (utils/v->array Bin [^Bin (Bin. "" (utils/sanitize-bin-value data))])))
 
 (defn- ^BatchRead map->batch-read [batch-read-map dbns]
-  (let [k (create-key (:index batch-read-map) dbns (:set batch-read-map))]
+  (let [k ^Key (pt/create-key (:index batch-read-map) dbns (:set batch-read-map))]
     (if (or (= [:all] (:bins batch-read-map))
             (nil? (:bins batch-read-map)))
       (BatchRead. k true)
       (BatchRead. k ^"[Ljava.lang.String;" (utils/v->array String (:bins batch-read-map))))))
 
 ;; put
-(defn- _put [^IAerospikeClient client ^EventLoops event-loops dbns client-events index data policy set-name]
+(defn- _put [^AerospikeClient client ^EventLoops event-loops dbns client-events index data policy set-name]
   (let [bins       (data->bins data)
         op-future  (p/deferred)
         start-time (System/nanoTime)]
@@ -136,11 +119,11 @@
           ^EventLoop (.next event-loops)
           (AsyncWriteListener. op-future)
           ^WritePolicy policy
-          (create-key index dbns set-name)
+          ^Key (pt/create-key index dbns set-name)
           ^"[Lcom.aerospike.client.Bin;" bins)
     (register-events op-future client-events :write index start-time)))
 
-(defrecord SimpleAerospikeClient [^IAerospikeClient client
+(defrecord SimpleAerospikeClient [^AerospikeClient client
                                   ^EventLoops el
                                   dbns
                                   cluster-name
@@ -164,13 +147,13 @@
               ^EventLoop (.next el)
               (AsyncRecordListener. op-future)
               ^Policy (:policy conf)
-              (create-key index dbns set-name))
+              ^Key (pt/create-key index dbns set-name))
         ;; For all other cases, bin-names are passed to a different `get` method
         (.get ^AerospikeClient client
               ^EventLoop (.next el)
               (AsyncRecordListener. op-future)
               ^Policy (:policy conf)
-              (create-key index dbns set-name)
+              ^Key (pt/create-key index dbns set-name)
               ^"[Ljava.lang.String;" (utils/v->array String bin-names)))
       (let [p (p/chain op-future
                        record/record->map
@@ -193,7 +176,7 @@
                ^EventLoop (.next el)
                (AsyncExistsListener. op-future)
                ^Policy (:policy conf)
-               (create-key index (:dbns this) set-name))
+               ^Key (pt/create-key index (:dbns this) set-name))
       (register-events op-future client-events :exists index start-time)))
 
   pt/AerospikeWriteOps
@@ -283,7 +266,7 @@
               ^EventLoop (.next el)
               (AsyncWriteListener. op-future)
               ^WritePolicy (policy/write-policy client expiration RecordExistsAction/UPDATE_ONLY)
-              (create-key index (:dbns this) set-name))
+              ^Key (pt/create-key index (:dbns this) set-name))
       (register-events op-future client-events :touch index start-time)))
 
   pt/AerospikeDeleteOps
@@ -297,7 +280,7 @@
                ^EventLoop (.next el)
                (AsyncDeleteListener. op-future)
                ^WritePolicy (:policy conf)
-               (create-key index (:dbns this) set-name))
+               ^Key (pt/create-key index (:dbns this) set-name))
       (register-events op-future client-events :delete index start-time)))
 
   (delete-bins [this index set-name bin-names new-expiration]
@@ -312,7 +295,7 @@
             ^EventLoop (.next el)
             (AsyncWriteListener. op-future)
             ^WritePolicy policy
-            (create-key index dbns set-name)
+            ^Key (pt/create-key index dbns set-name)
             ^"[Lcom.aerospike.client.Bin;" (utils/v->array Bin (mapv set-bin-as-null bin-names)))
       (register-events op-future client-events :write index start-time)))
 
@@ -358,7 +341,7 @@
     (let [op-future      (p/deferred)
           start-time     (System/nanoTime)
           aero-namespace (:dbns this)
-          indices        (utils/v->array Key (mapv #(create-key (:index %) aero-namespace (:set %)) indices))]
+          indices        (utils/v->array Key (mapv #(pt/create-key (:index %) aero-namespace (:set %)) indices))]
       (.exists client
                ^EventLoop (.next el)
                (AsyncExistsArrayListener. op-future)
@@ -381,7 +364,7 @@
                   ^EventLoop (.next el)
                   (AsyncRecordListener. op-future)
                   ^WritePolicy (:policy conf (policy/write-policy client expiration RecordExistsAction/UPDATE))
-                  (create-key index (:dbns this) set-name)
+                  ^Key (pt/create-key index (:dbns this) set-name)
                   (utils/v->array Operation operations))
         (register-events (p/then op-future record/record->map) client-events "operate" index start-time))))
 

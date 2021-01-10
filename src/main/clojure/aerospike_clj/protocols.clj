@@ -124,7 +124,7 @@
 
   (scan-set [this aero-namespace set-name conf]
     "Scans through the given set and calls a user defined callback for each record that was found.
-    Returns a deferred response that resolves once the scan completes. When the scan completes
+    Returns a future response that resolves once the scan completes. When the scan completes
     successfully it returns `true`. The scan may be aborted by returning :abort-scan from the callback.
     In that case the return value is `false`.
 
@@ -159,3 +159,18 @@
   (stop [this]
     "Gracefully stop a client, waiting until all async operations finish.
     The underlying EventLoops instance is closed iff it was not provided externally."))
+
+(defprotocol ClientEvents
+  "Continuation functions that are registered when an async DB operation is called.
+  The value returned from those function will be the value of the returned future from the async operation."
+  (on-success [this op-name op-result index op-start-time]
+    "A continuation function. Registered on the operation future and called when operations succeeds.")
+  (on-failure [this op-name op-ex index op-start-time]
+    "A continuation function. Registered on the operation future and called when operations fails."))
+
+(defprotocol UserKey
+  "Use `create-key` directly to pass a pre-made custom key to the public API.
+  When passing a simple String/Integer/Long/ByteArray the key will be created
+  automatically for you. If you pass a ready made key, `as-namespace` and
+  `set-name` are ignored in API calls."
+  (create-key [this as-namespace set-name]))
