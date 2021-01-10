@@ -1,9 +1,9 @@
 (ns aerospike-clj.policy
   (:import [com.aerospike.client AerospikeClient]
            [com.aerospike.client.async EventPolicy]
-           [com.aerospike.client.policy Policy ClientPolicy WritePolicy RecordExistsAction 
-            GenerationPolicy BatchPolicy CommitLevel AuthMode ReadModeAP ReadModeSC 
-            Priority Replica]))
+           [com.aerospike.client.policy Policy ClientPolicy WritePolicy RecordExistsAction
+                                        GenerationPolicy BatchPolicy CommitLevel
+                                        AuthMode ReadModeAP ReadModeSC Priority Replica]))
 
 (defmacro set-java [obj conf obj-name]
   `(when (some? (get ~conf ~obj-name))
@@ -24,30 +24,30 @@
   "Create a (read) `Policy` from a map. Enumeration names should start with capitalized letter.
   This function is slow due to possible reflection."
   [conf]
-  (let [p (Policy.)
+  (let [p    (Policy.)
         conf (merge {"timeoutDelay" 3000} conf)]
-      (set-java-enum p conf "ReadModeAP")
-      (set-java-enum p conf "ReadModeSC")
-      (set-java p conf "maxRetries")
-      (set-java-enum p conf "Priority")
-      (set-java-enum p conf "Replica")
-      (set-java p conf "sendKey")
-      (set-java p conf "sleepBetweenRetries")
-      (set-java p conf "socketTimeout")
-      (set-java p conf "timeoutDelay")
-      (set-java p conf "totalTimeout")
-      p))
+    (set-java-enum p conf "ReadModeAP")
+    (set-java-enum p conf "ReadModeSC")
+    (set-java p conf "maxRetries")
+    (set-java-enum p conf "Priority")
+    (set-java-enum p conf "Replica")
+    (set-java p conf "sendKey")
+    (set-java p conf "sleepBetweenRetries")
+    (set-java p conf "socketTimeout")
+    (set-java p conf "timeoutDelay")
+    (set-java p conf "totalTimeout")
+    p))
 
 (defn ^BatchPolicy map->batch-policy
   "Create a (read) `BatchPolicy` from a map.
   This function is slow due to possible reflection."
   [conf]
-  (let [bp (BatchPolicy.)
+  (let [bp   (BatchPolicy.)
         conf (merge {"timeoutDelay" 3000} conf)]
-      (set-java bp conf "allowInline")
-      (set-java bp conf "maxConcurrentThreads")
-      (set-java bp conf "sendSetName")
-      bp))
+    (set-java bp conf "allowInline")
+    (set-java bp conf "maxConcurrentThreads")
+    (set-java bp conf "sendSetName")
+    bp))
 
 (defn ^WritePolicy map->write-policy
   "Create a `WritePolicy` from a map. Keys are strings identical to field names
@@ -68,7 +68,7 @@
   "Create a write policy to be passed to put methods via `{:policy wp}`.
   Also used in `update` and `create`"
   ([client expiration]
-   (write-policy client expiration (RecordExistsAction/REPLACE)));; TODO document this
+   (write-policy client expiration (RecordExistsAction/REPLACE))) ;; TODO document this
   ([client expiration record-exists-action]
    (let [wp (WritePolicy. (.getWritePolicyDefault ^AerospikeClient client))]
      (set! (.expiration wp) expiration)
@@ -76,13 +76,13 @@
      wp)))
 
 (defn ^WritePolicy set-policy
-      "Create a write policy with UPDATE record exists action.
-       in case of new entry, create it
-       in case the entry exists, update entry"
-      [client expiration]
-      (let [wp (write-policy client expiration)]
-           (set! (.recordExistsAction wp) RecordExistsAction/UPDATE)
-           wp))
+  "Create a write policy with UPDATE record exists action.
+   in case of new entry, create it
+   in case the entry exists, update entry"
+  [client expiration]
+  (let [wp (write-policy client expiration)]
+    (set! (.recordExistsAction wp) RecordExistsAction/UPDATE)
+    wp))
 
 (defn ^WritePolicy update-policy
   "Create a write policy with `expiration`, expected `generation`
@@ -145,7 +145,7 @@
   (when (get "tlsPolicyDefault" conf)
     (throw (IllegalArgumentException. "tlsPolicyDefault is not supported")))
 
-  (let [cp (ClientPolicy.)
+  (let [cp       (ClientPolicy.)
         username (get conf "username")
         password (get conf "password")]
     (when (and username password)
