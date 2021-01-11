@@ -118,15 +118,15 @@
         op-future  (p/deferred)
         start-time (System/nanoTime)]
     (.put client
-          ^EventLoop (.next event-loops)
+          ^EventLoop (.next ^EventLoops event-loops)
           (AsyncWriteListener. op-future)
           ^WritePolicy policy
           ^Key (pt/create-key index dbns set-name)
           ^"[Lcom.aerospike.client.Bin;" bins)
     (register-events op-future client-events :write index start-time)))
 
-(defrecord SimpleAerospikeClient [^AerospikeClient client
-                                  ^EventLoops el
+(defrecord SimpleAerospikeClient [client
+                                  el
                                   hosts
                                   dbns
                                   client-events
@@ -145,14 +145,14 @@
                (not (utils/single-bin? bin-names)))
         ;; When [:all] is passed as an argument for bin-names and there is more than one bin,
         ;; the `get` method does not require bin-names and the whole record is retrieved
-        (.get client
-              ^EventLoop (.next el)
+        (.get ^AerospikeClient client
+              ^EventLoop (.next ^EventLoops el)
               (AsyncRecordListener. op-future)
               ^Policy (:policy conf)
               ^Key (pt/create-key index dbns set-name))
         ;; For all other cases, bin-names are passed to a different `get` method
         (.get ^AerospikeClient client
-              ^EventLoop (.next el)
+              ^EventLoop (.next ^EventLoops el)
               (AsyncRecordListener. op-future)
               ^Policy (:policy conf)
               ^Key (pt/create-key index dbns set-name)
@@ -175,7 +175,7 @@
     (let [op-future  (p/deferred)
           start-time (System/nanoTime)]
       (.exists ^AerospikeClient client
-               ^EventLoop (.next el)
+               ^EventLoop (.next ^EventLoops el)
                (AsyncExistsListener. op-future)
                ^Policy (:policy conf)
                ^Key (pt/create-key index (:dbns this) set-name))
@@ -264,8 +264,8 @@
   (touch [this index set-name expiration]
     (let [op-future  (p/deferred)
           start-time (System/nanoTime)]
-      (.touch client
-              ^EventLoop (.next el)
+      (.touch ^AerospikeClient client
+              ^EventLoop (.next ^EventLoops el)
               (AsyncWriteListener. op-future)
               ^WritePolicy (policy/write-policy client expiration RecordExistsAction/UPDATE_ONLY)
               ^Key (pt/create-key index (:dbns this) set-name))
@@ -278,8 +278,8 @@
   (delete [this index set-name conf]
     (let [op-future  (p/deferred)
           start-time (System/nanoTime)]
-      (.delete client
-               ^EventLoop (.next el)
+      (.delete ^AerospikeClient client
+               ^EventLoop (.next ^EventLoops el)
                (AsyncDeleteListener. op-future)
                ^WritePolicy (:policy conf)
                ^Key (pt/create-key index (:dbns this) set-name))
@@ -293,8 +293,8 @@
           policy     (policy/update-only-policy client new-expiration)
           op-future  (p/deferred)
           start-time (System/nanoTime)]
-      (.put client
-            ^EventLoop (.next el)
+      (.put ^AerospikeClient client
+            ^EventLoop (.next ^EventLoops el)
             (AsyncWriteListener. op-future)
             ^WritePolicy policy
             ^Key (pt/create-key index dbns set-name)
@@ -309,8 +309,8 @@
     (let [op-future       (p/deferred)
           start-time      (System/nanoTime)
           batch-reads-arr (ArrayList. ^Collection (mapv #(map->batch-read % dbns) batch-reads))]
-      (.get client
-            ^EventLoop (.next el)
+      (.get ^AerospikeClient client
+            ^EventLoop (.next ^EventLoops el)
             (AsyncBatchListListener. op-future)
             ^BatchPolicy (:policy conf)
             ^List batch-reads-arr)
@@ -344,8 +344,8 @@
           start-time     (System/nanoTime)
           aero-namespace (:dbns this)
           indices        (utils/v->array Key (mapv #(pt/create-key (:index %) aero-namespace (:set %)) indices))]
-      (.exists client
-               ^EventLoop (.next el)
+      (.exists ^AerospikeClient client
+               ^EventLoop (.next ^EventLoops el)
                (AsyncExistsArrayListener. op-future)
                ^BatchPolicy (:policy conf)
                ^"[Lcom.aerospike.client.Key;" indices)
@@ -362,8 +362,8 @@
       (p/resolved nil)
       (let [op-future  (p/deferred)
             start-time (System/nanoTime)]
-        (.operate client
-                  ^EventLoop (.next el)
+        (.operate ^AerospikeClient client
+                  ^EventLoop (.next ^EventLoops el)
                   (AsyncRecordListener. op-future)
                   ^WritePolicy (:policy conf (policy/write-policy client expiration RecordExistsAction/UPDATE))
                   ^Key (pt/create-key index (:dbns this) set-name)
@@ -376,8 +376,8 @@
     (let [op-future  (p/deferred)
           start-time (System/nanoTime)
           bin-names  (:bins conf)]
-      (.scanAll client
-                ^EventLoop (.next el)
+      (.scanAll ^AerospikeClient client
+                ^EventLoop (.next ^EventLoops el)
                 (AsyncRecordSequenceListener. op-future (:callback conf))
                 ^Policy (:policy conf (ScanPolicy.))
                 aero-namespace
@@ -392,8 +392,8 @@
   (info [_this node info-commands conf]
     (let [op-future  (p/deferred)
           start-time (System/nanoTime)]
-      (.info client
-             ^EventLoop (.next el)
+      (.info ^AerospikeClient client
+             ^EventLoop (.next ^EventLoops el)
              (AsyncInfoListener. op-future)
              ^InfoPolicy (:policy conf (.infoPolicyDefault ^AerospikeClient client))
              ^Node node
@@ -401,10 +401,10 @@
       (register-events op-future client-events :info nil start-time)))
 
   (get-nodes [_this]
-    (into [] (.getNodes client)))
+    (into [] (.getNodes ^AerospikeClient client)))
 
   (get-cluster-stats [_this]
-    (-> (.getClusterStats client)
+    (-> (.getClusterStats ^AerospikeClient client)
         metrics/construct-cluster-metrics
         metrics/cluster-metrics->dotted))
 
@@ -412,7 +412,7 @@
     (pt/healthy? this 1000))
 
   (healthy? [this operation-timeout-ms]
-    (let [read-policy (let [p (.readPolicyDefault client)]
+    (let [read-policy (let [p ^Policy (.readPolicyDefault ^AerospikeClient client)]
                         (set! (.totalTimeout p) operation-timeout-ms)
                         p)
           k           (str "__health__" (rand-int Integer/MAX_VALUE))
@@ -429,9 +429,9 @@
 
   (stop [_this]
     (println ";; Stopping aerospike client for hosts" hosts)
-    (.close client)
+    (.close ^AerospikeClient client)
     (when close-event-loops?
-      (.close el))))
+      (.close ^EventLoops el))))
 
 (defn expiry-unix
   "Converts an Aerospike TTL (in seconds) relative to \"2010-01-01T00:00:00Z\"
