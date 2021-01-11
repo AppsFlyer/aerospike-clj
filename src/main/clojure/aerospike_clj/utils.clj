@@ -1,18 +1,6 @@
 (ns aerospike-clj.utils
-  (:require [clojure.set :as set]
-            [clojure.string :as s])
+  (:require [clojure.set :as set])
   (:import [java.util Collection]))
-
-(defn- hosts->cluster [hosts]
-  (or
-    (get (s/split (first hosts) #"-") 2)
-    (get (s/split (first hosts) #"-|\.") 1)
-    (first hosts)))
-
-(defn cluster-name [hosts]
-  (-> (hosts->cluster hosts)
-      (s/split  #"\.")
-      first))
 
 (def ^:private boolean-replacements
   "For bins, Aerospike converts `true` to `1`, `false` to `0` and `nil` values are
@@ -69,4 +57,3 @@
     (or (map? v) (set? v)) (throw (IllegalArgumentException. "undefined sequence order for argument"))
     (or (nil? v) (vector? v) (seq? v)) (vec v)
     :else [v]))
-

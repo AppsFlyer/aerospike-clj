@@ -268,8 +268,5 @@
     ([this set-name]
      (get @(:state this) set-name))))
 
-(defn expiry-unix [ttl]
-  (client/expiry-unix ttl))
-
 (defn create-instance [& _]
   (MockClient. (atom {DEFAULT_SET {}})))

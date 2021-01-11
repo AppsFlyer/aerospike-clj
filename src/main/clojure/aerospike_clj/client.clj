@@ -1,6 +1,7 @@
 (ns aerospike-clj.client
   (:refer-clojure :exclude [update])
-  (:require [promesa.core :as p]
+  (:require [clojure.string :as s]
+            [promesa.core :as p]
             [aerospike-clj.policy :as policy]
             [aerospike-clj.utils :as utils]
             [aerospike-clj.metrics :as metrics]
@@ -22,8 +23,9 @@
                                     AsyncInfoListener AsyncRecordListener AsyncRecordSequenceListener
                                     AsyncBatchListListener AsyncExistsArrayListener]))
 
-(def EPOCH
+(def
   ^{:doc "The 0 date reference for returned record TTL"}
+  EPOCH
   (.getEpochSecond (Instant/parse "2010-01-01T00:00:00Z")))
 
 
@@ -125,8 +127,8 @@
 
 (defrecord SimpleAerospikeClient [^AerospikeClient client
                                   ^EventLoops el
+                                  hosts
                                   dbns
-                                  cluster-name
                                   client-events
                                   close-event-loops?]
   pt/AerospikeReadOps
@@ -404,11 +406,7 @@
   (get-cluster-stats [_this]
     (-> (.getClusterStats client)
         metrics/construct-cluster-metrics
-        metrics/cluster-metrics->dotted)
-    #_(let [clients (get-clients selector)]
-        (->> clients
-             (mapv #(metrics/construct-cluster-metrics (.getClusterStats ^AerospikeClient %)))
-             (mapv metrics/cluster-metrics->dotted))))
+        metrics/cluster-metrics->dotted))
 
   (healthy? [this]
     (pt/healthy? this 1000))
@@ -429,14 +427,15 @@
         (catch Exception _ex
           false))))
 
-  (stop [_this] ;; HOW TO HANDLE MULTI-CLUSTERS???
-    (println ";; Stopping aerospike clients")
+  (stop [_this]
+    (println ";; Stopping aerospike client for hosts" hosts)
     (.close client)
     (when close-event-loops?
-      (.close ^EventLoops el))))
+      (.close el))))
 
 (defn expiry-unix
-  "Used to convert Aerospike style returned TTLS to standard UNIX EPOCH."
+  "Converts an Aerospike TTL (in seconds) relative to \"2010-01-01T00:00:00Z\"
+  into a TTL (in seconds) relative to the UNIX epoch."
   [ttl]
   (+ ttl EPOCH))
 
@@ -460,14 +459,13 @@
   ([hosts aero-ns]
    (init-simple-aerospike-client hosts aero-ns {}))
   ([hosts aero-ns conf]
-   (let [cluster-name       (utils/cluster-name hosts)
-         close-event-loops? (nil? (:event-loops conf))
+   (let [close-event-loops? (nil? (:event-loops conf))
          event-loops        (or (:event-loops conf) (create-event-loops conf))
          client-policy      (:client-policy conf (policy/create-client-policy event-loops conf))]
-     (println (format ";; Starting aerospike clients for clusters %s with username %s" cluster-name (get conf "username")))
+     (println (format ";; Starting aerospike client for hosts %s with username %s" hosts (get conf "username")))
      (map->SimpleAerospikeClient {:client             (create-client hosts client-policy (:port conf 3000))
                                   :el                 event-loops
+                                  :hosts              hosts
                                   :dbns               aero-ns
-                                  :cluster-name       cluster-name
                                   :client-events      (utils/vectorize (:client-events conf))
                                   :close-event-loops? close-event-loops?}))))

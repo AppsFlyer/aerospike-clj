@@ -38,7 +38,7 @@
 (deftest client-creation
   (let [c (client/init-simple-aerospike-client ["localhost"] "test")]
     (is c)
-    (is (= "localhost" (:cluster-name c))))
+    (is (= ["localhost"] (:hosts c))))
 
   (letfn [(no-password? [ex]
             (let [conf (:conf (ex-data ex))]
