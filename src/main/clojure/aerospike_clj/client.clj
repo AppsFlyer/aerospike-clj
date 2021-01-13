@@ -31,15 +31,23 @@
 
 (def MAX_BIN_NAME_LENGTH 14)
 
-(defn create-client
-  "Returns the Java `AerospikeClient` instance. To build the Clojure `IAerospikeClient` one,
-  use `init-simple-aerospike-client`."
-  ([host client-policy]
-   (create-client host client-policy 3000))
-  ([hosts client-policy port]
-   (let [hosts-arr (into-array Host (for [h hosts]
-                                      ^Host (Host. h port)))]
-     (AerospikeClient. ^ClientPolicy client-policy ^"[Lcom.aerospike.client.Host;" hosts-arr))))
+(defn- create-client
+  "Returns the Java `AerospikeClient` instance.
+
+  Expects:
+    :hosts - a seq of host strings, can include port or not.
+             Format: [hostname1[:tlsname1][:port1],...]
+             Example: [\"aerospike-001\" \"aerospike-002\"]
+             Example: [\"aerospike-001:3000\" \"aerospike-002:3010\"]
+
+    :client-policy - a ClientPolicy instance
+
+    :port - the port to use in case there's no port specified in the `hosts` seq.
+            Will default to 3000 if not provided."
+  [hosts client-policy port]
+  (let [hosts-str (s/join "," hosts)
+        hosts-arr (Host/parseHosts hosts-str port)]
+    (AerospikeClient. ^ClientPolicy client-policy ^"[Lcom.aerospike.client.Host;" hosts-arr)))
 
 (defn create-event-loops
   "Called internally to create the event loops for the client.
