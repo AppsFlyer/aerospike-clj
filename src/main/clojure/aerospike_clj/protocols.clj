@@ -12,7 +12,7 @@
 
   (get-single-no-meta
     [this index set-name]
-    [this index set-name ^IPersistentVector bin-names]
+    [this index set-name bin-names]
     "Shorthand to return a single record payload only.")
 
   (exists?
@@ -26,7 +26,7 @@
     [this index set-name data expiration]
     [this index set-name data expiration conf]
     "Writes `data` into a record with the key `index`, with the TTL of `expiration` seconds.
-    `index` should be string. Pass a function in `(:trascoder conf)` to modify `data` before it
+    `index` should be string. Pass a function in `(:transcoder conf)` to modify `data` before it
     is sent to the DB.
     Pass a `WritePolicy` in `(:policy conf)` to uses the non-default policy.
     When a Clojure map is provided for the `data` argument, a multiple bin record will be created.
@@ -59,8 +59,8 @@
     `data` before it is sent to the DB.")
 
   (add-bins
-    [this index set-name ^IPersistentMap new-data new-expiration]
-    [this index set-name ^IPersistentMap new-data new-expiration conf]
+    [this index set-name new-data new-expiration]
+    [this index set-name new-data new-expiration conf]
     "Add bins to an existing record without modifying old data. The `new-data` must be a
     Clojure map.")
 
@@ -77,8 +77,8 @@
     Returns async true/false for deletion success (hit).")
 
   (delete-bins
-    [this index set-name ^IPersistentVector bin-names new-expiration]
-    [this index set-name ^IPersistentVector bin-names new-expiration conf]
+    [this index set-name bin-names new-expiration]
+    [this index set-name bin-names new-expiration conf]
     "Delete bins from an existing record. The `bin-names` must be a vector of strings."))
 
 (defprotocol AerospikeBatchOps
@@ -91,15 +91,6 @@
     bins for the batched keys or missing/[:all] to get all the bins (see `_get`). The result is a
     vector of `AerospikeRecord` in the same order of keys. Missing keys result in `nil` in corresponding
     positions.")
-
-  (get-multiple
-    [this indices sets]
-    [this indices sets conf]
-    "DEPRECATED - use `get-batch` instead.
-
-    Returns a (future) sequence of AerospikeRecords returned by `get-single`
-    with records in corresponding places to the required keys. Indices and sets should be sequences.
-    The `conf` map is passed to all `get-single` invocations.")
 
   (put-multiple
     [this indices set-names payloads expirations]

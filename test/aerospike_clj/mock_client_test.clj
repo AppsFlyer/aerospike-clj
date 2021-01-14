@@ -43,27 +43,6 @@
     (let [actual (pt/get-single-no-meta client "does-not-exist" nil)]
       (is (= @actual nil)))))
 
-(deftest get-multiple-test
-  (testing "it should return a deferrable of vector of matched records"
-    (pt/put-multiple client ["foo" "bar"] [nil "some-set"] ["is best" "is better"] [86400 43200])
-
-    (let [expected [{:payload "is best" :ttl 86400 :gen 1}]
-          actual   (pt/get-multiple client ["foo"] [nil])]
-      (is (= @actual expected)))
-
-    (let [expected [{:payload "is better" :ttl 43200 :gen 1}]
-          actual   (pt/get-multiple client ["bar"] ["some-set"])]
-      (is (= @actual expected)))
-
-    (let [expected [{:payload "is best" :ttl 86400 :gen 1}
-                    {:payload "is better" :ttl 43200 :gen 1}]
-          actual   (pt/get-multiple client ["foo" "bar"] [nil "some-set"])]
-      (is (= @actual expected)))
-
-    (let [expected [nil nil]
-          actual   (pt/get-multiple client ["does-not-exist" "also-not-here"] [nil "some-set"])]
-      (is (= @actual expected)))))
-
 (deftest get-batch-test
   (testing "it should return a deferrable of vector of matched records"
     (pt/put-multiple client
@@ -157,7 +136,7 @@
     (let [put-result (pt/put-multiple client ["foo" "bar"] [nil nil] [1 2] [60 60])
           expected   [{:payload 1 :ttl 60 :gen 1}
                       {:payload 2 :ttl 60 :gen 1}]
-          actual     (pt/get-multiple client ["foo" "bar"] [nil nil])]
+          actual     (pt/get-batch client [{:index "foo" :set nil} {:index "bar" :set nil}])]
       (is (= @put-result [true true]))
       (is (= @actual expected)))
 
@@ -166,7 +145,7 @@
           expected   [{:payload 3 :ttl 120 :gen 1}
                       {:payload 2 :ttl 60 :gen 1}
                       {:payload 4 :ttl 60 :gen 1}]
-          actual     (pt/get-multiple client ["foo" "bar" "baz"] [nil nil nil])]
+          actual     (pt/get-batch client [{:index "foo" :set nil} {:index "bar" :set nil} {:index "baz" :set nil}])]
       (is (= @put-result [true true]))
       (is (= @actual expected)))))
 
@@ -341,5 +320,9 @@
           expected         [{:payload "D" :ttl 11 :gen 1}
                             {:payload "E" :ttl 21 :gen 1}
                             {:payload "F" :ttl 31 :gen 1}]
-          actual           @(pt/get-multiple client ["a" "b" "c"] [nil nil nil] conf)]
+          actual           @(pt/get-batch client
+                                          [{:index "a" :set nil}
+                                           {:index "b" :set nil}
+                                           {:index "c" :set nil}]
+                                          conf)]
       (is (= actual expected)))))

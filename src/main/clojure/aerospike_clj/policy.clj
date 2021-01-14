@@ -67,7 +67,7 @@
 (defn ^WritePolicy write-policy
   "Create a write policy to be passed to put methods via `{:policy wp}`.
   Also used in `update` and `create`.
-  The default policy in case the record exists it `RecordExistsAction/REPLACE`."
+  The default policy in case the record exists is `RecordExistsAction/REPLACE`."
   ([client expiration]
    (write-policy client expiration (RecordExistsAction/REPLACE)))
   ([client expiration record-exists-action]

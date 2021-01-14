@@ -12,7 +12,7 @@ So assuming you have some `statsd` namespace tha can connect and report to a `st
 server, and some `metrics` namespace that is used to properly format the metric names:
 ```clojure
 (ns af-common-rta-aerospike.core
-  (:require [aerospike-clj.client :as pt]
+  (:require [aerospike-clj.protocols :as pt]
             [statsd.metrics :as metrics]
             [statsd.core :as statsd]
             [promesa.core :as p]))
@@ -43,7 +43,7 @@ A few notes on the above code:
   * `op-start-time` is `(System/nanoTime)`, converted here to microseconds and
   used to measure latency.
 2. The code is using the passed arguments to measure latency and format metrics'
-names. You can easily do other stuff like logging ,etc.
+names. You can easily do other stuff like logging, etc.
 3. Both `on-success` and `on-failure` return the results passed in. Although this
 logic is the last logic that happens to the operations' results (e.g. after
 transcoders are called), the returned result will be what the calling code gets

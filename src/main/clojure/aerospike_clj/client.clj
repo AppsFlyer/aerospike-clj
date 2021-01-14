@@ -1,6 +1,7 @@
 (ns aerospike-clj.client
   (:refer-clojure :exclude [update])
   (:require [clojure.string :as s]
+            [clojure.tools.logging :as log]
             [promesa.core :as p]
             [aerospike-clj.policy :as policy]
             [aerospike-clj.utils :as utils]
@@ -24,12 +25,13 @@
                                     AsyncBatchListListener AsyncExistsArrayListener]))
 
 (def
-  ^{:doc "The 0 date reference for returned record TTL"}
+  ^{:doc     "The 0 date reference for returned record TTL"
+    :private true}
   EPOCH
   (.getEpochSecond (Instant/parse "2010-01-01T00:00:00Z")))
 
 
-(def MAX_BIN_NAME_LENGTH 14)
+(def ^:private ^:const MAX_BIN_NAME_LENGTH 14)
 
 (defn- create-client
   "Returns the Java `AerospikeClient` instance.
@@ -79,12 +81,12 @@
 
 (defn- ^Bin create-bin [^String bin-name bin-value]
   (when (< MAX_BIN_NAME_LENGTH (.length bin-name))
-    (throw (Exception. (format "%s is %s characters. Bin names have to be <= 14 characters..." bin-name (.length bin-name)))))
+    (throw (Exception. (format "%s is %s characters. Bin names have to be <= %d characters..." bin-name (.length bin-name) MAX_BIN_NAME_LENGTH))))
   (Bin. bin-name bin-value))
 
 (defn- ^Bin set-bin-as-null [^String bin-name]
   (when (< MAX_BIN_NAME_LENGTH (.length bin-name))
-    (throw (Exception. (format "%s is %s characters. Bin names have to be <= 14 characters..." bin-name (.length bin-name)))))
+    (throw (Exception. (format "%s is %s characters. Bin names have to be <= d characters..." bin-name (.length bin-name) MAX_BIN_NAME_LENGTH))))
   (Bin/asNull bin-name))
 
 (defn- batch-read->map [^BatchRead batch-read]
@@ -121,7 +123,7 @@
       (BatchRead. k ^"[Ljava.lang.String;" (utils/v->array String (:bins batch-read-map))))))
 
 ;; put
-(defn- _put [^AerospikeClient client ^EventLoops event-loops dbns client-events index data policy set-name]
+(defn- put* [^AerospikeClient client ^EventLoops event-loops dbns client-events index data policy set-name]
   (let [bins       (data->bins data)
         op-future  (p/deferred)
         start-time (System/nanoTime)]
@@ -194,7 +196,7 @@
     (pt/put this index set-name data expiration {}))
 
   (put [_this index set-name data expiration conf]
-    (_put client
+    (put* client
           el
           dbns
           client-events
@@ -207,7 +209,7 @@
     (pt/create this index set-name data expiration {}))
 
   (create [_this index set-name data expiration conf]
-    (_put client
+    (put* client
           el
           dbns
           client-events
@@ -221,7 +223,7 @@
     (pt/set-single this index set-name data expiration {}))
 
   (set-single [_this index set-name data expiration conf]
-    (_put client
+    (put* client
           el
           dbns
           client-events
@@ -234,7 +236,7 @@
     (pt/replace-only this index set-name data expiration {}))
 
   (replace-only [_this index set-name data expiration conf]
-    (_put client
+    (put* client
           el
           dbns
           client-events
@@ -247,7 +249,7 @@
     (pt/update this index set-name new-record generation new-expiration {}))
 
   (update [_this index set-name new-record generation new-expiration conf]
-    (_put client
+    (put* client
           el
           dbns
           client-events
@@ -260,7 +262,7 @@
     (pt/add-bins this index set-name new-data new-expiration {}))
 
   (add-bins [_this index set-name new-data new-expiration conf]
-    (_put client
+    (put* client
           el
           dbns
           client-events
@@ -326,14 +328,6 @@
                        #(mapv batch-read->map %)
                        (:transcoder conf identity))]
         (register-events d client-events :read-batch nil start-time))))
-
-  (get-multiple [this indices sets]
-    (pt/get-multiple this indices sets {}))
-
-  (get-multiple [db indices sets conf]
-    (p/all
-      (map (fn [[index set-name]] (pt/get-single db index set-name conf))
-           (map vector indices sets))))
 
   (put-multiple [this indices set-names payloads expirations]
     (pt/put-multiple this indices set-names payloads expirations {}))
@@ -436,7 +430,7 @@
           false))))
 
   (stop [_this]
-    (println ";; Stopping aerospike client for hosts" hosts)
+    (log/info "Stopping aerospike client for hosts" hosts)
     (.close ^AerospikeClient client)
     (when close-event-loops?
       (.close ^EventLoops el))))
@@ -470,7 +464,7 @@
    (let [close-event-loops? (nil? (:event-loops conf))
          event-loops        (or (:event-loops conf) (create-event-loops conf))
          client-policy      (:client-policy conf (policy/create-client-policy event-loops conf))]
-     (println (format ";; Starting aerospike client for hosts %s with username %s" hosts (get conf "username")))
+     (log/info (format "Starting aerospike client for hosts %s with username %s" hosts (get conf "username")))
      (map->SimpleAerospikeClient {:client             (create-client hosts client-policy (:port conf 3000))
                                   :el                 event-loops
                                   :hosts              hosts

@@ -1,7 +1,6 @@
 (ns aerospike-clj.mock-client
   (:refer-clojure :exclude [update])
   (:require [promesa.core :as p]
-            [aerospike-clj.client :as client]
             [aerospike-clj.protocols :as pt]
             [aerospike-clj.utils])
   (:import (com.aerospike.client AerospikeException ResultCode)))
@@ -170,12 +169,6 @@
       (mapv (fn [k set-name payload expiration]
               @(pt/put this k set-name payload expiration conf))
             indices set-names payloads expiration-seq)))
-  (get-multiple [this indices set-names]
-    (pt/get-multiple this indices set-names {}))
-
-  (get-multiple [this indices set-names conf]
-    (p/resolved
-      (mapv (fn [k set-name] @(pt/get-single this k set-name conf)) indices set-names)))
 
   (get-batch [this batch-reads]
     (pt/get-batch this batch-reads {}))
@@ -257,11 +250,11 @@
   (stop [_]
     (reset! state {DEFAULT_SET {}})))
 
-(defprotocol ITestAerospike
+(defprotocol IStateful
   (get-state [this] [this set-name]))
 
 (extend-type MockClient
-  ITestAerospike
+  IStateful
   (get-state
     ([this]
      (get-state this DEFAULT_SET))

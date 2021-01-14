@@ -3,7 +3,8 @@
   :url "https://github.com/AppsFlyer/aerospike-clj"
   :license {:name "Eclipse Public License"
             :url  "http://www.eclipse.org/legal/epl-v10.html"}
-  :dependencies [[com.aerospike/aerospike-client "4.4.15"]
+  :dependencies [[org.clojure/tools.logging "1.1.0"]
+                 [com.aerospike/aerospike-client "4.4.15"]
                  [funcool/promesa "6.0.0"]]
   :source-paths ["src/main/clojure"]
   :profiles {:dev  {:plugins        [[jonase/eastwood "0.3.5"]

@@ -3,17 +3,17 @@
   (:import [com.aerospike.client.async EventLoopStats]
            [com.aerospike.client.cluster ClusterStats NodeStats Node]))
 
-(defn node-ip [^Node node]
+(defn- node-ip [^Node node]
   (s/replace (.. node getAddress getAddress getHostAddress) "." "-"))
 
-(defn construct-node-stats [^NodeStats raw-node-stats]
+(defn- construct-node-stats [^NodeStats raw-node-stats]
   {:node  (node-ip (.node raw-node-stats))
    :async {:in-pool (.inPool (.async raw-node-stats))
            :in-use  (.inUse (.async raw-node-stats))}
    :sync  {:in-pool (.inPool (.sync raw-node-stats))
            :in-use  (.inUse (.sync raw-node-stats))}})
 
-(defn construct-event-loop-stats [^EventLoopStats event-loops-stats]
+(defn- construct-event-loop-stats [^EventLoopStats event-loops-stats]
   {:in-process (.processSize event-loops-stats)
    :in-queue   (.queueSize event-loops-stats)})
 

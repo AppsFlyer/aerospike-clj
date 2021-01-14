@@ -1,9 +1,10 @@
 (ns ^{:author      "Ido Barkan"
       :integration true
-      :doc         "this test require a local aerospike. This can be achieved via docker:
-           $ sudo docker pull aerospike
-           $ sudo docker run -d --name aerospike -p 3000:3000 -p 3001:3001 -p 3002:3002 -p 3003:3003 aerospike"}
-  aerospike-clj.client-test
+      :doc         "Integration tests. Requires a local Aerospike instance.
+                   To run instances locally inside docker containers:
+                   $ sudo docker pull aerospike
+                   $ sudo docker run -d --name aerospike -p 3000:3000 -p 3001:3001 -p 3002:3002 -p 3003:3003 aerospike"}
+  aerospike-clj.integration-test
   (:require [clojure.test :refer [deftest testing is use-fixtures]]
             [aerospike-clj.client :as client]
             [aerospike-clj.protocols :as pt]
@@ -273,20 +274,6 @@
     (is (false? @(pt/delete *c* k _set)))
     (is (nil? @(pt/get-single *c* k _set)))))
 
-(deftest get-multiple
-  (let [data [(rand-int 1000) (rand-int 1000)]
-        k    (random-key)
-        k2   (random-key)
-        ks   [k k2 "not-there"]]
-    (is (true? @(pt/create *c* k _set (first data) TTL)))
-    (is (true? @(pt/create *c* k2 _set (second data) TTL)))
-    (let [[{d1 :payload g1 :gen} {d2 :payload g2 :gen} {d3 :payload g3 :gen}] @(pt/get-multiple *c* ks (repeat _set))]
-      (is (= d1 (first data)))
-      (is (= d2 (second data)))
-      (is (= 1 g1 g2))
-      (is (nil? d3))
-      (is (nil? g3)))))
-
 (deftest put-multiple
   (let [data [(rand-int 1000) (rand-int 1000)]
         k    (random-key)
@@ -303,19 +290,22 @@
       (is (nil? d3))
       (is (nil? g3)))))
 
-(deftest get-multiple-transcoded
+(deftest get-batch-transcoded
   (let [put-json (fn [k d] (pt/put *c* k _set d TTL {:transcoder json/generate-string}))
         data     [{:a (rand-int 1000)} {:a (rand-int 1000)}]
         k        (random-key)
         k2       (random-key)
-        ks       [k k2]]
+        batch    [{:index k :set _set} {:index k2 :set _set}]]
     (is (true? @(put-json k (first data))))
     (is (true? @(put-json k2 (second data))))
     (let [[{d1 :payload g1 :gen}
            {d2 :payload g2 :gen}]
-          @(pt/get-multiple *c* ks (repeat _set)
-                            {:transcoder (fn [res]
-                                           (update res :payload #(json/parse-string % keyword)))})]
+          @(pt/get-batch *c* batch
+                         {:transcoder (fn [batch-result]
+                                        (mapv
+                                          (fn [res]
+                                            (update res :payload #(json/parse-string % keyword)))
+                                          batch-result))})]
       (is (= d1 (first data)))
       (is (= d2 (second data)))
       (is (= 1 g1 g2)))))

@@ -45,7 +45,7 @@ In order to reduce overhead for clusters with more than a single namespace creat
 loop between them.
 
 ## Usage
-### Most of the time just create a simple client (single cluster)
+
 ```clojure
 user=> (require '[aerospike-clj.client :as aero])
 nil
@@ -136,11 +136,11 @@ Usage:
 
 (def ^:dynamic ^SimpleAerospikeClient client nil)
 
-(defn- rebind-client-to-mock [test-fn]
+(defn- bind-client-to-mock [test-fn]
   (binding [client (mock/create-instance)]
     (test-fn)))
 
-(use-fixtures :each rebind-client-to-mock)
+(use-fixtures :each bind-client-to-mock)
 
 (deftest ...) ;; define your application unit tests as usual
 ```

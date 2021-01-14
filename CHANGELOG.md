@@ -1,23 +1,32 @@
 #### VERSION 2.0.0
-#### This is a breaking change.
-* Implementations of `ClientEvents` protocol will no longer get the DB instance for runtime parameters. Instead they should be pre-configured at instance construction time.
+#### Breaking changes
+* Implementations of `ClientEvents` protocol will no longer get the DB instance 
+for runtime parameters. Instead, they should be pre-configured at instance construction time.
 * Created the `protocols` namespace which now holds a myriad of protocols.
   * This includes new protocols that group Aerospike operations by CRUD/admin semantics.
 * Cleaned up the `client` namespace:
-  * Removed the `IAerospikeClient` protocol it can create a collision with `com.aerospike.client.IAerospikeClient`. Abstracting over the Java client instance selection is of no concern to a simple client that interacts with a single cluster.
-    * As a result `SimpleAerospikeClient` now directly uses the vars passed in construction time instead of fetching them from the `client` with keywords, e.g. `(:el client)`.
-    * The return type of `get-cluster-stats` is no longer a triply-nested vector but a doubly-nested vector.
+  * Removed the `IAerospikeClient` protocol it can create a collision with `com.aerospike.client.IAerospikeClient`. 
+  Abstracting over the Java client instance selection is of no concern to a simple 
+  client that interacts with a single cluster.
+    * As a result `SimpleAerospikeClient` now directly uses the vars passed in 
+    construction time instead of fetching them from the `client` with keywords, e.g. `(:el client)`.
+    * The return type of `get-cluster-stats` is no longer a triply-nested vector 
+    but a doubly-nested vector.
   * All protocols moved to `protocols` namespace.
   * `SimpleAerospikeClient` record now implements the protocols mentioned above.
-  * 
 * Mock client
-  * The `MockClient` record now implements the protocols mentioned above, so production code could now have its `SimpleAerospikeClient` swapped with a mock client in-place and __without__ using `with-redefs`.
-  * Functionality that is needed for unit testing purposes is defined in the `ITestAerospike` protocol and `MockClient` instances are extended to this protocol.
+  * The `MockClient` record now implements the protocols mentioned above, so 
+  production code could now have its `SimpleAerospikeClient` swapped with a mock 
+  client in-place and __without__ using `with-redefs`.
+  * Functionality that is needed for unit testing purposes is defined in the 
+  `ITestAerospike` protocol and `MockClient` instances are extended to this protocol.
+
+#### Non-breaking changes
+* CI
+  * No longer runs the lein command `compile` - it would be executed implicitly by `test`
 * Integration test namespace now has the `^:integration` metadata:
   * Run unit tests with `lein test`
   * Run integration tests that require a locally-running Aerospike client via `lein test :integration`.
-* CI
-  * No longer runs the lein command `compile` - it would be executed implicitly by `test`
 
 #### VERSION 1.0.0
 #### This is a breaking change.
