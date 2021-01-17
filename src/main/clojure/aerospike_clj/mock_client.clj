@@ -250,11 +250,11 @@
   (stop [_]
     (reset! state {DEFAULT_SET {}})))
 
-(defprotocol IStateful
+(defprotocol Stateful
   (get-state [this] [this set-name]))
 
 (extend-type MockClient
-  IStateful
+  Stateful
   (get-state
     ([this]
      (get-state this DEFAULT_SET))

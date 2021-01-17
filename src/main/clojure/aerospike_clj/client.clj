@@ -86,7 +86,7 @@
 
 (defn- ^Bin set-bin-as-null [^String bin-name]
   (when (< MAX_BIN_NAME_LENGTH (.length bin-name))
-    (throw (Exception. (format "%s is %s characters. Bin names have to be <= d characters..." bin-name (.length bin-name) MAX_BIN_NAME_LENGTH))))
+    (throw (Exception. (format "%s is %s characters. Bin names have to be <= %d characters..." bin-name (.length bin-name) MAX_BIN_NAME_LENGTH))))
   (Bin/asNull bin-name))
 
 (defn- batch-read->map [^BatchRead batch-read]
