@@ -6,6 +6,7 @@
   :dependencies [[org.clojure/tools.logging "1.1.0"]
                  [com.aerospike/aerospike-client "4.4.15"]
                  [funcool/promesa "6.0.0"]]
+  :java-source-paths ["src/main/java"]
   :source-paths ["src/main/clojure"]
   :profiles {:dev  {:plugins        [[jonase/eastwood "0.3.5"]
                                      [lein-ancient "0.6.15"]]

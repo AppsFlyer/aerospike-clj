@@ -20,6 +20,13 @@ for runtime parameters. Instead, they should be pre-configured at instance const
   client in-place and __without__ using `with-redefs`.
   * Functionality that is needed for unit testing purposes is defined in the 
   `ITestAerospike` protocol and `MockClient` instances are extended to this protocol.
+* Integration test namespace now has the `^:integration` metadata:
+  * Run unit tests with `lein test`
+  * Run integration tests that require a locally-running Aerospike client via `lein test :integration`.
+* CI
+  * No longer runs the lein command `compile` - it would be executed implicitly by `test`
+* Aerospike `Key` - can now coerce `java.util.UUID` into keys alongside byte arrays, 
+ ints, longs, strings and `com.aerospike.client.Value`.
 
 #### Non-breaking changes
 * CI

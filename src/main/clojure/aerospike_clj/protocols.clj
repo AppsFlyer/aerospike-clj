@@ -165,3 +165,6 @@
   automatically for you. If you pass a ready made key, `as-namespace` and
   `set-name` are ignored in API calls."
   (create-key [this as-namespace set-name]))
+
+(defprotocol AerospikeIndex
+  (create-key-method ^Key [this ^String as-namesapce ^String set-name]))
