@@ -4,6 +4,7 @@
             [clojure.tools.logging :as log]
             [promesa.core :as p]
             [aerospike-clj.policy :as policy]
+            [aerospike-clj.bins :as bins]
             [aerospike-clj.utils :as utils]
             [aerospike-clj.metrics :as metrics]
             [aerospike-clj.key :as as-key]
@@ -12,7 +13,6 @@
             [aerospike-clj.protocols :as pt])
   (:import [java.time Instant]
            [java.util List Collection ArrayList]
-           [clojure.lang IPersistentMap]
            [com.aerospike.client AerospikeClient Key Bin Operation BatchRead]
            [com.aerospike.client.async EventLoop NioEventLoops EventLoops]
            [com.aerospike.client.cluster Node]
@@ -30,25 +30,21 @@
   EPOCH
   (.getEpochSecond (Instant/parse "2010-01-01T00:00:00Z")))
 
-
-(def ^:private ^:const MAX_BIN_NAME_LENGTH 14)
-
 (defn- create-client
   "Returns the Java `AerospikeClient` instance.
 
   Expects:
-    :hosts - a seq of host strings, can include port or not.
+    :hosts - a seq of host strings, can include default-port or not.
              Format: [hostname1[:tlsname1][:port1],...]
              Example: [\"aerospike-001\" \"aerospike-002\"]
              Example: [\"aerospike-001:3000\" \"aerospike-002:3010\"]
 
     :client-policy - a ClientPolicy instance
 
-    :port - the port to use in case there's no port specified in the `hosts` seq.
-            Will default to 3000 if not provided."
-  [hosts client-policy port]
+    :default-port - the default-port to use in case there's no port specified in the host names."
+  [hosts client-policy default-port]
   (let [hosts-str (s/join "," hosts)
-        hosts-arr (Host/parseHosts hosts-str port)]
+        hosts-arr (Host/parseHosts hosts-str default-port)]
     (AerospikeClient. ^ClientPolicy client-policy ^"[Lcom.aerospike.client.Host;" hosts-arr)))
 
 (defn create-event-loops
@@ -79,41 +75,11 @@
   (create-key ^Key [this as-namespace set-name]
     (as-key/create-key this as-namespace set-name)))
 
-(defn- ^Bin create-bin [^String bin-name bin-value]
-  (when (< MAX_BIN_NAME_LENGTH (.length bin-name))
-    (throw (Exception. (format "%s is %s characters. Bin names have to be <= %d characters..." bin-name (.length bin-name) MAX_BIN_NAME_LENGTH))))
-  (Bin. bin-name bin-value))
-
-(defn- ^Bin set-bin-as-null [^String bin-name]
-  (when (< MAX_BIN_NAME_LENGTH (.length bin-name))
-    (throw (Exception. (format "%s is %s characters. Bin names have to be <= %d characters..." bin-name (.length bin-name) MAX_BIN_NAME_LENGTH))))
-  (Bin/asNull bin-name))
-
 (defn- batch-read->map [^BatchRead batch-read]
   (let [k (.key batch-read)]
     (-> (record/record->map (.record batch-read))
         (assoc :index (.toString (.userKey k)))
         (assoc :set (.setName k)))))
-
-(def ^:private x-bin-convert
-  (comp
-    (map (fn [[k v]] [k (utils/sanitize-bin-value v)]))
-    (map (fn [[k v]] (create-bin k v)))))
-
-(defn- map->multiple-bins [^IPersistentMap m]
-  (let [bin-names (keys m)]
-    (if (utils/string-keys? bin-names)
-      (->> (into [] x-bin-convert m)
-           (utils/v->array Bin))
-      (throw (Exception. (format "Aerospike only accepts string values as bin names. Please ensure all keys in the map are strings."))))))
-
-(defn- data->bins
-  "Function to identify whether `data` will be stored as a single or multiple bin record.
-  Only Clojure maps will default to multiple bins. Nested data structures are supported."
-  [data]
-  (if (map? data)
-    (map->multiple-bins data)
-    (utils/v->array Bin [^Bin (Bin. "" (utils/sanitize-bin-value data))])))
 
 (defn- ^BatchRead map->batch-read [batch-read-map dbns]
   (let [k ^Key (pt/create-key (:index batch-read-map) dbns (:set batch-read-map))]
@@ -124,7 +90,7 @@
 
 ;; put
 (defn- put* [^AerospikeClient client ^EventLoops event-loops dbns client-events index data policy set-name]
-  (let [bins       (data->bins data)
+  (let [bins       (bins/data->bins data)
         op-future  (p/deferred)
         start-time (System/nanoTime)]
     (.put client
@@ -135,12 +101,12 @@
           ^"[Lcom.aerospike.client.Bin;" bins)
     (register-events op-future client-events :write index start-time)))
 
-(defrecord SimpleAerospikeClient [client
-                                  el
-                                  hosts
-                                  dbns
-                                  client-events
-                                  close-event-loops?]
+(deftype SimpleAerospikeClient [client
+                                el
+                                hosts
+                                dbns
+                                client-events
+                                close-event-loops?]
   pt/AerospikeReadOps
   (get-single [this index set-name]
     (pt/get-single this index set-name {} [:all]))
@@ -308,7 +274,7 @@
             (AsyncWriteListener. op-future)
             ^WritePolicy policy
             ^Key (pt/create-key index dbns set-name)
-            ^"[Lcom.aerospike.client.Bin;" (utils/v->array Bin (mapv set-bin-as-null bin-names)))
+            ^"[Lcom.aerospike.client.Bin;" (utils/v->array Bin (mapv bins/set-bin-as-null bin-names)))
       (register-events op-future client-events :write index start-time)))
 
   pt/AerospikeBatchOps
@@ -442,7 +408,9 @@
   (+ ttl EPOCH))
 
 (defn init-simple-aerospike-client
-  "`hosts` should be a seq of known hosts to bootstrap from.
+  "`hosts` should be a seq of known hosts to bootstrap from. These can include a
+  desired port, as in the form `host:port`. These would take precedence over `:port`
+  as defined below.
 
   Optional `conf` map _can_ have:
   - :event-loops - a client compatible EventLoops instance.
@@ -455,8 +423,11 @@
   Client policy configuration keys (see policy/create-client-policy)
   - :client-policy - a ready ClientPolicy
   - \"username\"
-  - :port (default is 3000)
-  - :client-events an implementation of ClientEvents. Either a single one or a vector
+  - :port - to specify a single port to use for all host names, only if ports aren't
+  explicit in the host names set above in `:hosts`. In case that a port isn't explicitly
+  stated in the `hosts`, and the `:port` parameter is missing, port 3000 is used
+  by default.
+  - :client-events - an implementation of ClientEvents. Either a single one or a vector
     thereof. In the case of a vector, the client will chain the instances by order."
   ([hosts aero-ns]
    (init-simple-aerospike-client hosts aero-ns {}))
@@ -465,9 +436,9 @@
          event-loops        (or (:event-loops conf) (create-event-loops conf))
          client-policy      (:client-policy conf (policy/create-client-policy event-loops conf))]
      (log/info (format "Starting aerospike client for hosts %s with username %s" hosts (get conf "username")))
-     (map->SimpleAerospikeClient {:client             (create-client hosts client-policy (:port conf 3000))
-                                  :el                 event-loops
-                                  :hosts              hosts
-                                  :dbns               aero-ns
-                                  :client-events      (utils/vectorize (:client-events conf))
-                                  :close-event-loops? close-event-loops?}))))
+     (->SimpleAerospikeClient (create-client hosts client-policy (:port conf 3000))
+                              event-loops
+                              hosts
+                              aero-ns
+                              (utils/vectorize (:client-events conf))
+                              close-event-loops?))))
