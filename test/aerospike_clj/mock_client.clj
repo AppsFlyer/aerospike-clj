@@ -69,6 +69,25 @@
   (exists? [_ k set-name _]
     (p/resolved (record-exists? @state set-name k)))
 
+  (get-batch [this batch-reads]
+    (pt/get-batch this batch-reads {}))
+
+  (get-batch [this batch-reads conf]
+    (p/resolved
+      (mapv
+        (fn [record]
+          (let [bins     (if (= [:all] (:bins record)) nil (:bins record))
+                get-bins (if bins (partial filter-bins bins) identity)]
+            (get-bins @(pt/get-single this (:index record) (:set record) conf))))
+        batch-reads)))
+
+  (exists-batch [this indices]
+    (pt/exists-batch this indices {}))
+
+  (exists-batch [_ indices _]
+    (p/resolved
+      (mapv (fn [v] (record-exists? @state (:set v) (:index v))) indices)))
+
   pt/AerospikeWriteOps
   (put [this k set-name data expiration]
     (pt/put this k set-name data expiration {}))
@@ -93,6 +112,15 @@
                           new-record (create-record (transcoder data) expiration)]
                       (set-record current-state new-record set-name k)))]
       (do-swap state swap-fn)))
+
+  (put-multiple [this indices set-names payloads expiration-seq]
+    (pt/put-multiple this indices set-names payloads expiration-seq {}))
+
+  (put-multiple [this indices set-names payloads expiration-seq conf]
+    (p/resolved
+      (mapv (fn [k set-name payload expiration]
+              @(pt/put this k set-name payload expiration conf))
+            indices set-names payloads expiration-seq)))
 
   pt/AerospikeUpdateOps
   (set-single [this k set-name data expiration]
@@ -160,40 +188,14 @@
                                (str "Call to `touch` on non-existing key '" k "'")))))]
       (do-swap state swap-fn)))
 
-  pt/AerospikeBatchOps
-  (put-multiple [this indices set-names payloads expiration-seq]
-    (pt/put-multiple this indices set-names payloads expiration-seq {}))
-
-  (put-multiple [this indices set-names payloads expiration-seq conf]
-    (p/resolved
-      (mapv (fn [k set-name payload expiration]
-              @(pt/put this k set-name payload expiration conf))
-            indices set-names payloads expiration-seq)))
-
-  (get-batch [this batch-reads]
-    (pt/get-batch this batch-reads {}))
-
-  (get-batch [this batch-reads conf]
-    (p/resolved
-      (mapv
-        (fn [record]
-          (let [bins     (if (= [:all] (:bins record)) nil (:bins record))
-                get-bins (if bins (partial filter-bins bins) identity)]
-            (get-bins @(pt/get-single this (:index record) (:set record) conf))))
-        batch-reads)))
-
-  (exists-batch [this indices]
-    (pt/exists-batch this indices {}))
-
-  (exists-batch [_ indices _]
-    (p/resolved
-      (mapv (fn [v] (record-exists? @state (:set v) (:index v))) indices)))
+  pt/AerospikeSingleIndexBatchOps
   (operate [this k set-name expiration operations]
     (pt/operate this k set-name expiration operations nil))
 
   (operate [_ _ _ _ _ _]
     (throw (RuntimeException. "Function not implemented")))
 
+  pt/AerospikeSetOps
   (scan-set [_this _ set-name conf]
     (let [state    (get @state set-name)
           callback (:callback conf)

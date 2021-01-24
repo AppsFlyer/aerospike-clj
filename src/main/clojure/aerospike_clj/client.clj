@@ -22,7 +22,8 @@
            [com.aerospike.client Key Host]
            [aerospike_clj.listeners AsyncExistsListener AsyncDeleteListener AsyncWriteListener
                                     AsyncInfoListener AsyncRecordListener AsyncRecordSequenceListener
-                                    AsyncBatchListListener AsyncExistsArrayListener]))
+                                    AsyncBatchListListener AsyncExistsArrayListener]
+           [aerospike_clj.protocols AerospikeSingleIndexBatchOps]))
 
 (def
   ^{:doc     "The 0 date reference for returned record TTL"
@@ -157,6 +158,40 @@
                ^Key (pt/create-key index dbns set-name))
       (register-events op-future client-events :exists index start-time)))
 
+  (get-batch [this batch-reads]
+    (pt/get-batch this batch-reads {}))
+
+  (get-batch [_this batch-reads conf]
+    (let [op-future       (p/deferred)
+          start-time      (System/nanoTime)
+          batch-reads-arr (ArrayList. ^Collection (mapv #(map->batch-read % dbns) batch-reads))]
+      (.get ^AerospikeClient client
+            ^EventLoop (.next ^EventLoops el)
+            (AsyncBatchListListener. op-future)
+            ^BatchPolicy (:policy conf)
+            ^List batch-reads-arr)
+      (let [d (p/chain op-future
+                       #(mapv batch-read->map %)
+                       (:transcoder conf identity))]
+        (register-events d client-events :read-batch nil start-time))))
+
+  (exists-batch [this indices]
+    (pt/exists-batch this indices {}))
+
+  (exists-batch [this indices conf]
+    (let [op-future  (p/deferred)
+          start-time (System/nanoTime)
+          indices    (utils/v->array Key (mapv #(pt/create-key (:index %) dbns (:set %)) indices))]
+      (.exists ^AerospikeClient client
+               ^EventLoop (.next ^EventLoops el)
+               (AsyncExistsArrayListener. op-future)
+               ^BatchPolicy (:policy conf)
+               ^"[Lcom.aerospike.client.Key;" indices)
+      (let [d (p/chain op-future
+                       vec
+                       (:transcoder conf identity))]
+        (register-events d client-events :exists-batch nil start-time))))
+
   pt/AerospikeWriteOps
   (put [this index set-name data expiration]
     (pt/put this index set-name data expiration {}))
@@ -183,6 +218,15 @@
           ((:transcoder conf identity) data)
           (policy/create-only-policy client expiration)
           set-name))
+
+  (put-multiple [this indices set-names payloads expirations]
+    (pt/put-multiple this indices set-names payloads expirations {}))
+
+  (put-multiple [this indices set-names payloads expirations conf]
+    (p/all
+      (map (fn [[index set-name payload expiration]]
+             (pt/put this index set-name payload expiration conf))
+           (map vector indices set-names payloads expirations))))
 
   pt/AerospikeUpdateOps
   (set-single [this index set-name data expiration]
@@ -277,54 +321,11 @@
             ^"[Lcom.aerospike.client.Bin;" (utils/v->array Bin (mapv bins/set-bin-as-null bin-names)))
       (register-events op-future client-events :write index start-time)))
 
-  pt/AerospikeBatchOps
-  (get-batch [this batch-reads]
-    (pt/get-batch this batch-reads {}))
-
-  (get-batch [_this batch-reads conf]
-    (let [op-future       (p/deferred)
-          start-time      (System/nanoTime)
-          batch-reads-arr (ArrayList. ^Collection (mapv #(map->batch-read % dbns) batch-reads))]
-      (.get ^AerospikeClient client
-            ^EventLoop (.next ^EventLoops el)
-            (AsyncBatchListListener. op-future)
-            ^BatchPolicy (:policy conf)
-            ^List batch-reads-arr)
-      (let [d (p/chain op-future
-                       #(mapv batch-read->map %)
-                       (:transcoder conf identity))]
-        (register-events d client-events :read-batch nil start-time))))
-
-  (put-multiple [this indices set-names payloads expirations]
-    (pt/put-multiple this indices set-names payloads expirations {}))
-
-  (put-multiple [this indices set-names payloads expirations conf]
-    (p/all
-      (map (fn [[index set-name payload expiration]]
-             (pt/put this index set-name payload expiration conf))
-           (map vector indices set-names payloads expirations))))
-
-  (exists-batch [this indices]
-    (pt/exists-batch this indices {}))
-
-  (exists-batch [this indices conf]
-    (let [op-future  (p/deferred)
-          start-time (System/nanoTime)
-          indices    (utils/v->array Key (mapv #(pt/create-key (:index %) dbns (:set %)) indices))]
-      (.exists ^AerospikeClient client
-               ^EventLoop (.next ^EventLoops el)
-               (AsyncExistsArrayListener. op-future)
-               ^BatchPolicy (:policy conf)
-               ^"[Lcom.aerospike.client.Key;" indices)
-      (let [d (p/chain op-future
-                       vec
-                       (:transcoder conf identity))]
-        (register-events d client-events :exists-batch nil start-time))))
-
+  pt/AerospikeSingleIndexBatchOps
   (operate [this index set-name expiration operations]
     (pt/operate this index set-name expiration operations {}))
 
-  (operate [this index set-name expiration operations conf]
+  (operate [_this index set-name expiration operations conf]
     (if (empty? operations)
       (p/resolved nil)
       (let [op-future  (p/deferred)
@@ -337,6 +338,7 @@
                   (utils/v->array Operation operations))
         (register-events (p/then op-future record/record->map) client-events "operate" index start-time))))
 
+  pt/AerospikeSetOps
   (scan-set [_this aero-namespace set-name conf]
     (when-not (fn? (:callback conf))
       (throw (IllegalArgumentException. "(:callback conf) must be a function")))

@@ -18,7 +18,23 @@
   (exists?
     [this index set-name]
     [this index set-name conf]
-    "Test if an index exists."))
+    "Test if an index exists.")
+
+  (get-batch
+    [this batch-reads]
+    [this batch-reads conf]
+    "Get a batch of records from the cluster asynchronously. `batch-reads` is a collection of maps
+    of the form `{:index \"foo\" :set \"someset\" :bins [...]}`. the `:bins` key can have required
+    bins for the batched keys or missing/[:all] to get all the bins (see `_get`). The result is a
+    vector of `AerospikeRecord` in the same order of keys. Missing keys result in `nil` in corresponding
+    positions.")
+
+  (exists-batch
+    [this indices]
+    [this indices conf]
+    "Check for each key in a batch if it exists. `indices` is a collection of maps
+    of the form `{:index \"key-name\" :set \"set-name\"}`. The result is a
+    vector of booleans in the same order as indices."))
 
 (defprotocol AerospikeWriteOps
   "Write operations of a single Aerospike record."
@@ -36,7 +52,13 @@
   (create
     [this index set-name data expiration]
     [this index set-name data expiration conf]
-    "`put` with a `create-only` policy."))
+    "`put` with a `create-only` policy.")
+
+  (put-multiple
+    [this indices set-names payloads expirations]
+    [this indices set-names payloads expirations conf]
+    "Put multiple payloads by invoking `put`. All arguments should be mutually
+    corresponding sequences."))
 
 (defprotocol AerospikeUpdateOps
   "Update operations of a single Aerospike record."
@@ -81,38 +103,16 @@
     [this index set-name bin-names new-expiration conf]
     "Delete bins from an existing record. The `bin-names` must be a vector of strings."))
 
-(defprotocol AerospikeBatchOps
-  "Various operations of batches of Aerospike records."
-  (get-batch
-    [this batch-reads]
-    [this batch-reads conf]
-    "Get a batch of records from the cluster asynchronously. `batch-reads` is a collection of maps
-    of the form `{:index \"foo\" :set \"someset\" :bins [...]}`. the `:bins` key can have required
-    bins for the batched keys or missing/[:all] to get all the bins (see `_get`). The result is a
-    vector of `AerospikeRecord` in the same order of keys. Missing keys result in `nil` in corresponding
-    positions.")
-
-  (put-multiple
-    [this indices set-names payloads expirations]
-    [this indices set-names payloads expirations conf]
-    "Put multiple payloads by invoking `put`. All arguments should be mutually
-    corresponding sequences.")
-
-  (exists-batch
-    [this indices]
-    [this indices conf]
-    "Check for each key in a batch if it exists. `indices` is a collection of maps
-    of the form `{:index \"key-name\" :set \"set-name\"}`. The result is a
-    vector of booleans in the same order as indices.")
-
+(defprotocol AerospikeSingleIndexBatchOps
   (operate
     [this index set-name expiration operations]
     [this index set-name expiration operations conf]
     "Asynchronously perform multiple read/write operations on a single key in one batch call.
     This method registers the command with an event loop and returns. The event loop thread
     will process the command and send the results to the listener.
-    `commands` is a sequence of Aerospike CDT operations.")
+    `commands` is a sequence of Aerospike CDT operations."))
 
+(defprotocol AerospikeSetOps
   (scan-set [this aero-namespace set-name conf]
     "Scans through the given set and calls a user defined callback for each record that was found.
     Returns a future response that resolves once the scan completes. When the scan completes
@@ -167,4 +167,4 @@
   (create-key [this as-namespace set-name]))
 
 (defprotocol AerospikeIndex
-  (create-key-method ^Key [this ^String as-namesapce ^String set-name]))
+  (create-key-method [this as-namesapce set-name]))
