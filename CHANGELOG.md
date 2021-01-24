@@ -19,7 +19,8 @@ for runtime parameters. Instead, they should be pre-configured at instance const
   production code could now have its `SimpleAerospikeClient` swapped with a mock 
   client in-place and __without__ using `with-redefs`.
   * Functionality that is needed for unit testing purposes is defined in the 
-  `ITestAerospike` protocol and `MockClient` instances are extended to this protocol.
+  `Stateful` protocol and `MockClient` instances are extended to this protocol.
+  * The mock client namespace moved to the `test` directory.
 * Integration test namespace now has the `^:integration` metadata:
   * Run unit tests with `lein test`
   * Run integration tests that require a locally-running Aerospike client via `lein test :integration`.
