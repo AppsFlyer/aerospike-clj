@@ -12,14 +12,15 @@
             [aerospike-clj.key :as as-key]
             [cheshire.core :as json]
             [clj-uuid :as uuid])
-  (:import [com.aerospike.client Value AerospikeClient IAerospikeClient]
+  (:import [com.aerospike.client Value AerospikeClient]
            [com.aerospike.client.cdt ListOperation ListPolicy ListOrder ListWriteFlags ListReturnType
                                      MapOperation MapPolicy MapOrder MapWriteFlags MapReturnType CTX]
            [com.aerospike.client.policy Priority ReadModeSC ReadModeAP Replica GenerationPolicy RecordExistsAction
                                         WritePolicy BatchPolicy Policy]
            [java.util HashMap ArrayList]
            [java.util.concurrent ExecutionException]
-           [clojure.lang PersistentArrayMap]))
+           [clojure.lang PersistentArrayMap]
+           [aerospike_clj.client SimpleAerospikeClient]))
 
 (def _set "set")
 (def _set2 "set2")
@@ -39,7 +40,7 @@
 (deftest client-creation
   (let [c (client/init-simple-aerospike-client ["localhost"] "test")]
     (is c)
-    (is (= ["localhost"] (:hosts c))))
+    (is (= ["localhost"] (.-hosts ^SimpleAerospikeClient c))))
 
   (letfn [(no-password? [ex]
             (let [conf (:conf (ex-data ex))]
@@ -528,7 +529,7 @@
       (is (= #{"bar"} (set-getall))))))
 
 (deftest default-read-policy
-  (let [rp (.getReadPolicyDefault ^AerospikeClient (:client *c*))]
+  (let [rp (.getReadPolicyDefault ^AerospikeClient (.-client ^SimpleAerospikeClient *c*))]
     (is (= Priority/DEFAULT (.priority rp))) ;; Priority of request relative to other transactions. Currently, only used for scans.
     (is (= ReadModeAP/ONE (.readModeAP rp))) ;; Involve single node in the read operation.
     (is (= Replica/SEQUENCE (.replica rp))) ;; Try node containing master partition first.
@@ -561,8 +562,8 @@
                                                               "sendSetName"          true})})
 
 
-        rp ^Policy (.getReadPolicyDefault ^IAerospikeClient (:client c))
-        bp ^BatchPolicy (.getBatchPolicyDefault ^IAerospikeClient (:client c))]
+        rp ^Policy (.getReadPolicyDefault ^AerospikeClient (.-client ^SimpleAerospikeClient c))
+        bp ^BatchPolicy (.getBatchPolicyDefault ^AerospikeClient (.-client ^SimpleAerospikeClient c))]
     (is (= Priority/DEFAULT (.priority rp)))
     (is (= ReadModeAP/ALL (.readModeAP rp)))
     (is (= Replica/RANDOM (.replica rp)))
@@ -579,7 +580,7 @@
     (is (true? (.sendSetName bp)))))
 
 (deftest default-write-policy
-  (let [rp ^WritePolicy (.getWritePolicyDefault ^IAerospikeClient (:client *c*))]
+  (let [rp ^WritePolicy (.getWritePolicyDefault ^AerospikeClient (.-client ^SimpleAerospikeClient *c*))]
     (is (= Priority/DEFAULT (.priority rp))) ;; Priority of request relative to other transactions. Currently, only used for scans.
     (is (= ReadModeAP/ONE (.readModeAP rp))) ;; Involve master only in the read operation.
     (is (= Replica/SEQUENCE (.replica rp))) ;; Try node containing master partition first.
@@ -606,7 +607,7 @@
                                                               "RecordExistsAction" "REPLACE_ONLY"
                                                               "respondAllOps"      true})})
 
-        wp ^WritePolicy (.getWritePolicyDefault ^IAerospikeClient (:client c))]
+        wp ^WritePolicy (.getWritePolicyDefault ^AerospikeClient (.-client ^SimpleAerospikeClient c))]
     (is (= Priority/DEFAULT (.priority wp)))
     (is (= ReadModeAP/ONE (.readModeAP wp)))
     (is (true? (.durableDelete wp)))

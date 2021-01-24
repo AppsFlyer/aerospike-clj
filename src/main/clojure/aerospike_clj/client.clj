@@ -154,7 +154,7 @@
                ^EventLoop (.next ^EventLoops el)
                (AsyncExistsListener. op-future)
                ^Policy (:policy conf)
-               ^Key (pt/create-key index (:dbns this) set-name))
+               ^Key (pt/create-key index dbns set-name))
       (register-events op-future client-events :exists index start-time)))
 
   pt/AerospikeWriteOps
@@ -244,7 +244,7 @@
               ^EventLoop (.next ^EventLoops el)
               (AsyncWriteListener. op-future)
               ^WritePolicy (policy/write-policy client expiration RecordExistsAction/UPDATE_ONLY)
-              ^Key (pt/create-key index (:dbns this) set-name))
+              ^Key (pt/create-key index dbns set-name))
       (register-events op-future client-events :touch index start-time)))
 
   pt/AerospikeDeleteOps
@@ -258,7 +258,7 @@
                ^EventLoop (.next ^EventLoops el)
                (AsyncDeleteListener. op-future)
                ^WritePolicy (:policy conf)
-               ^Key (pt/create-key index (:dbns this) set-name))
+               ^Key (pt/create-key index dbns set-name))
       (register-events op-future client-events :delete index start-time)))
 
   (delete-bins [this index set-name bin-names new-expiration]
@@ -308,10 +308,9 @@
     (pt/exists-batch this indices {}))
 
   (exists-batch [this indices conf]
-    (let [op-future      (p/deferred)
-          start-time     (System/nanoTime)
-          aero-namespace (:dbns this)
-          indices        (utils/v->array Key (mapv #(pt/create-key (:index %) aero-namespace (:set %)) indices))]
+    (let [op-future  (p/deferred)
+          start-time (System/nanoTime)
+          indices    (utils/v->array Key (mapv #(pt/create-key (:index %) dbns (:set %)) indices))]
       (.exists ^AerospikeClient client
                ^EventLoop (.next ^EventLoops el)
                (AsyncExistsArrayListener. op-future)
@@ -334,7 +333,7 @@
                   ^EventLoop (.next ^EventLoops el)
                   (AsyncRecordListener. op-future)
                   ^WritePolicy (:policy conf (policy/write-policy client expiration RecordExistsAction/UPDATE))
-                  ^Key (pt/create-key index (:dbns this) set-name)
+                  ^Key (pt/create-key index dbns set-name)
                   (utils/v->array Operation operations))
         (register-events (p/then op-future record/record->map) client-events "operate" index start-time))))
 
