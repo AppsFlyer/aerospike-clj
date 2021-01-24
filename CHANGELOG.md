@@ -10,7 +10,7 @@ for runtime parameters. Instead, they should be pre-configured at instance const
   client that interacts with a single cluster.
     * As a result `SimpleAerospikeClient` now directly uses the vars passed in 
     construction time instead of fetching them from the `client` with keywords, e.g. `(:el client)`.
-    * The return type of `get-cluster-stats` is no longer a triply-nested vector 
+    * The return type of `get-cluster-stats` is no longer a triply-nested vector, 
     but a doubly-nested vector.
   * All protocols moved to `protocols` namespace.
   * `SimpleAerospikeClient` record now implements the protocols mentioned above.
@@ -20,7 +20,6 @@ for runtime parameters. Instead, they should be pre-configured at instance const
   client in-place and __without__ using `with-redefs`.
   * Functionality that is needed for unit testing purposes is defined in the 
   `Stateful` protocol and `MockClient` instances are extended to this protocol.
-  * The mock client namespace moved to the `test` directory.
 * Integration test namespace now has the `^:integration` metadata:
   * Run unit tests with `lein test`
   * Run integration tests that require a locally-running Aerospike client via `lein test :integration`.
