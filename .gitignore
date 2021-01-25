@@ -1,6 +1,4 @@
 /codox
-.eastwood
-.clj-kondo
 aerospike-clj.iml
 .idea/
 /.lein-failures

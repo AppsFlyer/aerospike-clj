@@ -4,8 +4,7 @@ An opinionated Clojure library wrapping Aerospike Java Client.
 
 [![Clojars Project](https://img.shields.io/clojars/v/aerospike-clj.svg)](https://clojars.org/aerospike-clj)
 
-[![Build Status](https://travis-ci.com/AppsFlyer/aerospike-clj.svg?branch=master)](https://travis-ci.com/AppsFlyer/aerospike-clj)
-
+[![Build Status](https://img.shields.io/github/workflow/status/AppsFlyer/aerospike-clj/ci%20branch?event=push&branch=master&label=build%20%26%20test)](https://github.com/AppsFlyer/aerospike-clj/actions)
 # Docs:
 [Generated docs](https://appsflyer.github.io/aerospike-clj/)
 ## Tutorial:
@@ -140,7 +139,13 @@ you would also need to stop and restart the state on each test run.
 
 
 ## Contributing
-PRs are welcome!
+PRs are welcome with these rules:
+* A PR should increment the project's version in [`project.clj`](project.clj) according
+to Semantic Versioning.
+* A PR should have its above version set to `SNAPSHOT`, e.g. `1.0.2-SNAPSHOT`.
+Once it will be merged into `master` this suffix would be trimmed before release.
+* All PRs would be linted and tested. Passing lint and tests is a reuirement for
+maintainers to review the PR.
 
 ## License
 
