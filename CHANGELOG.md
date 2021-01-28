@@ -12,6 +12,8 @@
   * Run unit tests with `lein test`
   * Run integration tests that require a locally-running Aerospike client via `lein test :integration`.
 #### Changed
+* Artifact coordinates in [Clojars](https://clojars.org/) have changed from `aerospike-clj/aerospike-clj`
+to `com.appsflyer/aerospike-clj`.
 * Implementations of `ClientEvents` protocol will no longer get the DB instance 
 for runtime parameters. Instead, they should be pre-configured at instance construction time.
 * Cleaned up the `client` namespace:
