@@ -111,7 +111,8 @@ jobs:
           lein pom
           export ORIGINAL_VERSION=$(less pom.xml | grep "<version>" | head -1 | cut -d ">" -f2 | cut -d "<" -f1)
           echo "Original version is:" $ORIGINAL_VERSION
-          lein do change version leiningen.release/bump-version release, vcs commit, install
+          lein change version leiningen.release/bump-version release
+          lein do vcs commit, install
           lein pom
           export RELEASE_VERSION=$(less pom.xml | grep "<version>" | head -1 | cut -d ">" -f2 | cut -d "<" -f1)
           echo "Release version is:" $RELEASE_VERSION

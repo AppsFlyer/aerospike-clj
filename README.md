@@ -2,9 +2,9 @@
 
 An opinionated Clojure library wrapping Aerospike Java Client.
 
-[![Clojars Project](https://img.shields.io/clojars/v/aerospike-clj.svg)](https://clojars.org/aerospike-clj)
+[![Clojars Project](https://img.shields.io/clojars/v/com.appsflyer/aerospike-clj.svg)](https://clojars.org/com.appsflyer/aerospike-clj)
 
-[![Build Status](https://img.shields.io/github/workflow/status/AppsFlyer/aerospike-clj/ci%20branch?event=push&branch=master&label=build%20%26%20test)](https://github.com/AppsFlyer/aerospike-clj/actions)
+[![Build Status](https://img.shields.io/github/workflow/status/AppsFlyer/aerospike-clj/Push%20CI%20-%20master?event=push&branch=master&label=build%20%26%20test)](https://github.com/AppsFlyer/aerospike-clj/actions)
 # Docs:
 [Generated docs](https://appsflyer.github.io/aerospike-clj/)
 
