@@ -1,6 +1,10 @@
 ## This library follows [Semantic Versioning](https://semver.org).
 ## This CHANGELOG follows [keepachangelog](https://keepachangelog.com/en/1.0.0/).
 
+### VERSION 2.0.1
+#### Updated
+* Links in README and CI config.
+
 ### VERSION 2.0.0
 #### Added
  * Aerospike `Key` - can now coerce `java.util.UUID` into keys alongside byte arrays, 
