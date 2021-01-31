@@ -1,3 +1,12 @@
+## This library follows [Semantic Versioning](https://semver.org).
+## This CHANGELOG follows [keepachangelog](https://keepachangelog.com/en/1.0.0/).
+
+### VERSION 1.0.2
+#### Added:
+* This CHANGELOG now follows [keepachangelog](https://keepachangelog.com/en/1.0.0/).
+* CI with GitHub Actions.
+* Linting with [`clj-kondo`](https://github.com/clj-kondo/clj-kondo).
+
 #### VERSION 1.0.0
 #### This is a breaking change.
 * Chaining via implementing `ClientEvents` now supports passing also a vector,
