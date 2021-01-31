@@ -3,17 +3,19 @@
 
 ### VERSION 2.0.0
 #### Added
- * This CHANGELOG now follows [keepachangelog](https://keepachangelog.com/en/1.0.0/).
  * Aerospike `Key` - can now coerce `java.util.UUID` into keys alongside byte arrays, 
   ints, longs, strings and `com.aerospike.client.Value`.
  * Created the `protocols` namespace which now holds a myriad of protocols.
    * This includes new protocols that group Aerospike operations by CRUD/admin semantics.
+ * Can explicitly specify the port in the host string that is passed to the client
+ constructor `init-simple-aerospike-client`.
 * Integration test namespace now has the `^:integration` metadata:
   * Run unit tests with `lein test`
   * Run integration tests that require a locally-running Aerospike client via `lein test :integration`.
 #### Changed
 * Artifact coordinates in [Clojars](https://clojars.org/) have changed from `aerospike-clj/aerospike-clj`
 to `com.appsflyer/aerospike-clj`.
+* Upgraded dependency on [`promesa`](https://github.com/funcool/promesa) from `5.1.0` to `6.0.0`.
 * Implementations of `ClientEvents` protocol will no longer get the DB instance 
 for runtime parameters. Instead, they should be pre-configured at instance construction time.
 * Cleaned up the `client` namespace:
@@ -32,10 +34,18 @@ for runtime parameters. Instead, they should be pre-configured at instance const
   client in-place and __without__ using `with-redefs`.
   * Functionality that is needed for unit testing purposes is defined in the 
   `Stateful` protocol and `MockClient` instances are extended to this protocol.
+* Logging via [`tools.logging`](https://github.com/clojure/tools.logging) as a façade.
 * CI
   * No longer runs the lein command `compile` - it would be executed implicitly by `test`
 #### Removed
  * The function `get-multiple` was removed in favor of the protocol method `get-batch`.
+ * Dependency on [`timbre`](https://github.com/ptaoussanis/timbre).
+
+### VERSION 1.0.2
+#### Added:
+* This CHANGELOG now follows [keepachangelog](https://keepachangelog.com/en/1.0.0/).
+* CI with GitHub Actions.
+* Linting with [`clj-kondo`](https://github.com/clj-kondo/clj-kondo).
 
 #### VERSION 1.0.0
 #### This is a breaking change.

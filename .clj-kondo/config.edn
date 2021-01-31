@@ -1,0 +1,13 @@
+{:linters
+                   {:deprecated-var      {:exclude
+                                          {aerospike-clj.client/get-multiple
+                                           {:namespaces [aerospike-clj.client-test
+                                                         aerospike-clj.mock-client]}}}
+                    :unresolved-symbol   {:exclude [(clojure.core/defrecord)]
+                                          :level   :warn}
+                    :unused-referred-var {:level :error}
+                    :unused-import       {:level :info}
+                    :unused-binding      {:exclude-destructured-keys-in-fn-args true
+                                          :level                                :error}
+                    :unused-namespace    {:level :error}}
+ :consistent-alias {:aliases {clojure.string s}}}

@@ -1,7 +1,6 @@
 (ns aerospike-clj.key-test
   (:require [aerospike-clj.key :refer [create-key]]
             [clojure.test :refer [deftest is]]
-            [taoensso.timbre :refer [spy]]
             [clojure.string :as s])
   (:import [java.util UUID]
            [com.aerospike.client Key Value]
@@ -10,8 +9,8 @@
 
 (defn- compare-keys
   ([_k1] true)
-  ([k1 k2] (= (spy (seq (.digest ^Key k1)))
-              (spy (seq (.digest ^Key k2)))))
+  ([k1 k2] (= (seq (.digest ^Key k1))
+              (seq (.digest ^Key k2))))
   ([^Key k1 ^Key k2 & more]
    (if (= (seq (.digest ^Key k1))
           (seq (.digest ^Key k2)))

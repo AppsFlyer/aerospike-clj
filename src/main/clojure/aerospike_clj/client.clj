@@ -22,8 +22,7 @@
            [com.aerospike.client Key Host]
            [aerospike_clj.listeners AsyncExistsListener AsyncDeleteListener AsyncWriteListener
                                     AsyncInfoListener AsyncRecordListener AsyncRecordSequenceListener
-                                    AsyncBatchListListener AsyncExistsArrayListener]
-           [aerospike_clj.protocols AerospikeSingleIndexBatchOps]))
+                                    AsyncBatchListListener AsyncExistsArrayListener]))
 
 (def
   ^{:doc     "The 0 date reference for returned record TTL"
@@ -148,7 +147,7 @@
   (exists? [this index set-name]
     (pt/exists? this index set-name {}))
 
-  (exists? [this index set-name conf]
+  (exists? [_this index set-name conf]
     (let [op-future  (p/deferred)
           start-time (System/nanoTime)]
       (.exists ^AerospikeClient client
@@ -178,7 +177,7 @@
   (exists-batch [this indices]
     (pt/exists-batch this indices {}))
 
-  (exists-batch [this indices conf]
+  (exists-batch [_this indices conf]
     (let [op-future  (p/deferred)
           start-time (System/nanoTime)
           indices    (utils/v->array Key (mapv #(pt/create-key (:index %) dbns (:set %)) indices))]
@@ -281,7 +280,7 @@
           (policy/update-only-policy client new-expiration)
           set-name))
 
-  (touch [this index set-name expiration]
+  (touch [_this index set-name expiration]
     (let [op-future  (p/deferred)
           start-time (System/nanoTime)]
       (.touch ^AerospikeClient client
@@ -295,7 +294,7 @@
   (delete [this index set-name]
     (pt/delete this index set-name {}))
 
-  (delete [this index set-name conf]
+  (delete [_this index set-name conf]
     (let [op-future  (p/deferred)
           start-time (System/nanoTime)]
       (.delete ^AerospikeClient client
