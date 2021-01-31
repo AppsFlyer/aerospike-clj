@@ -66,5 +66,5 @@ jobs:
           key: ${{ runner.os }}-maven-${{ hashFiles( 'project.clj' ) }}
           restore-keys: |
             ${{ runner.os }}-maven-
-      - name: Unit tests
-        run: lein test
+      - name: Unit and integration tests
+        run: lein test :all

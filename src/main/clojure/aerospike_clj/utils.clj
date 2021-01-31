@@ -1,18 +1,6 @@
 (ns aerospike-clj.utils
-  (:require [clojure.set :as set]
-            [clojure.string :as s])
+  (:require [clojure.set :as set])
   (:import [java.util Collection]))
-
-(defn- hosts->cluster [hosts]
-  (or
-    (get (s/split (first hosts) #"-") 2)
-    (get (s/split (first hosts) #"-|\.") 1)
-    (first hosts)))
-
-(defn cluster-name [hosts]
-  (-> (hosts->cluster hosts)
-      (s/split  #"\.")
-      first))
 
 (def ^:private boolean-replacements
   "For bins, Aerospike converts `true` to `1`, `false` to `0` and `nil` values are
@@ -57,11 +45,11 @@
        first))
 
 (defn v->array
-  "An optimized way to convert vectors into Java arrays of type `cls`"
-  [cls v]
-  (.toArray ^Collection v ^"[Ljava.lang.Object;" (make-array cls (count v))))
+  "An optimized way to convert vectors into Java arrays of type `clazz`."
+  [clazz v]
+  (.toArray ^Collection v ^"[Ljava.lang.Object;" (make-array clazz (count v))))
 
-(defn vectorize 
+(defn vectorize
   "convert a single value to a vector or any collection to the equivalent vector.
   NOTE: a map or a set have no defined order so vectorize them is not allowed"
   [v]
@@ -69,4 +57,3 @@
     (or (map? v) (set? v)) (throw (IllegalArgumentException. "undefined sequence order for argument"))
     (or (nil? v) (vector? v) (seq? v)) (vec v)
     :else [v]))
-  

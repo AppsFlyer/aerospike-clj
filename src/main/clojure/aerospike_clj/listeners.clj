@@ -1,10 +1,10 @@
 (ns aerospike-clj.listeners
   (:require [promesa.core :as p]
             [aerospike-clj.aerospike-record :as record])
-  (:import [com.aerospike.client Key Record AerospikeException AerospikeException$QueryTerminated]
-           [com.aerospike.client.listener RecordListener WriteListener DeleteListener 
-            ExistsListener BatchListListener RecordSequenceListener InfoListener ExistsArrayListener]
-           [java.util List Map]))
+  (:import [java.util List Map]
+           [com.aerospike.client Key Record AerospikeException AerospikeException$QueryTerminated]
+           [com.aerospike.client.listener RecordListener WriteListener DeleteListener
+            ExistsListener BatchListListener RecordSequenceListener InfoListener ExistsArrayListener]))
 
 (deftype AsyncExistsListener [op-future]
   ExistsListener
@@ -66,4 +66,3 @@
     (p/reject! op-future ex))
   (^void onSuccess [_this ^"[Lcom.aerospike.client.Key;" _keys ^"[Z" exists]
     (p/resolve! op-future exists)))
-

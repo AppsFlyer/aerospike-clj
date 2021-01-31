@@ -71,9 +71,9 @@ jobs:
           key: ${{ runner.os }}-maven-${{ hashFiles( 'project.clj' ) }}
           restore-keys: |
             ${{ runner.os }}-maven-
-      - name: Unit tests
-        run: lein eftest
-      - name: Publish Unit Test Results
+      - name: Unit and Integration tests
+        run: lein eftest :all
+      - name: Publish unit and integration test results
         uses: EnricoMi/publish-unit-test-result-action@v1.6
         if: always()
         with:
