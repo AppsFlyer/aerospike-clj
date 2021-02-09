@@ -5,3 +5,7 @@ aerospike-clj.iml
 target
 .nrepl-port
 .lsp
+.classpath
+.settings/
+.project
+.clj-kondo/cache/

@@ -22,7 +22,8 @@
 
 (defn ^Policy map->policy
   "Create a (read) `Policy` from a map. Enumeration names should start with capitalized letter.
-  This function is slow due to possible reflection."
+  This function is slow due to possible reflection.
+  * Priority is deprecated since 5.0.2"
   [conf]
   (let [p    (Policy.)
         conf (merge {"timeoutDelay" 3000} conf)]

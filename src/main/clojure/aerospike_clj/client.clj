@@ -14,7 +14,7 @@
   (:import [java.time Instant]
            [java.util List Collection ArrayList]
            [com.aerospike.client AerospikeClient Key Bin Operation BatchRead]
-           [com.aerospike.client.async EventLoop NioEventLoops EventLoops]
+           [com.aerospike.client.async NioEventLoops EventLoops]
            [com.aerospike.client.cluster Node]
            [com.aerospike.client.policy Policy BatchPolicy ClientPolicy
                                         RecordExistsAction WritePolicy ScanPolicy
@@ -89,12 +89,12 @@
       (BatchRead. k ^"[Ljava.lang.String;" (utils/v->array String (:bins batch-read-map))))))
 
 ;; put
-(defn- put* [^AerospikeClient client ^EventLoops event-loops dbns client-events index data policy set-name]
+(defn- put* [^AerospikeClient client dbns client-events index data policy set-name]
   (let [bins       (bins/data->bins data)
         op-future  (p/deferred)
         start-time (System/nanoTime)]
     (.put client
-          ^EventLoop (.next ^EventLoops event-loops)
+          nil
           (AsyncWriteListener. op-future)
           ^WritePolicy policy
           ^Key (pt/create-key index dbns set-name)
@@ -122,13 +122,13 @@
         ;; When [:all] is passed as an argument for bin-names and there is more than one bin,
         ;; the `get` method does not require bin-names and the whole record is retrieved
         (.get ^AerospikeClient client
-              ^EventLoop (.next ^EventLoops el)
+              nil
               (AsyncRecordListener. op-future)
               ^Policy (:policy conf)
               ^Key (pt/create-key index dbns set-name))
         ;; For all other cases, bin-names are passed to a different `get` method
         (.get ^AerospikeClient client
-              ^EventLoop (.next ^EventLoops el)
+              nil
               (AsyncRecordListener. op-future)
               ^Policy (:policy conf)
               ^Key (pt/create-key index dbns set-name)
@@ -151,7 +151,7 @@
     (let [op-future  (p/deferred)
           start-time (System/nanoTime)]
       (.exists ^AerospikeClient client
-               ^EventLoop (.next ^EventLoops el)
+               nil
                (AsyncExistsListener. op-future)
                ^Policy (:policy conf)
                ^Key (pt/create-key index dbns set-name))
@@ -165,7 +165,7 @@
           start-time      (System/nanoTime)
           batch-reads-arr (ArrayList. ^Collection (mapv #(map->batch-read % dbns) batch-reads))]
       (.get ^AerospikeClient client
-            ^EventLoop (.next ^EventLoops el)
+            nil
             (AsyncBatchListListener. op-future)
             ^BatchPolicy (:policy conf)
             ^List batch-reads-arr)
@@ -182,7 +182,7 @@
           start-time (System/nanoTime)
           indices    (utils/v->array Key (mapv #(pt/create-key (:index %) dbns (:set %)) indices))]
       (.exists ^AerospikeClient client
-               ^EventLoop (.next ^EventLoops el)
+               nil
                (AsyncExistsArrayListener. op-future)
                ^BatchPolicy (:policy conf)
                ^"[Lcom.aerospike.client.Key;" indices)
@@ -197,7 +197,6 @@
 
   (put [_this index set-name data expiration conf]
     (put* client
-          el
           dbns
           client-events
           index
@@ -210,7 +209,6 @@
 
   (create [_this index set-name data expiration conf]
     (put* client
-          el
           dbns
           client-events
           index
@@ -233,7 +231,6 @@
 
   (set-single [_this index set-name data expiration conf]
     (put* client
-          el
           dbns
           client-events
           index
@@ -246,7 +243,6 @@
 
   (replace-only [_this index set-name data expiration conf]
     (put* client
-          el
           dbns
           client-events
           index
@@ -259,7 +255,6 @@
 
   (update [_this index set-name new-record generation new-expiration conf]
     (put* client
-          el
           dbns
           client-events
           index
@@ -272,7 +267,6 @@
 
   (add-bins [_this index set-name new-data new-expiration conf]
     (put* client
-          el
           dbns
           client-events
           index
@@ -284,7 +278,7 @@
     (let [op-future  (p/deferred)
           start-time (System/nanoTime)]
       (.touch ^AerospikeClient client
-              ^EventLoop (.next ^EventLoops el)
+              nil
               (AsyncWriteListener. op-future)
               ^WritePolicy (policy/write-policy client expiration RecordExistsAction/UPDATE_ONLY)
               ^Key (pt/create-key index dbns set-name))
@@ -298,7 +292,7 @@
     (let [op-future  (p/deferred)
           start-time (System/nanoTime)]
       (.delete ^AerospikeClient client
-               ^EventLoop (.next ^EventLoops el)
+               nil
                (AsyncDeleteListener. op-future)
                ^WritePolicy (:policy conf)
                ^Key (pt/create-key index dbns set-name))
@@ -313,7 +307,7 @@
           op-future  (p/deferred)
           start-time (System/nanoTime)]
       (.put ^AerospikeClient client
-            ^EventLoop (.next ^EventLoops el)
+            nil
             (AsyncWriteListener. op-future)
             ^WritePolicy policy
             ^Key (pt/create-key index dbns set-name)
@@ -330,7 +324,7 @@
       (let [op-future  (p/deferred)
             start-time (System/nanoTime)]
         (.operate ^AerospikeClient client
-                  ^EventLoop (.next ^EventLoops el)
+                  nil
                   (AsyncRecordListener. op-future)
                   ^WritePolicy (:policy conf (policy/write-policy client expiration RecordExistsAction/UPDATE))
                   ^Key (pt/create-key index dbns set-name)
@@ -345,7 +339,7 @@
           start-time (System/nanoTime)
           bin-names  (:bins conf)]
       (.scanAll ^AerospikeClient client
-                ^EventLoop (.next ^EventLoops el)
+                nil
                 (AsyncRecordSequenceListener. op-future (:callback conf))
                 ^Policy (:policy conf (ScanPolicy.))
                 aero-namespace
@@ -361,7 +355,7 @@
     (let [op-future  (p/deferred)
           start-time (System/nanoTime)]
       (.info ^AerospikeClient client
-             ^EventLoop (.next ^EventLoops el)
+             nil
              (AsyncInfoListener. op-future)
              ^InfoPolicy (:policy conf (.infoPolicyDefault ^AerospikeClient client))
              ^Node node
