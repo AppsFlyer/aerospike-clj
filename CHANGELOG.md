@@ -1,6 +1,12 @@
 ## This library follows [Semantic Versioning](https://semver.org).
 ## This CHANGELOG follows [keepachangelog](https://keepachangelog.com/en/1.0.0/).
 
+### VERSION 1.1.0
+#### Updated:
+* Bumped `com.aerospike/aerospike-client` to `5.1.5.1`. This is a special version available in Maven Central without any
+  official release notes. Functionally it's the same as `5.1.5` without the requirement of using server version `4.9` and
+  above. This version lacks the `com.aerospike.client.policy.Priority` enum, so it was removed from this library.
+
 ### VERSION 1.0.2
 #### Added:
 * This CHANGELOG now follows [keepachangelog](https://keepachangelog.com/en/1.0.0/).
