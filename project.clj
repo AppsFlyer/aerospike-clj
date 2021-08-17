@@ -1,4 +1,4 @@
-(defproject aerospike-clj "1.1.0"
+(defproject aerospike-clj "1.0.3"
   :description "An Aerospike Clojure client."
   :url "https://github.com/AppsFlyer/aerospike-clj"
   :license {:name "Eclipse Public License"
@@ -13,8 +13,8 @@
                                       :username      :env/clojars_username
                                       :password      :env/clojars_password
                                       :sign-releases false}]]
-  :dependencies [[com.aerospike/aerospike-client "5.1.5.1"]
-                 [funcool/promesa "5.1.0"]]
+  :dependencies [[com.aerospike/aerospike-client "4.4.18"]
+                 [funcool/promesa "6.0.2"]]
   :profiles {:dev  {:plugins      [[jonase/eastwood "0.3.5"]
                                    [lein-ancient "0.6.15"]
                                    [lein-eftest "0.5.9"]]

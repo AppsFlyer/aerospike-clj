@@ -47,8 +47,9 @@
   ([host client-policy]
    (create-client host client-policy 3000))
   ([hosts client-policy port]
-   (let [hosts-arr (into-array Host (for [h hosts]
-                                      ^Host (Host. h port)))]
+   (let [hosts-str (str (apply str (interpose (format ":%d," port) hosts))
+                        (format ":%d" port))
+         hosts-arr (Host/parseHosts hosts-str port)]
      (AerospikeClient. ^ClientPolicy client-policy ^"[Lcom.aerospike.client.Host;" hosts-arr))))
 
 (defn create-event-loops

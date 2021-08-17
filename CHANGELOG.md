@@ -1,11 +1,15 @@
 ## This library follows [Semantic Versioning](https://semver.org).
 ## This CHANGELOG follows [keepachangelog](https://keepachangelog.com/en/1.0.0/).
 
-### VERSION 1.1.0
+### VERSION 1.0.3
 #### Updated:
-* Bumped `com.aerospike/aerospike-client` to `5.1.5.1`. This is a special version available in Maven Central without any
-  official release notes. Functionally it's the same as `5.1.5` without the requirement of using server version `4.9` and
-  above. This version lacks the `com.aerospike.client.policy.Priority` enum, so it was removed from this library.
+* Bumped `com.aerospike/aerospike-client` to `4.4.18`.
+* Bumped `funcool/promesa` to `6.0.2`.
+
+#### Changed:
+* Using a different method from `com.aerospike.client.Host` to parse a hosts strings
+  that contains TLS names for seed nodes in order to allow connecting to a TLS-enabled
+  cluster.
 
 ### VERSION 1.0.2
 #### Added:
