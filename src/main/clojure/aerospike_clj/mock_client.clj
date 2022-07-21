@@ -155,9 +155,9 @@
                       (let [transcoder (get-transcoder conf)
                             new-record (create-record (transcoder data) expiration)]
                         (set-record current-state new-record set-name k))
-                      (AerospikeException.
-                        ResultCode/KEY_NOT_FOUND_ERROR
-                        (str "Call to `replace-only` on non-existing key '" k "'"))))]
+                      (throw (AerospikeException.
+                               ResultCode/KEY_NOT_FOUND_ERROR
+                               (str "Call to `replace-only` on non-existing key '" k "'")))))]
       (do-swap state swap-fn)))
 
   (update [this k set-name new-record generation new-expiration]

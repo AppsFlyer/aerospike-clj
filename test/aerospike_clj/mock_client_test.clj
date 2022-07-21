@@ -326,3 +326,42 @@
                                            {:index "c" :set nil}]
                                           conf)]
       (is (= actual expected)))))
+
+(deftest replace-only-test
+  (testing "it should throw an exception when the replaced item doesn't exist"
+    (let [the-key "foo"
+          the-set "my-set"
+          ttl     86400
+          data    {"bar" 20}]
+      (try
+        @(pt/replace-only client the-key the-set data ttl)
+        (throw (AssertionError. "Expected AerospikeException to be thrown in `replace-only`"))
+        (catch ExecutionException ex
+          (is (= (get-ex-code ex) ResultCode/KEY_NOT_FOUND_ERROR))))))
+
+  (testing "it shouldn't update an item if it doesn't exist"
+    (let [the-key "foo"
+          the-set "my-set"
+          ttl     86400
+          data    {"bar" 20}]
+      (try
+        @(pt/replace-only client the-key the-set data ttl)
+        (catch ExecutionException _))
+      (let [expected nil
+            actual   (pt/get-single client the-key the-set)]
+        (is (= @actual expected)))))
+
+  (testing "it should update an item if it exists"
+    (let [the-key       "foo"
+          the-set       "my-set"
+          ttl           86400
+          data          {"bar" 20}
+          replaced-data {"bar" 30}]
+      (is (nil? @(pt/get-single client the-key the-set)))
+      @(pt/put client the-key the-set data ttl)
+      @(pt/replace-only client the-key the-set replaced-data ttl)
+      (let [expected {:gen     1
+                      :payload replaced-data
+                      :ttl     ttl}
+            actual   @(pt/get-single client the-key the-set)]
+        (is (= expected actual))))))

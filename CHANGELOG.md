@@ -1,6 +1,11 @@
 ## This library follows [Semantic Versioning](https://semver.org).
 ## This CHANGELOG follows [keepachangelog](https://keepachangelog.com/en/1.0.0/).
 
+### VERSION 2.0.2
+#### Changed
+* The behavior of the mocked `replace-only`. 
+  It should throw an AerospikeException when the item doesn't exist.
+
 ### VERSION 2.0.1
 #### Updated
 * Links in README and CI config.
