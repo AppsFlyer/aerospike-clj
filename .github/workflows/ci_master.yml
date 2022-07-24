@@ -53,7 +53,7 @@ jobs:
     timeout-minutes: 5
     services:
       aerospike-test:
-        image: aerospike
+        image: aerospike:4.9.0.11
         ports:
           - 3000:3000
           - 3001:3001
