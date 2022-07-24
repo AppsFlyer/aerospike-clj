@@ -347,9 +347,8 @@
       (try
         @(pt/replace-only client the-key the-set data ttl)
         (catch ExecutionException _))
-      (let [expected nil
-            actual   (pt/get-single client the-key the-set)]
-        (is (= @actual expected)))))
+      (let [actual (pt/get-single client the-key the-set)]
+        (is (nil? @actual)))))
 
   (testing "it should update an item if it exists"
     (let [the-key       "foo"
