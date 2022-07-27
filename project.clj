@@ -1,4 +1,4 @@
-(defproject com.appsflyer/aerospike-clj "2.0.1"
+(defproject com.appsflyer/aerospike-clj "2.0.2-SNAPSHOT"
   :description "An Aerospike Clojure client."
   :url "https://github.com/AppsFlyer/aerospike-clj"
   :license {:name "Eclipse Public License"
@@ -24,7 +24,7 @@
                                      [cheshire "5.10.0"]
                                      [danlentz/clj-uuid "0.1.9"]
                                      [com.fasterxml.jackson.core/jackson-databind "2.11.2"]
-                                     [clj-kondo "RELEASE"]]
+                                     [clj-kondo "2021.01.20"]]
                     :aliases        {"clj-kondo" ["run" "-m" "clj-kondo.main"]
                                      "lint"      ["run" "-m" "clj-kondo.main" "--lint" "src" "test"]}
                     :global-vars    {*warn-on-reflection* true}
