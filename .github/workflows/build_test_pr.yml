@@ -2,7 +2,7 @@ name: "Pull Request Build & Test"
 
 on:
   pull_request:
-    types: [opened, reopened]
+    types: [opened, synchronize, reopened]
 
 jobs:
   build:
@@ -82,4 +82,23 @@ jobs:
             ${{ runner.os }}-maven-
 
       - name: Unit and integration tests
-        run: lein test :all
+        run: lein eftest :all
+
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v2
+        with:
+          name: Unit Test Results
+          path: |
+            target/junit.xml
+
+  event_file:
+    needs: test
+    name: "Event File"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Upload
+        uses: actions/upload-artifact@v2
+        with:
+          name: Event File
+          path: ${{ github.event_path }}

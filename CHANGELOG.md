@@ -1,6 +1,11 @@
 ## This library follows [Semantic Versioning](https://semver.org).
 ## This CHANGELOG follows [keepachangelog](https://keepachangelog.com/en/1.0.0/).
 
+### VERSION 2.0.3
+#### Changed
+* Add missing configuration for eftest to out the test results to target/junit.xml.
+* Upgrade `EnricoMi/publish-unit-test-result-action@v1.6` -> `EnricoMi/publish-unit-test-result-action@v1.39`.
+
 ### VERSION 2.0.2
 #### Changed
 * The behavior of the mocked `replace-only`. 

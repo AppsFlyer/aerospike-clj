@@ -85,13 +85,6 @@ jobs:
       - name: Unit and Integration tests
         run: lein eftest :all
 
-      - name: Publish unit and integration test results
-        uses: EnricoMi/publish-unit-test-result-action@v1.6
-        if: always()
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          files: "target/junit.xml"
-
   deploy:
     needs: test
     runs-on: ubuntu-22.04
