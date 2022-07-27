@@ -82,7 +82,7 @@ jobs:
             ${{ runner.os }}-maven-
 
       - name: Unit and integration tests
-        run: lein test :all
+        run: lein eftest :all
 
       - name: Upload Test Results
         if: always()
