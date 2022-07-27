@@ -133,7 +133,7 @@ jobs:
             echo "Version isn't a release version:" $RELEASE_VERSION ", skipping deployment to Clojars..."
             exit 0
           fi
-          git tag -a $RELEASE_VERSION -m "Release version $RELEASE_VERSION"
-          git push origin master
           lein deploy
           echo "Release version:" $RELEASE_VERSION"; commit: "${{github.sha}}"; successfully deployed to Clojars"
+          git tag -a $RELEASE_VERSION -m "Release version $RELEASE_VERSION"
+          git push origin master
