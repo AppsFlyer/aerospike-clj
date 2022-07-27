@@ -93,6 +93,7 @@ jobs:
             target/junit.xml
 
   event_file:
+    needs: test
     name: "Event File"
     runs-on: ubuntu-latest
     steps:
