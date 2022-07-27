@@ -86,7 +86,7 @@ jobs:
         run: lein eftest :all
 
       - name: Publish unit and integration test results
-        uses: EnricoMi/publish-unit-test-result-action@v1.6
+        uses: EnricoMi/publish-unit-test-result-action@v1.39
         if: always()
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
