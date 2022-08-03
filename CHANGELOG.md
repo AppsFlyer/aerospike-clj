@@ -3,6 +3,19 @@
 
 ### Unreleased
 
+### VERSION 2.0.4
+#### Changed
+* TTLs for the mock client are now correctly mocked:
+  * TTL is stored (and returned in get operations) as seconds from Aerospike epoch time
+#### Updated
+* Dependencies
+  * promesa 6.0.0 -> 8.0.450
+  * com.aerospike/aerospike-client 4.4.15 -> 6.0.1
+  * org.clojure/tools.logging 1.1.0 -> 1.2.4
+### Removed
+* Priority field (relevant for scans). It is no longer [compatible](https://download.aerospike.com/download/client/java/notes.html) since version 5.1.0
+
+
 ### VERSION 2.0.3
 #### Changed
 * Add missing configuration for eftest to out the test results to target/junit.xml.

@@ -25,8 +25,8 @@
                                     AsyncBatchListListener AsyncExistsArrayListener]))
 
 (def
-  ^{:doc     "The 0 date reference for returned record TTL"
-    :private true}
+  ^{:doc "The 0 date reference for returned record TTL"
+    :const true}
   EPOCH
   (.getEpochSecond (Instant/parse "2010-01-01T00:00:00Z")))
 

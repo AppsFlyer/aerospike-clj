@@ -3,7 +3,7 @@
            [com.aerospike.client.async EventPolicy]
            [com.aerospike.client.policy Policy ClientPolicy WritePolicy RecordExistsAction
                                         GenerationPolicy BatchPolicy CommitLevel
-                                        AuthMode ReadModeAP ReadModeSC Priority Replica]))
+                                        AuthMode ReadModeAP ReadModeSC Replica]))
 
 (defmacro set-java [obj conf obj-name]
   `(when (some? (get ~conf ~obj-name))
@@ -29,7 +29,6 @@
     (set-java-enum p conf "ReadModeAP")
     (set-java-enum p conf "ReadModeSC")
     (set-java p conf "maxRetries")
-    (set-java-enum p conf "Priority")
     (set-java-enum p conf "Replica")
     (set-java p conf "sendKey")
     (set-java p conf "sleepBetweenRetries")
