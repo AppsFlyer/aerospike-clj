@@ -81,7 +81,7 @@
         (assoc :index (.toString (.userKey k)))
         (assoc :set (.setName k)))))
 
-(defn- ^BatchRead map->batch-read [batch-read-map dbns]
+(defn- map->batch-read ^BatchRead [batch-read-map dbns]
   (let [k ^Key (pt/create-key (:index batch-read-map) dbns (:set batch-read-map))]
     (if (or (= [:all] (:bins batch-read-map))
             (nil? (:bins batch-read-map)))

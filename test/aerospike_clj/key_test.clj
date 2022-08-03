@@ -7,6 +7,7 @@
            [com.aerospike.client.util ThreadLocalData]
            [com.appsflyer.AerospikeClj ByteUtils]))
 
+#_:clj-kondo/ignore
 (defn- compare-keys
   ([_k1] true)
   ([k1 k2] (= (seq (.digest ^Key k1))
