@@ -1,7 +1,7 @@
 (ns aerospike-clj.policy
   (:import [com.aerospike.client AerospikeClient]
            [com.aerospike.client.async EventPolicy]
-           #_:clj-kondo/ignore
+           #_{:clj-kondo/ignore [:unused-import]}
            [com.aerospike.client.policy Policy ClientPolicy WritePolicy RecordExistsAction
                                         GenerationPolicy BatchPolicy CommitLevel
                                         AuthMode ReadModeAP ReadModeSC Priority Replica]))
@@ -25,7 +25,7 @@
   "Create a (read) `Policy` from a map. Enumeration names should start with capitalized letter.
   This function is slow due to possible reflection."
   ^Policy [conf]
-  (let [p (Policy.)
+  (let [p    (Policy.)
         conf (merge {"timeoutDelay" 3000} conf)]
     (set-java-enum p conf "ReadModeAP")
     (set-java-enum p conf "ReadModeSC")
@@ -43,7 +43,7 @@
   "Create a (read) `BatchPolicy` from a map.
   This function is slow due to possible reflection."
   ^BatchPolicy [conf]
-  (let [bp (BatchPolicy.)
+  (let [bp   (BatchPolicy.)
         conf (merge {"timeoutDelay" 3000} conf)]
     (set-java bp conf "allowInline")
     (set-java bp conf "maxConcurrentThreads")
@@ -122,9 +122,9 @@
   (^EventPolicy []
    (map->event-policy {}))
   (^EventPolicy [conf]
-   (let [event-policy (EventPolicy.)
+   (let [event-policy            (EventPolicy.)
          max-commands-in-process (get conf "maxCommandsInProcess" 0)
-         max-commands-in-queue (get conf "maxCommandsInQueue" 0)]
+         max-commands-in-queue   (get conf "maxCommandsInQueue" 0)]
      (when (and (pos? max-commands-in-process)
                 (zero? max-commands-in-queue))
        (throw-invalid-state
@@ -148,7 +148,7 @@
   (when (get "tlsPolicyDefault" conf)
     (throw (IllegalArgumentException. "tlsPolicyDefault is not supported")))
 
-  (let [cp (ClientPolicy.)
+  (let [cp       (ClientPolicy.)
         username (get conf "username")
         password (get conf "password")]
     (when (and username password)
