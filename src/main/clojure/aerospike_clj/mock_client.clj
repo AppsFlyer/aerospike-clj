@@ -5,20 +5,16 @@
             [aerospike-clj.protocols :as pt]
             [aerospike-clj.utils])
   (:import (com.aerospike.client AerospikeException ResultCode)
-           (java.time Instant)))
+           (java.time Clock Instant ZoneOffset)))
 
 (def ^:private DEFAULT_SET "__DEFAULT__")
-
-(defn now-epoch
-  "Mocks `now` in unix epoch for TTL usages.
-  Returns the epoch time of 01/01/2022. Can be redefined for using a different `now`"
-  []
-  (.getEpochSecond (Instant/parse "2022-01-01T00:00:00.00Z")))
+(def FIXED_CLOCK (Clock/fixed (Instant/parse "2022-01-01T00:00:00.00Z") ZoneOffset/UTC))
 
 (defn expiration->ttl
   "converts an expiration into TTL as seconds from `Aerospike epoch`"
   [expiration]
-  (- (+ (now-epoch) expiration) client/EPOCH))
+  (let [now-epoch (.getEpochSecond (Instant/now FIXED_CLOCK))]
+    (- (+ now-epoch expiration) client/EPOCH)))
 
 (defn- get-set-name [set-name]
   (if (some? set-name) set-name DEFAULT_SET))
