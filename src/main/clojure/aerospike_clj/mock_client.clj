@@ -11,7 +11,7 @@
 
 (defn now-epoch
   "Mocks `now` in unix epoch for TTL usages.
-  Returns the epoch time of 01/01/2022. Can be redefined for using a different `now`"
+  Returns the epoch time of 2022-01-01. Can be redefined for using a different `now`"
   []
   (.getEpochSecond (Instant/parse "2022-01-01T00:00:00.00Z")))
 
