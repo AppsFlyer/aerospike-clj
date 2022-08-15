@@ -10,8 +10,7 @@
             [aerospike-clj.protocols :as pt]
             [aerospike-clj.policy :as policy]
             [aerospike-clj.key :as as-key]
-            [cheshire.core :as json]
-            [clj-uuid :as uuid])
+            [cheshire.core :as json])
   (:import [com.aerospike.client Value AerospikeClient]
            [com.aerospike.client.cdt ListOperation ListPolicy ListOrder ListWriteFlags ListReturnType
                                      MapOperation MapPolicy MapOrder MapWriteFlags MapReturnType CTX]
@@ -63,7 +62,7 @@
   (is (true? (pt/healthy? *c* 10))))
 
 (defn random-key []
-  (str (uuid/v4)))
+  (str (random-uuid)))
 
 (deftest get-record
   (let [data (rand-int 1000)
@@ -581,7 +580,6 @@
 
 (deftest default-write-policy
   (let [rp ^WritePolicy (.getWritePolicyDefault ^AerospikeClient (.-client ^SimpleAerospikeClient *c*))]
-    (is (= Priority/DEFAULT (.priority rp))) ;; Priority of request relative to other transactions. Currently, only used for scans.
     (is (= ReadModeAP/ONE (.readModeAP rp))) ;; Involve master only in the read operation.
     (is (= Replica/SEQUENCE (.replica rp))) ;; Try node containing master partition first.
     ;; If connection fails, all commands try nodes containing replicated partitions.

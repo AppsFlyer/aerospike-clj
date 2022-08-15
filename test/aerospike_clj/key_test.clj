@@ -3,21 +3,9 @@
             [clojure.test :refer [deftest is]]
             [clojure.string :as s])
   (:import [java.util UUID]
-           [com.aerospike.client Key Value]
+           [com.aerospike.client Value]
            [com.aerospike.client.util ThreadLocalData]
            [com.appsflyer.AerospikeClj ByteUtils]))
-
-(defn- compare-keys
-  ([_k1] true)
-  ([k1 k2] (= (seq (.digest ^Key k1))
-              (seq (.digest ^Key k2))))
-  ([^Key k1 ^Key k2 & more]
-   (if (= (seq (.digest ^Key k1))
-          (seq (.digest ^Key k2)))
-     (if (next more)
-       (recur k2 (first more) (next more))
-       (compare-keys k2 (first more)))
-     false)))
 
 (deftest create-with-digest
   (let [as-ns    "ns"

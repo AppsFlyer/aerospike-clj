@@ -1,11 +1,20 @@
 (ns aerospike-clj.mock-client
   (:refer-clojure :exclude [update])
   (:require [promesa.core :as p]
+            [aerospike-clj.client :as client]
             [aerospike-clj.protocols :as pt]
             [aerospike-clj.utils])
-  (:import (com.aerospike.client AerospikeException ResultCode)))
+  (:import (com.aerospike.client AerospikeException ResultCode)
+           (java.time Clock Instant ZoneOffset)))
 
 (def ^:private DEFAULT_SET "__DEFAULT__")
+(def FIXED_CLOCK (Clock/fixed (Instant/parse "2022-01-01T00:00:00.00Z") ZoneOffset/UTC))
+
+(defn expiration->ttl
+  "converts an expiration into TTL as seconds from `Aerospike epoch`"
+  [expiration]
+  (let [now-epoch (.getEpochSecond (Instant/now FIXED_CLOCK))]
+    (- (+ now-epoch expiration) client/EPOCH)))
 
 (defn- get-set-name [set-name]
   (if (some? set-name) set-name DEFAULT_SET))
@@ -34,7 +43,7 @@
 (defn- create-record
   ([payload ttl] (create-record payload ttl 1))
   ([payload ttl generation]
-   {:payload payload :ttl ttl :gen generation}))
+   {:payload payload :ttl (expiration->ttl ttl) :gen generation}))
 
 (defn- do-swap [state swap-fn]
   (try
@@ -181,7 +190,7 @@
   (touch [_ k set-name expiration]
     (let [swap-fn (fn [current-state]
                     (if-let [record (get-record current-state set-name k)]
-                      (let [new-record (assoc record :ttl expiration)]
+                      (let [new-record (assoc record :ttl (expiration->ttl expiration))]
                         (set-record current-state new-record set-name k))
                       (throw (AerospikeException.
                                ResultCode/KEY_NOT_FOUND_ERROR

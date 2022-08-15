@@ -1,7 +1,6 @@
 (ns aerospike-clj.mock-client-test
   (:refer-clojure :exclude [update])
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
-            [aerospike-clj.client :as c]
             [aerospike-clj.mock-client :as mock]
             [aerospike-clj.protocols :as pt]
             [clojure.string])
@@ -21,7 +20,7 @@
   (pt/put client "foo" "my-set" {"bar" 20} 86400)
 
   (testing "it should return a deferrable of a single record if it exists"
-    (let [expected {:payload {"bar" 20} :ttl 86400 :gen 1}
+    (let [expected {:payload {"bar" 20} :ttl 378777600 :gen 1}
           actual   (pt/get-single client "foo" "my-set")]
       (is (= @actual expected))))
 
@@ -51,11 +50,10 @@
                      ["is best" "is better" {"rank" "not so good" "solution" "give up"}]
                      [86400 43200 10])
 
-    (let [expected [{:payload "is best" :ttl 86400 :gen 1} nil]
+    (let [expected [{:payload "is best" :ttl 378777600 :gen 1} nil]
           actual   (pt/get-batch client [{:index "foo" :set nil} {:index "bar" :set "bar"}])]
       (is (= @actual expected)))
-
-    (let [expected [{:payload "is better" :ttl 43200 :gen 1} nil {:payload {"rank" "not so good"} :ttl 10 :gen 1}]
+    (let [expected [{:payload "is better" :ttl 378734400 :gen 1} nil {:payload {"rank" "not so good"} :ttl 378691210 :gen 1}]
           actual   (pt/get-batch client [{:index "bar" :set "some-set"} {:index "bar" :set nil} {:index "fuzz" :set "some-set" :bins ["rank"]}])]
       (is (= @actual expected)))))
 
@@ -97,36 +95,36 @@
 (deftest put-test
   (testing "it should create a new record if it doesn't exist"
     (pt/put client "foo" nil "bar" 30)
-    (let [expected {:payload "bar" :ttl 30 :gen 1}
+    (let [expected {:payload "bar" :ttl 378691230 :gen 1}
           actual   (pt/get-single client "foo" nil)]
       (is (= @actual expected))))
 
   (testing "it should replace a record if it exists"
     (pt/put client "foo" nil "bar" 30)
-    (let [expected {:payload "bar" :ttl 30 :gen 1}
+    (let [expected {:payload "bar" :ttl 378691230 :gen 1}
           actual   (pt/get-single client "foo" nil)]
       (is (= @actual expected)))
 
     (pt/put client "foo" nil "baz" 40)
-    (let [expected {:payload "baz" :ttl 40 :gen 1}
+    (let [expected {:payload "baz" :ttl 378691240 :gen 1}
           actual   (pt/get-single client "foo" nil)]
       (is (= @actual expected)))))
 
 (deftest set-single-test
   (testing "it should create a new record if it doesn't exist"
     (pt/set-single client "foo" nil "bar" 30)
-    (let [expected {:payload "bar" :ttl 30 :gen 1}
+    (let [expected {:payload "bar" :ttl 378691230 :gen 1}
           actual   (pt/get-single client "foo" nil)]
       (is (= @actual expected))))
 
   (testing "it should update a record if it exists"
     (pt/set-single client "foo" nil "baz" 30)
-    (let [expected {:payload "baz" :ttl 30 :gen 2}
+    (let [expected {:payload "baz" :ttl 378691230 :gen 2}
           actual   (pt/get-single client "foo" nil)]
       (is (= @actual expected)))
 
     (pt/set-single client "foo" nil "baz" 40)
-    (let [expected {:payload "baz" :ttl 40 :gen 3}
+    (let [expected {:payload "baz" :ttl 378691240 :gen 3}
           actual   (pt/get-single client "foo" nil)]
       (is (= @actual expected)))))
 
@@ -134,17 +132,17 @@
   (testing "it should create a new record for each one that doesn't exist and replace each one
   that does"
     (let [put-result (pt/put-multiple client ["foo" "bar"] [nil nil] [1 2] [60 60])
-          expected   [{:payload 1 :ttl 60 :gen 1}
-                      {:payload 2 :ttl 60 :gen 1}]
+          expected   [{:payload 1 :ttl 378691260 :gen 1}
+                      {:payload 2 :ttl 378691260 :gen 1}]
           actual     (pt/get-batch client [{:index "foo" :set nil} {:index "bar" :set nil}])]
       (is (= @put-result [true true]))
       (is (= @actual expected)))
 
 
     (let [put-result (pt/put-multiple client ["foo" "baz"] [nil nil] [3 4] [120 60])
-          expected   [{:payload 3 :ttl 120 :gen 1}
-                      {:payload 2 :ttl 60 :gen 1}
-                      {:payload 4 :ttl 60 :gen 1}]
+          expected   [{:payload 3 :ttl 378691320 :gen 1}
+                      {:payload 2 :ttl 378691260 :gen 1}
+                      {:payload 4 :ttl 378691260 :gen 1}]
           actual     (pt/get-batch client [{:index "foo" :set nil} {:index "bar" :set nil} {:index "baz" :set nil}])]
       (is (= @put-result [true true]))
       (is (= @actual expected)))))
@@ -157,7 +155,7 @@
     (pt/set-single client "person" nil {"fname" "John" "lname" "Baker"} 30)
     (pt/add-bins client "person" nil {"prefix" "Mr."} 60)
 
-    (let [expected {:payload {"fname" "John" "lname" "Baker" "prefix" "Mr."} :ttl 60 :gen 1}
+    (let [expected {:payload {"fname" "John" "lname" "Baker" "prefix" "Mr."} :ttl 378691260 :gen 1}
           actual   (pt/get-single client "person" nil)]
       (is (= @actual expected))))
 
@@ -173,11 +171,11 @@
     (pt/create client "foo" "set1" "bar" 60)
     (pt/create client "baz" nil {"value" 1} 30)
 
-    (let [expected {:payload "bar" :ttl 60 :gen 1}
+    (let [expected {:payload "bar" :ttl 378691260 :gen 1}
           actual   (pt/get-single client "foo" "set1")]
       (is (= @actual expected)))
 
-    (let [expected {:payload {"value" 1} :ttl 30 :gen 1}
+    (let [expected {:payload {"value" 1} :ttl 378691230 :gen 1}
           actual   (pt/get-single client "baz" nil)]
       (is (= @actual expected))))
 
@@ -196,7 +194,7 @@
     (pt/create client "foo" "set1" "bar" 60)
     (pt/touch client "foo" "set1" 10)
 
-    (let [expected {:payload "bar" :ttl 10 :gen 1}
+    (let [expected {:payload "bar" :ttl 378691210 :gen 1}
           actual   (pt/get-single client "foo" "set1")]
       (is (= @actual expected))))
 
@@ -233,12 +231,12 @@
     (pt/create client "person" nil {"fname" "John" "lname" "Baker" "prefix" "Mr." "age" 74} 30)
     (pt/delete-bins client "person" nil ["prefix" "age"] 60)
 
-    (let [expected {:payload {"fname" "John" "lname" "Baker"} :ttl 60 :gen 1}
+    (let [expected {:payload {"fname" "John" "lname" "Baker"} :ttl 378691260 :gen 1}
           actual   (pt/get-single client "person" nil)]
       (is (= @actual expected)))
 
     (pt/delete-bins client "person" nil ["prefix" "age"] 10)
-    (let [expected {:payload {"fname" "John" "lname" "Baker"} :ttl 10 :gen 1}
+    (let [expected {:payload {"fname" "John" "lname" "Baker"} :ttl 378691210 :gen 1}
           actual   (pt/get-single client "person" nil)]
       (is (= @actual expected))))
 
@@ -248,10 +246,6 @@
       (throw (AssertionError. "Expected AerospikeException to be thrown in `delete-bins-test`"))
       (catch ExecutionException ex
         (is (= (get-ex-code ex) ResultCode/KEY_NOT_FOUND_ERROR))))))
-
-(deftest expiry-unix-test
-  (testing "it should proxy to aerospike-clj"
-    (is (= (c/expiry-unix 100) (c/expiry-unix 100)))))
 
 (deftest operate-test
   (testing "function is not implemented"
@@ -300,14 +294,14 @@
 (deftest apply-transcoder-test
   (testing "it should apply the transcoder function to the payload before inserting it"
     (let [conf     {:transcoder #(clojure.core/update % "bar" inc)}
-          expected {:payload {"bar" 21} :ttl 86400 :gen 1}]
+          expected {:payload {"bar" 21} :ttl 378777600 :gen 1}]
 
       (pt/put client "foo" "my-set" {"bar" 20} 86400 conf)
       (is (= @(pt/get-single client "foo" "my-set") expected))))
 
   (testing "it should apply the transcoder function to the whole record before returning it"
     (let [conf     {:transcoder #(clojure.core/update-in % [:payload "bar"] inc)}
-          expected {:payload {"bar" 22} :ttl 86400 :gen 1}
+          expected {:payload {"bar" 22} :ttl 378777600 :gen 1}
           actual   (pt/get-single client "foo" "my-set" conf)]
       (is (= @actual expected))))
 
@@ -317,9 +311,9 @@
     (let [upper-case-value #(clojure.core/update % :payload clojure.string/upper-case)
           increment-ttl    #(clojure.core/update % :ttl inc)
           conf             {:transcoder (comp increment-ttl upper-case-value)}
-          expected         [{:payload "D" :ttl 11 :gen 1}
-                            {:payload "E" :ttl 21 :gen 1}
-                            {:payload "F" :ttl 31 :gen 1}]
+          expected         [{:payload "D" :ttl 378691211 :gen 1}
+                            {:payload "E" :ttl 378691221 :gen 1}
+                            {:payload "F" :ttl 378691231 :gen 1}]
           actual           @(pt/get-batch client
                                           [{:index "a" :set nil}
                                            {:index "b" :set nil}
@@ -361,6 +355,6 @@
       @(pt/replace-only client the-key the-set replaced-data ttl)
       (let [expected {:gen     1
                       :payload replaced-data
-                      :ttl     ttl}
+                      :ttl     378777600}
             actual   @(pt/get-single client the-key the-set)]
         (is (= expected actual))))))
