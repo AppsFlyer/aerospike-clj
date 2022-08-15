@@ -3,7 +3,7 @@
 
 ### Unreleased
 
-### VERSION 2.0.4
+### VERSION 2.0.5
 #### Changed
 * TTLs for the mock client are now correctly mocked:
   * TTL is stored (and returned in get operations) as seconds from Aerospike epoch time
