@@ -1,6 +1,6 @@
 (ns aerospike-clj.utils
   (:require [clojure.set :as set])
-  (:import [java.util Collection]))
+  (:import (java.util Collection)))
 
 (def ^:private boolean-replacements
   "For bins, Aerospike converts `true` to `1`, `false` to `0` and `nil` values are
@@ -11,12 +11,7 @@
    false :false
    nil   :nil})
 
-;; transducers
-(def ^:private x-sanitize
-  (replace boolean-replacements))
-
-(def ^:private x-desanitize
-  (replace (set/map-invert boolean-replacements)))
+(def ^:private reverse-boolean-replacements (set/map-invert boolean-replacements))
 
 ;; predicates
 (defn single-bin?
@@ -35,14 +30,12 @@
   however, `true`, `false` or `nil` exist as the only value in a bin, they need to
   be sanitized."
   [bin-value]
-  (->> (into [] x-sanitize (vector bin-value))
-       first))
+  (get boolean-replacements bin-value bin-value))
 
 (defn desanitize-bin-value
   "Converts sanitized (keywordized) bin values back to their original value."
   [bin-value]
-  (->> (into [] x-desanitize (vector bin-value))
-       first))
+  (get reverse-boolean-replacements bin-value bin-value))
 
 (defn v->array
   "An optimized way to convert vectors into Java arrays of type `clazz`."
