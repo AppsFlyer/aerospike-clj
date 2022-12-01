@@ -1,16 +1,23 @@
 (ns aerospike-clj.aerospike-record
   (:require [aerospike-clj.utils :as utils])
-  (:import [com.aerospike.client Record]))
+  (:import (com.aerospike.client Record)
+           (java.util Map)))
 
 (defrecord AerospikeRecord [payload ^Integer gen ^Integer ttl])
 
+(defn- single-bin?
+  "Predicate function to determine whether data will be stored as a single bin or
+  multiple bin record."
+  [^Map bins]
+  (and (= (.size bins) 1)
+       (.containsKey bins "")))
+
 (defn record->map [^Record record]
   (and record
-       (let [bins      (into {} (.bins record)) ;; converting from java.util.HashMap to a Clojure map
-             bin-names (keys bins)
-             payload   (if (utils/single-bin? bin-names)
+       (let [bins      ^Map (.bins record)
+             payload   (if (single-bin? bins)
                          ;; single bin record
-                         (utils/desanitize-bin-value (get bins ""))
+                         (utils/desanitize-bin-value (.get bins ""))
                          ;; multiple-bin record
                          (reduce-kv (fn [m k v]
                                       (assoc m k (utils/desanitize-bin-value v)))

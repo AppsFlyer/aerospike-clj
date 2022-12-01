@@ -3,6 +3,10 @@
 
 ### Unreleased
 
+### VERSION 2.0.6
+#### Changed
+* Performance and memory optimization, mainly in the core `aerospike-clj.aerospike-record/record->map` function.
+
 ### VERSION 2.0.5
 #### Changed
 * TTLs for the mock client are now correctly mocked:
