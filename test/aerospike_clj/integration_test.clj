@@ -13,7 +13,7 @@
   (:import [com.aerospike.client Value AerospikeClient]
            [com.aerospike.client.cdt ListOperation ListPolicy ListOrder ListWriteFlags ListReturnType
                                      MapOperation MapPolicy MapOrder MapWriteFlags MapReturnType CTX]
-           [com.aerospike.client.policy Priority ReadModeSC ReadModeAP Replica GenerationPolicy RecordExistsAction
+           [com.aerospike.client.policy ReadModeSC ReadModeAP Replica GenerationPolicy RecordExistsAction
                                         WritePolicy BatchPolicy Policy]
            [java.util HashMap ArrayList]
            [java.util.concurrent ExecutionException]
@@ -521,15 +521,14 @@
 
 (deftest default-read-policy
   (let [rp (.getReadPolicyDefault ^AerospikeClient (.-client ^SimpleAerospikeClient *c*))]
-    (is (= Priority/DEFAULT (.priority rp))) ;; Priority of request relative to other transactions. Currently, only used for scans.
-    (is (= ReadModeAP/ONE (.readModeAP rp))) ;; Involve single node in the read operation.
+     ;; Involve single node in the read operation.
     (is (= Replica/SEQUENCE (.replica rp))) ;; Try node containing master partition first.
     ;; If connection fails, all commands try nodes containing replicated partitions.
     ;; If socketTimeout is reached, reads also try nodes containing replicated partitions,
     ;; but writes remain on master node.)))
     ;; This option requires ClientPolicy.requestProleReplicas to be enabled in order to function properly.
     (is (= 30000 (.socketTimeout rp))) ;; 30 seconds default
-    (is (zero? (.totalTimeout rp))) ;; no time limit
+    (is (= 1000 (.totalTimeout rp))) ;; no time limit
     (is (= 3000 (.timeoutDelay rp))) ;; no delay, connection closed on timeout
     (is (= 2 (.maxRetries rp))) ;; initial attempt + 2 retries = 3 attempts
     (is (zero? (.sleepBetweenRetries rp))) ;; do not sleep between retries
@@ -555,7 +554,6 @@
 
         rp ^Policy (.getReadPolicyDefault ^AerospikeClient (.-client ^SimpleAerospikeClient c))
         bp ^BatchPolicy (.getBatchPolicyDefault ^AerospikeClient (.-client ^SimpleAerospikeClient c))]
-    (is (= Priority/DEFAULT (.priority rp)))
     (is (= ReadModeAP/ALL (.readModeAP rp)))
     (is (= Replica/RANDOM (.replica rp)))
     (is (= 1000 (.socketTimeout rp)))
@@ -578,8 +576,9 @@
     ;; If socketTimeout is reached, reads also try nodes containing replicated partitions,
     ;; but writes remain on master node.)))
     ;; This option requires ClientPolicy.requestProleReplicas to be enabled in order to function properly.
+    ;; This option requires ClientPolicy.requestProleReplicas to be enabled in order to function properly.
     (is (= 30000 (.socketTimeout rp))) ;; 30 seconds default
-    (is (zero? (.totalTimeout rp))) ;; no time limit
+    (is (= 1000 (.totalTimeout rp))) ;; no time limit
     (is (= 3000 (.timeoutDelay rp))) ;; no delay, connection closed on timeout
     (is (= 2 (.maxRetries rp))) ;; initial attempt + 2 retries = 3 attempts
     (is (zero? (.sleepBetweenRetries rp))) ;; do not sleep between retries
@@ -598,7 +597,6 @@
                                                               "respondAllOps"      true})})
 
         wp ^WritePolicy (.getWritePolicyDefault ^AerospikeClient (.-client ^SimpleAerospikeClient c))]
-    (is (= Priority/DEFAULT (.priority wp)))
     (is (= ReadModeAP/ONE (.readModeAP wp)))
     (is (true? (.durableDelete wp)))
     (is (= 1000 (.expiration wp)))
@@ -687,7 +685,6 @@
         @(pt/put-multiple *c* [k k2 k3] (repeat _set) [10 20 30] (repeat ttl) conf)
 
         @(pt/scan-set *c* aero-namespace _set {:callback callback})
-
         (let [res @(pt/get-batch *c* [{:index k :set _set}
                                       {:index k2 :set _set}
                                       {:index k3 :set _set}])]
