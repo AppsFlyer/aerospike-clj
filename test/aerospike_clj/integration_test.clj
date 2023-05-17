@@ -521,7 +521,6 @@
 
 (deftest default-read-policy
   (let [rp (.getReadPolicyDefault ^AerospikeClient (.-client ^SimpleAerospikeClient *c*))]
-     ;; Involve single node in the read operation.
     (is (= Replica/SEQUENCE (.replica rp))) ;; Try node containing master partition first.
     ;; If connection fails, all commands try nodes containing replicated partitions.
     ;; If socketTimeout is reached, reads also try nodes containing replicated partitions,
