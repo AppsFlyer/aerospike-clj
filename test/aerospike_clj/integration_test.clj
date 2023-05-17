@@ -13,7 +13,7 @@
   (:import [com.aerospike.client Value AerospikeClient]
            [com.aerospike.client.cdt ListOperation ListPolicy ListOrder ListWriteFlags ListReturnType
                                      MapOperation MapPolicy MapOrder MapWriteFlags MapReturnType CTX]
-           [com.aerospike.client.policy ReadModeSC ReadModeAP Replica GenerationPolicy RecordExistsAction
+§           [com.aerospike.client.policy ReadModeSC ReadModeAP Replica GenerationPolicy RecordExistsAction
                                         WritePolicy BatchPolicy Policy]
            [java.util HashMap ArrayList]
            [java.util.concurrent ExecutionException]
@@ -528,7 +528,7 @@
     ;; but writes remain on master node.)))
     ;; This option requires ClientPolicy.requestProleReplicas to be enabled in order to function properly.
     (is (= 30000 (.socketTimeout rp))) ;; 30 seconds default
-    (is (= 1000 (.totalTimeout rp))) ;; no time limit
+    (is (= 1000 (.totalTimeout rp))) ;; total timeout of 1 second
     (is (= 3000 (.timeoutDelay rp))) ;; no delay, connection closed on timeout
     (is (= 2 (.maxRetries rp))) ;; initial attempt + 2 retries = 3 attempts
     (is (zero? (.sleepBetweenRetries rp))) ;; do not sleep between retries
@@ -578,7 +578,7 @@
     ;; This option requires ClientPolicy.requestProleReplicas to be enabled in order to function properly.
     ;; This option requires ClientPolicy.requestProleReplicas to be enabled in order to function properly.
     (is (= 30000 (.socketTimeout rp))) ;; 30 seconds default
-    (is (= 1000 (.totalTimeout rp))) ;; no time limit
+    (is (= 1000 (.totalTimeout rp))) ;; total timeout of 1 second
     (is (= 3000 (.timeoutDelay rp))) ;; no delay, connection closed on timeout
     (is (= 2 (.maxRetries rp))) ;; initial attempt + 2 retries = 3 attempts
     (is (zero? (.sleepBetweenRetries rp))) ;; do not sleep between retries
