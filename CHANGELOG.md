@@ -1,7 +1,9 @@
 ## This library follows [Semantic Versioning](https://semver.org).
 ## This CHANGELOG follows [keepachangelog](https://keepachangelog.com/en/1.0.0/).
 
-### Unreleased
+###  VERSION 2.0.7
+#### Changed
+* Fixed a bug with reporting metrics for `AerospikeSingleIndexBatchOps/operate`.
 
 ### VERSION 2.0.6
 #### Changed

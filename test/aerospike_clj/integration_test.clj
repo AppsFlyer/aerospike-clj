@@ -53,10 +53,10 @@
 
 (deftest info
   (doseq [node (pt/get-nodes *c*)]
-    (= {"health-stats"                                        "stat=test_device_read_latency:value=0:device=/opt/aerospike/data/test.dat:namespace=test"
-        "namespaces"                                          "test"
-        "set-config:context=service;enable-health-check=true" "ok"}
-       @(pt/info *c* node ["namespaces" "set-config:context=service;enable-health-check=true" "health-stats"]))))
+    (is (= {"health-stats"                                        "stat=test_device_read_latency:value=0:device=/opt/aerospike/data/test.dat:namespace=test"
+            "namespaces"                                          "test"
+            "set-config:context=service;enable-health-check=true" "ok"}
+           @(pt/info *c* node ["namespaces" "set-config:context=service;enable-health-check=true" "health-stats"])))))
 
 (deftest health
   (is (true? (pt/healthy? *c* 10))))
