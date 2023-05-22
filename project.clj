@@ -24,9 +24,6 @@
                                      [cheshire "5.11.0"]
                                      [com.fasterxml.jackson.core/jackson-databind "2.11.2"]
                                      [clj-kondo "2022.04.25"]]
-                    :eftest         {:multithread?   false
-                                     :report         eftest.report.junit/report
-                                     :report-to-file "target/junit.xml"}
                     :aliases        {"clj-kondo" ["run" "-m" "clj-kondo.main"]
                                      "lint"      ["run" "-m" "clj-kondo.main" "--lint" "src" "test"]}
                     :global-vars    {*warn-on-reflection* true}
