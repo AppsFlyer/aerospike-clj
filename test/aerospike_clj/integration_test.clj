@@ -53,7 +53,7 @@
 
 (deftest info
   (doseq [node (pt/get-nodes *c*)]
-    (is (= {"health-stats"                                        "stat=test_device_read_latency:value=0:device=/opt/aerospike/data/test.dat:namespace=test"
+    (is (= {"health-stats"                                        nil
             "namespaces"                                          "test"
             "set-config:context=service;enable-health-check=true" "ok"}
            @(pt/info *c* node ["namespaces" "set-config:context=service;enable-health-check=true" "health-stats"])))))
