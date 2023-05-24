@@ -5,6 +5,10 @@
 #### Changed
 * Fixed a bug with reporting metrics for `AerospikeSingleIndexBatchOps/operate`.
 
+#### Removed
+* 2 unused dev profile plugins.
+* Unnecessary integration test.
+
 ### VERSION 2.0.6
 #### Changed
 * Performance and memory optimization, mainly in the core `aerospike-clj.aerospike-record/record->map` function.
