@@ -3,7 +3,7 @@
   (:import (com.aerospike.client Record)
            (java.util Map)))
 
-(defrecord AerospikeRecord [payload ^Integer gen ^Integer ttl])
+(defrecord AerospikeRecord [payload ^Integer gen ^Integer ttl ])
 
 (defn- single-bin?
   "Predicate function to determine whether data will be stored as a single bin or

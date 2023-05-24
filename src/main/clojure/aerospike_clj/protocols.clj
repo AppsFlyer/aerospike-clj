@@ -112,6 +112,16 @@
     will process the command and send the results to the listener.
     `commands` is a sequence of Aerospike CDT operations."))
 
+(defprotocol AerospikeBatchOps
+  (batch-operate
+    [this batch-records]
+    [this batch-records conf]
+    "Asynchronously perform multiple read/write operations on a single key in one batch call.
+    This method registers the command with an event loop and returns. The event loop thread
+    will process the command and send the results to the listener.
+    `commands` is a sequence of Aerospike CDT operations."))
+
+
 (defprotocol AerospikeSetOps
   (scan-set [this aero-namespace set-name conf]
     "Scans through the given set and calls a user defined callback for each record that was found.

@@ -9,16 +9,18 @@
             [aerospike-clj.protocols :as pt]
             [aerospike-clj.policy :as policy]
             [aerospike-clj.key :as as-key]
-            [cheshire.core :as json])
-  (:import [com.aerospike.client Value AerospikeClient]
+            [cheshire.core :as json]
+            [aerospike-clj.utils :as utils])
+  (:import [com.aerospike.client Value AerospikeClient BatchRecord BatchWrite Key Value$LongValue Operation Operation$Type Bin]
            [com.aerospike.client.cdt ListOperation ListPolicy ListOrder ListWriteFlags ListReturnType
                                      MapOperation MapPolicy MapOrder MapWriteFlags MapReturnType CTX]
-§           [com.aerospike.client.policy ReadModeSC ReadModeAP Replica GenerationPolicy RecordExistsAction
-                                        WritePolicy BatchPolicy Policy]
+           [com.aerospike.client.policy ReadModeSC ReadModeAP Replica GenerationPolicy RecordExistsAction
+                                        WritePolicy BatchPolicy Policy CommitLevel BatchWritePolicy]
            [java.util HashMap ArrayList]
            [java.util.concurrent ExecutionException]
            [clojure.lang PersistentArrayMap]
-           [aerospike_clj.client SimpleAerospikeClient]))
+           [aerospike_clj.client SimpleAerospikeClient]
+           (com.aerospike.client.exp Exp Expression ExpOperation)))
 
 (def _set "set")
 (def _set2 "set2")
@@ -141,7 +143,7 @@
     (is (true? @(pt/create *c* k _set data TTL)))
     (testing "clojure maps can be serialized as-is"
       (let [v @(pt/get-single-no-meta *c* k _set)]
-        (is (= data v)) ;; per value it is identical
+        (is (= data v))                                     ;; per value it is identical
         (is (= PersistentArrayMap (type v)))))))
 
 (deftest put-multiple-bins-get-clj-map
@@ -153,11 +155,11 @@
     (is (true? @(pt/create *c* k _set data TTL)))
     (testing "clojure maps can be serialized from bins"
       (let [v @(pt/get-single-no-meta *c* k _set)]
-        (is (= (get data "foo") (get v "foo"))) ;; per value it is identical
-        (is (= (get data "bar") (get v "bar"))) ;; true value returns the same after being sanitized/desanitized
-        (is (= (get data "baz") (get v "baz"))) ;; false value returns the same after being sanitized/desanitized
-        (is (= (get data "qux") (get v "qux"))) ;; nil value retuns the same after being sanitized/desanitized
-        (is (= PersistentArrayMap (type v))) ;; converted back to a Clojure map instead of HashMap
+        (is (= (get data "foo") (get v "foo")))             ;; per value it is identical
+        (is (= (get data "bar") (get v "bar")))             ;; true value returns the same after being sanitized/desanitized
+        (is (= (get data "baz") (get v "baz")))             ;; false value returns the same after being sanitized/desanitized
+        (is (= (get data "qux") (get v "qux")))             ;; nil value retuns the same after being sanitized/desanitized
+        (is (= PersistentArrayMap (type v)))                ;; converted back to a Clojure map instead of HashMap
         (is (true? (map? v)))))))
 
 (deftest get-single-multiple-bins
@@ -170,7 +172,7 @@
       (let [v1 @(pt/get-single *c* k _set {} ["foo"])
             v2 @(pt/get-single *c* k _set {} ["bar"])
             v3 @(pt/get-single *c* k _set {} ["baz"])
-            v4 @(pt/get-single *c* k _set {})] ;; getting all bins for the record
+            v4 @(pt/get-single *c* k _set {})]              ;; getting all bins for the record
         (is (= (get data "foo") (get (:payload v1) "foo")))
         (is (= (get data "bar") (get (:payload v2) "bar")))
         (is (= (get data "baz") (get (:payload v3) "baz")))
@@ -200,7 +202,7 @@
         new-data {"qux" [(rand-int 1000)]}
         k        (random-key)]
     (is (true? @(pt/create *c* k _set data TTL)))
-    (is (true? @(pt/add-bins *c* k _set new-data TTL))) ;; adding value to bin
+    (is (true? @(pt/add-bins *c* k _set new-data TTL)))     ;; adding value to bin
     (testing "bin values can be added to existing records"
       (let [v @(pt/get-single-no-meta *c* k _set)]
         (is (= v (merge data new-data)))
@@ -219,7 +221,7 @@
         bin-keys ["foo" "bar" "baz"]
         k        (random-key)]
     (is (true? @(pt/create *c* k _set data TTL)))
-    (is (true? @(pt/delete-bins *c* k _set bin-keys TTL))) ;; removing value from bin
+    (is (true? @(pt/delete-bins *c* k _set bin-keys TTL)))  ;; removing value from bin
     (testing "bin values can be removed from existing records"
       (let [v @(pt/get-single-no-meta *c* k _set)]
         (is (= v (apply dissoc data bin-keys)))
@@ -519,20 +521,48 @@
       (is (nil? (first (:payload @(set-pop "foo")))))
       (is (= #{"bar"} (set-getall))))))
 
+(deftest batch-operate
+  (let [list-bin   "l"
+        map-bin    "m"
+        map-key    "test-key"
+        string-bin "s"]
+    (letfn [(create-batch-write-record [k v]
+              (let [as-key (pt/create-key k as-namespace _set)]
+                (BatchWrite. as-key (utils/v->array Operation [(ListOperation/append list-bin (Value/get (str v)) nil)
+                                                               (MapOperation/put (MapPolicy.) map-bin (Value/get map-key) (Value/get (str v)) nil)
+                                                               (Operation/put (Bin. string-bin (str v)))]))))
+            (create-read-batch-record [k]
+              {:index k :set _set})]
+      (let [ks                            (take 3 (repeatedly random-key))
+            expected-write-result-payload {:result-code 0
+                                           :payload     {list-bin   1
+                                                         map-bin    1
+                                                         string-bin nil}}
+            expected-read-payloads        (mapv (fn [^String val]
+                                                  (hash-map map-bin {map-key (str val)}
+                                                            list-bin [(str val)]
+                                                            string-bin (str val))) (range 3))
+            batch-write-records           (mapv create-batch-write-record ks (range))
+            batch-read-records            (mapv create-read-batch-record ks)]
+        (is (every? #(= expected-write-result-payload (select-keys % [:result-code :payload]))
+                    @(pt/batch-operate *c* batch-write-records)))
+        (is (= expected-read-payloads
+               (mapv :payload @(pt/get-batch *c* batch-read-records))))))))
+
 (deftest default-read-policy
   (let [rp (.getReadPolicyDefault ^AerospikeClient (.-client ^SimpleAerospikeClient *c*))]
-    (is (= Replica/SEQUENCE (.replica rp))) ;; Try node containing master partition first.
+    (is (= Replica/SEQUENCE (.replica rp)))                 ;; Try node containing master partition first.
     ;; If connection fails, all commands try nodes containing replicated partitions.
     ;; If socketTimeout is reached, reads also try nodes containing replicated partitions,
     ;; but writes remain on master node.)))
     ;; This option requires ClientPolicy.requestProleReplicas to be enabled in order to function properly.
-    (is (= 30000 (.socketTimeout rp))) ;; 30 seconds default
-    (is (= 1000 (.totalTimeout rp))) ;; total timeout of 1 second
-    (is (= 3000 (.timeoutDelay rp))) ;; no delay, connection closed on timeout
-    (is (= 2 (.maxRetries rp))) ;; initial attempt + 2 retries = 3 attempts
-    (is (zero? (.sleepBetweenRetries rp))) ;; do not sleep between retries
-    (is (false? (.sendKey rp))) ;; do not send the user defined key
-    (is (= ReadModeSC/SESSION (.readModeSC rp))))) ;; Ensures this client will only see an increasing sequence of record versions. Server only reads from master. This is the default..
+    (is (= 30000 (.socketTimeout rp)))                      ;; 30 seconds default
+    (is (= 1000 (.totalTimeout rp)))                        ;; total timeout of 1 second
+    (is (= 3000 (.timeoutDelay rp)))                        ;; no delay, connection closed on timeout
+    (is (= 2 (.maxRetries rp)))                             ;; initial attempt + 2 retries = 3 attempts
+    (is (zero? (.sleepBetweenRetries rp)))                  ;; do not sleep between retries
+    (is (false? (.sendKey rp)))                             ;; do not send the user defined key
+    (is (= ReadModeSC/SESSION (.readModeSC rp)))))          ;; Ensures this client will only see an increasing sequence of record versions. Server only reads from master. This is the default..
 
 (deftest configure-read-and-batch-policy
   (let [c  (client/init-simple-aerospike-client
@@ -569,20 +599,20 @@
 
 (deftest default-write-policy
   (let [rp ^WritePolicy (.getWritePolicyDefault ^AerospikeClient (.-client ^SimpleAerospikeClient *c*))]
-    (is (= ReadModeAP/ONE (.readModeAP rp))) ;; Involve master only in the read operation.
-    (is (= Replica/SEQUENCE (.replica rp))) ;; Try node containing master partition first.
+    (is (= ReadModeAP/ONE (.readModeAP rp)))                ;; Involve master only in the read operation.
+    (is (= Replica/SEQUENCE (.replica rp)))                 ;; Try node containing master partition first.
     ;; If connection fails, all commands try nodes containing replicated partitions.
     ;; If socketTimeout is reached, reads also try nodes containing replicated partitions,
     ;; but writes remain on master node.)))
     ;; This option requires ClientPolicy.requestProleReplicas to be enabled in order to function properly.
     ;; This option requires ClientPolicy.requestProleReplicas to be enabled in order to function properly.
-    (is (= 30000 (.socketTimeout rp))) ;; 30 seconds default
-    (is (= 1000 (.totalTimeout rp))) ;; total timeout of 1 second
-    (is (= 3000 (.timeoutDelay rp))) ;; no delay, connection closed on timeout
-    (is (= 2 (.maxRetries rp))) ;; initial attempt + 2 retries = 3 attempts
-    (is (zero? (.sleepBetweenRetries rp))) ;; do not sleep between retries
-    (is (false? (.sendKey rp))) ;; do not send the user defined key
-    (is (= ReadModeSC/SESSION (.readModeSC rp))))) ;; Ensures this client will only see an increasing sequence of record versions. Server only reads from master. This is the default..
+    (is (= 30000 (.socketTimeout rp)))                      ;; 30 seconds default
+    (is (= 1000 (.totalTimeout rp)))                        ;; total timeout of 1 second
+    (is (= 3000 (.timeoutDelay rp)))                        ;; no delay, connection closed on timeout
+    (is (= 2 (.maxRetries rp)))                             ;; initial attempt + 2 retries = 3 attempts
+    (is (zero? (.sleepBetweenRetries rp)))                  ;; do not sleep between retries
+    (is (false? (.sendKey rp)))                             ;; do not send the user defined key
+    (is (= ReadModeSC/SESSION (.readModeSC rp)))))          ;; Ensures this client will only see an increasing sequence of record versions. Server only reads from master. This is the default..
 
 (deftest configure-write-policy
   (let [c  (client/init-simple-aerospike-client
@@ -603,6 +633,36 @@
     (is (= GenerationPolicy/EXPECT_GEN_GT (.generationPolicy wp)))
     (is (= RecordExistsAction/REPLACE_ONLY (.recordExistsAction wp)))
     (is (true? (.respondAllOps wp)))))
+
+(deftest configure-batch-write-policies
+  (let [expression                (Exp/build (Exp/ge (Exp/intBin "a") (Exp/intBin "b")))
+        c                         (client/init-simple-aerospike-client
+                                    ["localhost"] "test"
+                                    {"batchWritePolicyDefault"       (policy/map->batch-write-policy {"CommitLevel"        "COMMIT_MASTER"
+                                                                                                      "durableDelete"      true
+                                                                                                      "expiration"         1000
+                                                                                                      "generation"         7
+                                                                                                      "GenerationPolicy"   "EXPECT_GEN_GT"
+                                                                                                      "RecordExistsAction" "REPLACE_ONLY"
+                                                                                                      "filterExp"          expression})
+                                     "batchParentPolicyWriteDefault" (policy/map->batch-policy {"allowInline"          false
+                                                                                                "maxConcurrentThreads" 2
+                                                                                                "sendSetName"          true})})
+
+        batch-write-policy        ^BatchWritePolicy (.getBatchWritePolicyDefault ^AerospikeClient (.-client ^SimpleAerospikeClient c))
+        batch-parent-write-policy ^BatchPolicy (.getBatchParentPolicyWriteDefault ^AerospikeClient (.-client ^SimpleAerospikeClient c))]
+    (is (true? (.durableDelete batch-write-policy)))
+    (is (= 1000 (.expiration batch-write-policy)))
+    (is (= 7 (.generation batch-write-policy)))
+    (is (= GenerationPolicy/EXPECT_GEN_GT (.generationPolicy batch-write-policy)))
+    (is (= RecordExistsAction/REPLACE_ONLY (.recordExistsAction batch-write-policy)))
+    (is (= expression (.filterExp batch-write-policy)))
+    (is (= CommitLevel/COMMIT_MASTER (.commitLevel batch-write-policy)))
+
+    (is (false? (.allowInline batch-parent-write-policy)))
+    (is (= 2 (.maxConcurrentThreads batch-parent-write-policy)))
+    (is (true? (.sendSetName batch-parent-write-policy)))))
+
 
 
 (deftest set-entry
@@ -684,11 +744,11 @@
         @(pt/put-multiple *c* [k k2 k3] (repeat _set) [10 20 30] (repeat ttl) conf)
 
         @(pt/scan-set *c* aero-namespace _set {:callback callback})
+        (Thread/sleep 50)                                   ;wait for callback completion
         (let [res @(pt/get-batch *c* [{:index k :set _set}
                                       {:index k2 :set _set}
                                       {:index k3 :set _set}])]
-
-          (is (= (sort (mapv :payload res)) [11 21 31]))))
+          (is (= (mapv :payload res) [11 21 31]))))
       (delete-records))
 
     (testing "it can delete items during a scan"
