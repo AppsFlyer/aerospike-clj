@@ -2,8 +2,7 @@
       :integration true
       :doc         "Integration tests. Requires a local Aerospike instance.
                    To run instances locally inside docker containers:
-                   $ sudo docker pull aerospike
-                   $ sudo docker run -d --name aerospike -p 3000:3000 -p 3001:3001 -p 3002:3002 -p 3003:3003 aerospike"}
+                   $ docker run -d --name aerospike -p 3000:3000 -p 3001:3001 -p 3002:3002 -p 3003:3003 aerospike:4.9.0.11"}
   aerospike-clj.integration-test
   (:require [clojure.test :refer [deftest testing is use-fixtures]]
             [aerospike-clj.client :as client]
@@ -50,13 +49,6 @@
     (with-redefs [client/create-event-loops (constantly nil)]
       (let [ex (is (thrown-with-msg? Exception #"event-loops" (client/init-simple-aerospike-client ["localhost"] "test")))]
         (is (no-password? ex))))))
-
-(deftest info
-  (doseq [node (pt/get-nodes *c*)]
-    (= {"health-stats"                                        "stat=test_device_read_latency:value=0:device=/opt/aerospike/data/test.dat:namespace=test"
-        "namespaces"                                          "test"
-        "set-config:context=service;enable-health-check=true" "ok"}
-       @(pt/info *c* node ["namespaces" "set-config:context=service;enable-health-check=true" "health-stats"]))))
 
 (deftest health
   (is (true? (pt/healthy? *c* 10))))

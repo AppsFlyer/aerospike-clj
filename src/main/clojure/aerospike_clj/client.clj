@@ -335,7 +335,7 @@
                   ^WritePolicy (:policy conf (policy/write-policy client expiration RecordExistsAction/UPDATE))
                   ^Key (pt/create-key index dbns set-name)
                   (utils/v->array Operation operations))
-        (register-events (p/then op-future record/record->map) client-events "operate" index start-time))))
+        (register-events (p/then op-future record/record->map) client-events :operate index start-time))))
 
   pt/AerospikeSetOps
   (scan-set [_this aero-namespace set-name conf]
