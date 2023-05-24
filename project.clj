@@ -16,14 +16,15 @@
   :dependencies [[org.clojure/tools.logging "1.2.4"]
                  [com.aerospike/aerospike-client "4.4.15"]
                  [funcool/promesa "8.0.450"]]
-  :profiles {:dev  {:plugins        [[jonase/eastwood "0.3.5"]
-                                     [lein-ancient "0.6.15"]
-                                     [lein-eftest "0.5.9"]]
+  :profiles {:dev  {:plugins        [[lein-eftest "0.5.9"]]
                     :dependencies   [[org.clojure/clojure "1.11.1"]
                                      [criterium "0.4.6"]
                                      [cheshire "5.11.0"]
                                      [com.fasterxml.jackson.core/jackson-databind "2.11.2"]
                                      [clj-kondo "2022.04.25"]]
+                    :eftest         {:multithread?    false
+                                     :report          eftest.report.junit/report
+                                     :report-to-file  "target/junit.xml"}
                     :aliases        {"clj-kondo" ["run" "-m" "clj-kondo.main"]
                                      "lint"      ["run" "-m" "clj-kondo.main" "--lint" "src" "test"]}
                     :global-vars    {*warn-on-reflection* true}
