@@ -83,7 +83,7 @@ jobs:
             ${{ runner.os }}-maven-
 
       - name: Unit and Integration tests
-        run: lein test :all
+        run: lein eftest :all
 
   deploy:
     needs: test
