@@ -551,12 +551,9 @@
                                                          string-bin) ks (range))
             batch-read-records            (mapv create-read-batch-record ks)]
         (is (every? #(= expected-write-result-payload (select-keys % [:result-code :payload]))
-                    @(pt/batch-operate *c* batch-write-records)))
+                    @(pt/batch-operate *c* batch-write-records {"TotalTimeout" ..})))
         (is (= expected-read-payloads
-               (mapv :payload @(pt/get-batch *c* batch-read-records)))))))
-  (testing "respond all keys"
-    ())
-  )
+               (mapv :payload @(pt/get-batch *c* batch-read-records))))))))
 
 (deftest default-read-policy
   (let [rp (.getReadPolicyDefault ^AerospikeClient (.-client ^SimpleAerospikeClient *c*))]

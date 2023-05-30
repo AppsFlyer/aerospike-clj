@@ -57,7 +57,7 @@
   "Create a `BatchPolicy` from a map.
   This function is slow due to possible reflection."
   ^BatchPolicy [conf]
-  (let [bp   (BatchPolicy.)
+  (let [bp   (BatchPolicy. (map->policy conf))
         conf (merge {"timeoutDelay" 3000} conf)]
     (set-java bp conf "allowInline")
     (set-java bp conf "respondAllKeys")

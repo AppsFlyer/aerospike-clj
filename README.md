@@ -16,6 +16,7 @@ An opinionated Clojure library wrapping Aerospike Java Client.
 # Requirements
 - Java 8
 - Clojure 1.8
+- Aerospike server version >= `4.9.0`
 
 # Features
 - Converts Java client's callback model into Java(8) `CompletableFuture` based API.
@@ -114,12 +115,7 @@ Call `expiry-unix` with the returned TTL to get a TTL relative to the UNIX epoch
 Executed via running `lein test`.
 
 ### Integration tests
-Testing is performed against a local Aerospike instance. You can also run an instance inside a docker container:
-
-```shell
-$ sudo docker run -d --name aerospike -p 3000:3000 -p 3001:3001 -p 3002:3002 -p 3003:3003 aerospike
-$ lein test :integration
-```
+Testing is performed against a local Aerospike docker container.
 
 #### Mocking in application unit tests
 For unit tests purposes you can use a mock client that implements the client protocols: `MockClient`.
