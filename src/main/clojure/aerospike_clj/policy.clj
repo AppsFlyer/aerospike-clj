@@ -54,12 +54,13 @@
     p))
 
 (defn map->batch-policy
-  "Create a (read) `BatchPolicy` from a map.
+  "Create a `BatchPolicy` from a map.
   This function is slow due to possible reflection."
   ^BatchPolicy [conf]
   (let [bp   (BatchPolicy.)
         conf (merge {"timeoutDelay" 3000} conf)]
     (set-java bp conf "allowInline")
+    (set-java bp conf "respondAllKeys")
     (set-java bp conf "maxConcurrentThreads")
     (set-java bp conf "sendSetName")
     bp))

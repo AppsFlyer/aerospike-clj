@@ -522,18 +522,19 @@
       (is (= #{"bar"} (set-getall))))))
 
 (deftest batch-operate
-  (let [list-bin   "l"
-        map-bin    "m"
-        map-key    "test-key"
-        string-bin "s"]
-    (letfn [(create-batch-write-record [k v]
+  (testing "mixed cdt operations on multiple keys"
+    (letfn [(create-batch-write-record [list-bin map-bin map-key ^String string-bin k v]
               (let [as-key (pt/create-key k as-namespace _set)]
                 (BatchWrite. as-key (utils/v->array Operation [(ListOperation/append list-bin (Value/get (str v)) nil)
                                                                (MapOperation/put (MapPolicy.) map-bin (Value/get map-key) (Value/get (str v)) nil)
                                                                (Operation/put (Bin. string-bin (str v)))]))))
             (create-read-batch-record [k]
               {:index k :set _set})]
-      (let [ks                            (take 3 (repeatedly random-key))
+      (let [list-bin                      "list"
+            map-bin                       "map"
+            map-key                       "test-key"
+            string-bin                    "string"
+            ks                            (take 3 (repeatedly random-key))
             expected-write-result-payload {:result-code 0
                                            :payload     {list-bin   1
                                                          map-bin    1
@@ -542,12 +543,19 @@
                                                   (hash-map map-bin {map-key (str val)}
                                                             list-bin [(str val)]
                                                             string-bin (str val))) (range 3))
-            batch-write-records           (mapv create-batch-write-record ks (range))
+            batch-write-records           (mapv (partial create-batch-write-record
+                                                         list-bin
+                                                         map-bin
+                                                         map-key
+                                                         string-bin) ks (range))
             batch-read-records            (mapv create-read-batch-record ks)]
         (is (every? #(= expected-write-result-payload (select-keys % [:result-code :payload]))
                     @(pt/batch-operate *c* batch-write-records)))
         (is (= expected-read-payloads
-               (mapv :payload @(pt/get-batch *c* batch-read-records))))))))
+               (mapv :payload @(pt/get-batch *c* batch-read-records)))))))
+  (testing "respond all keys"
+    ())
+  )
 
 (deftest default-read-policy
   (let [rp (.getReadPolicyDefault ^AerospikeClient (.-client ^SimpleAerospikeClient *c*))]
