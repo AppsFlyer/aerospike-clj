@@ -18,6 +18,7 @@
                  [funcool/promesa "8.0.450"]]
   :profiles {:dev  {:plugins        [[lein-eftest "0.5.9"]]
                     :dependencies   [[org.clojure/clojure "1.11.1"]
+                                     [clj-test-containers "0.7.4"]
                                      [criterium "0.4.6"]
                                      [cheshire "5.11.0"]
                                      [com.fasterxml.jackson.core/jackson-databind "2.11.2"]

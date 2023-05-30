@@ -19,7 +19,7 @@
            [com.aerospike.client.policy Policy BatchPolicy ClientPolicy
                                         RecordExistsAction WritePolicy ScanPolicy
                                         InfoPolicy]
-           [com.aerospike.client Key Host BatchRecord Record]
+           [com.aerospike.client Key Host BatchRecord]
            [aerospike_clj.listeners AsyncExistsListener AsyncDeleteListener AsyncWriteListener
                                     AsyncInfoListener AsyncRecordListener AsyncRecordSequenceListener
                                     AsyncBatchListListener AsyncExistsArrayListener AsyncBatchOperateListListener]

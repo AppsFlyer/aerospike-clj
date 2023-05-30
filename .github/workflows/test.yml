@@ -4,16 +4,6 @@ jobs:
   test:
     runs-on: ubuntu-22.04
     timeout-minutes: 5
-    services:
-      aerospike-test:
-        image: aerospike:ee-6.2.0.3
-        ports:
-          - 3000:3000
-          - 3001:3001
-          - 3002:3002
-          - 3003:3003
-    env:
-      AEROSPIKE_HOST: localhost
     steps:
       - name: Checkout
         uses: actions/checkout@v3

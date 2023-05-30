@@ -1,12 +1,15 @@
 (ns ^{:author      "Ido Barkan"
       :integration true}
-  aerospike-clj.metrics-test
-  (:require [clojure.test :refer [deftest is]]
+  aerospike-clj.integration.metrics-test
+  (:require [clojure.test :refer [deftest is use-fixtures]]
             [aerospike-clj.client :as client]
+            [aerospike-clj.integration.aerospike-setup :as as-setup]
             [aerospike-clj.protocols :as pt]))
 
+(use-fixtures :once as-setup/with-aerospike)
+
 (deftest get-cluster-stats
-  (let [c           (client/init-simple-aerospike-client ["localhost"] "test")
+  (let [c           (client/init-simple-aerospike-client [(as-setup/get-host-and-port)] "test")
         loopback-v4 "127-0-0-1"
         loopback-v6 "0:0:0:0:0:0:0:1"]
     (is (or

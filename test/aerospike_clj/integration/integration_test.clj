@@ -1,17 +1,15 @@
 (ns ^{:author      "Ido Barkan"
-      :integration true
-      :doc         "Integration tests. Requires a local Aerospike instance.
-                   To run instances locally inside docker containers:
-                   $ docker run -d --name aerospike -p 3000:3000 -p 3001:3001 -p 3002:3002 -p 3003:3003 aerospike:4.9.0.11"}
-  aerospike-clj.integration-test
+      :integration true}
+  aerospike-clj.integration.integration-test
   (:require [clojure.test :refer [deftest testing is use-fixtures]]
+            [cheshire.core :as json]
+            [aerospike-clj.integration.aerospike-setup :as as-setup]
             [aerospike-clj.client :as client]
             [aerospike-clj.protocols :as pt]
             [aerospike-clj.policy :as policy]
             [aerospike-clj.key :as as-key]
-            [cheshire.core :as json]
             [aerospike-clj.utils :as utils])
-  (:import [com.aerospike.client Value AerospikeClient BatchRecord BatchWrite Key Value$LongValue Operation Operation$Type Bin]
+  (:import [com.aerospike.client Value AerospikeClient BatchWrite Operation Bin]
            [com.aerospike.client.cdt ListOperation ListPolicy ListOrder ListWriteFlags ListReturnType
                                      MapOperation MapPolicy MapOrder MapWriteFlags MapReturnType CTX]
            [com.aerospike.client.policy ReadModeSC ReadModeAP Replica GenerationPolicy RecordExistsAction
@@ -20,37 +18,47 @@
            [java.util.concurrent ExecutionException]
            [clojure.lang PersistentArrayMap]
            [aerospike_clj.client SimpleAerospikeClient]
-           (com.aerospike.client.exp Exp Expression ExpOperation)))
+           (com.aerospike.client.exp Exp)))
 
 (def _set "set")
 (def _set2 "set2")
 (def as-namespace "test")
 (def ^:dynamic *c* nil)
+(def ^:dynamic *as-hosts* nil)
 (def TTL 5)
 
-(defn db-connection [test-fn]
-  (binding [*c* (client/init-simple-aerospike-client
-                  ["localhost"]
-                  as-namespace)]
-    (test-fn)
-    (pt/stop *c*)))
+(defn with-db-connection [test-fn]
+  (let [as-hosts [(as-setup/get-host-and-port)]]
+    (binding [*c*        (client/init-simple-aerospike-client
+                           as-hosts
+                           as-namespace)
+              *as-hosts* as-hosts]
+      (test-fn)
+      (pt/stop *c*))))
 
-(use-fixtures :once db-connection)
+(use-fixtures :once as-setup/with-aerospike with-db-connection)
 
 (deftest client-creation
-  (let [c (client/init-simple-aerospike-client ["localhost"] "test")]
+  (let [c (client/init-simple-aerospike-client *as-hosts* as-namespace)]
     (is c)
-    (is (= ["localhost"] (.-hosts ^SimpleAerospikeClient c))))
+    (is (= *as-hosts* (.-hosts ^SimpleAerospikeClient c))))
 
   (letfn [(no-password? [ex]
             (let [conf (:conf (ex-data ex))]
               (and conf (not (contains? conf "password")))))]
-    (let [ex (is (thrown-with-msg? Exception #"unbounded delay queue" (client/init-simple-aerospike-client ["localhost"] "test" {"maxCommandsInProcess" 1})))]
+    (let [ex (is (thrown-with-msg? Exception #"unbounded delay queue" (client/init-simple-aerospike-client *as-hosts* as-namespace {"maxCommandsInProcess" 1})))]
       (is (no-password? ex)))
 
     (with-redefs [client/create-event-loops (constantly nil)]
-      (let [ex (is (thrown-with-msg? Exception #"event-loops" (client/init-simple-aerospike-client ["localhost"] "test")))]
+      (let [ex (is (thrown-with-msg? Exception #"event-loops" (client/init-simple-aerospike-client *as-hosts* as-namespace)))]
         (is (no-password? ex))))))
+
+(deftest info
+  (doseq [node (pt/get-nodes *c*)]
+    (= {"health-stats"                                        "stat=test_device_read_latency:value=0:device=/opt/aerospike/data/test.dat:namespace=test"
+        "namespaces"                                          "test"
+        "set-config:context=service;enable-health-check=true" "ok"}
+       @(pt/info *c* node ["namespaces" "set-config:context=service;enable-health-check=true" "health-stats"]))))
 
 (deftest health
   (is (true? (pt/healthy? *c* 10))))
@@ -574,7 +582,7 @@
 
 (deftest configure-read-and-batch-policy
   (let [c  (client/init-simple-aerospike-client
-             ["localhost"] "test"
+             *as-hosts* as-namespace
              {"readPolicyDefault"  (policy/map->policy {"ReadModeAP"          "ALL"
                                                         "ReadModeSC"          "LINEARIZE"
                                                         "maxRetries"          1
@@ -624,7 +632,7 @@
 
 (deftest configure-write-policy
   (let [c  (client/init-simple-aerospike-client
-             ["localhost"] "test"
+             *as-hosts* as-namespace
              {"writePolicyDefault" (policy/map->write-policy {"CommitLevel"        "COMMIT_MASTER"
                                                               "durableDelete"      true
                                                               "expiration"         1000
@@ -645,7 +653,7 @@
 (deftest configure-batch-write-policies
   (let [expression                (Exp/build (Exp/ge (Exp/intBin "a") (Exp/intBin "b")))
         c                         (client/init-simple-aerospike-client
-                                    ["localhost"] "test"
+                                    *as-hosts* as-namespace
                                     {"batchWritePolicyDefault"       (policy/map->batch-write-policy {"CommitLevel"        "COMMIT_MASTER"
                                                                                                       "durableDelete"      true
                                                                                                       "expiration"         1000
