@@ -672,8 +672,6 @@
     (is (= 2 (.maxConcurrentThreads batch-parent-write-policy)))
     (is (true? (.sendSetName batch-parent-write-policy)))))
 
-
-
 (deftest set-entry
   (let [data        (rand-int 1000)
         update-data (rand-int 1000)
