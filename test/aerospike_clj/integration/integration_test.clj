@@ -551,7 +551,7 @@
                                                          string-bin) ks (range))
             batch-read-records            (mapv create-read-batch-record ks)]
         (is (every? #(= expected-write-result-payload (select-keys % [:result-code :payload]))
-                    @(pt/batch-operate *c* batch-write-records {"TotalTimeout" ..})))
+                    @(pt/batch-operate *c* batch-write-records)))
         (is (= expected-read-payloads
                (mapv :payload @(pt/get-batch *c* batch-read-records))))))))
 
@@ -568,7 +568,7 @@
     (is (= 2 (.maxRetries rp)))                             ;; initial attempt + 2 retries = 3 attempts
     (is (zero? (.sleepBetweenRetries rp)))                  ;; do not sleep between retries
     (is (false? (.sendKey rp)))                             ;; do not send the user defined key
-    (is (= ReadModeSC/SESSION (.readModeSC rp)))))          ;; Ensures this client will only see an increasing sequence of record versions. Server only reads from master. This is the default..
+    (is (= ReadModeSC/SESSION (.readModeSC rp)))))          ;; Ensures this client will only see an increasing sequence of record versions. Server only reads from master. This is the default.
 
 (deftest configure-read-and-batch-policy
   (let [c  (client/init-simple-aerospike-client
@@ -618,7 +618,7 @@
     (is (= 2 (.maxRetries rp)))                             ;; initial attempt + 2 retries = 3 attempts
     (is (zero? (.sleepBetweenRetries rp)))                  ;; do not sleep between retries
     (is (false? (.sendKey rp)))                             ;; do not send the user defined key
-    (is (= ReadModeSC/SESSION (.readModeSC rp)))))          ;; Ensures this client will only see an increasing sequence of record versions. Server only reads from master. This is the default..
+    (is (= ReadModeSC/SESSION (.readModeSC rp)))))          ;; Ensures this client will only see an increasing sequence of record versions. Server only reads from master. This is the default.
 
 (deftest configure-write-policy
   (let [c  (client/init-simple-aerospike-client
