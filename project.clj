@@ -14,7 +14,7 @@
                                       :password      :env/clojars_password
                                       :sign-releases false}]]
   :dependencies [[org.clojure/tools.logging "1.2.4"]
-                 [com.aerospike/aerospike-client "6.1.7"]
+                 [com.aerospike/aerospike-client "6.1.10"]
                  [funcool/promesa "8.0.450"]]
   :profiles {:dev  {:plugins        [[lein-eftest "0.5.9"]]
                     :dependencies   [[org.clojure/clojure "1.11.1"]
