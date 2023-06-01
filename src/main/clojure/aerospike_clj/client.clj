@@ -3,6 +3,7 @@
   (:require [clojure.string :as s]
             [clojure.tools.logging :as log]
             [promesa.core :as p]
+            [promesa.exec :as p-exec]
             [aerospike-clj.policy :as policy]
             [aerospike-clj.bins :as bins]
             [aerospike-clj.utils :as utils]
@@ -23,7 +24,8 @@
            [aerospike_clj.listeners AsyncExistsListener AsyncDeleteListener AsyncWriteListener
                                     AsyncInfoListener AsyncRecordListener AsyncRecordSequenceListener
                                     AsyncBatchListListener AsyncExistsArrayListener AsyncBatchOperateListListener]
-           (com.aerospike.client.listener BatchOperateListListener)))
+           (com.aerospike.client.listener BatchOperateListListener)
+           (java.util.concurrent Executor)))
 
 (def
   ^{:doc   "The 0 date reference for returned record TTL"
@@ -105,6 +107,7 @@
 
 (deftype SimpleAerospikeClient [client
                                 el
+                                ^Executor completion-executor
                                 hosts
                                 dbns
                                 client-events
@@ -135,10 +138,10 @@
               ^Policy (:policy conf)
               ^Key (pt/create-key index dbns set-name)
               ^"[Ljava.lang.String;" (utils/v->array String bin-names)))
-      (let [p (p/chain op-future
-                       record/record->map
-                       (:transcoder conf identity))]
-        (register-events p client-events :read index start-time conf))))
+      (-> op-future
+          (p/then' record/record->map completion-executor)
+          (p/then' (:transcoder conf identity))
+          (register-events client-events :read index start-time conf))))
 
   (get-single-no-meta [this index set-name]
     (pt/get-single this index set-name {:transcoder :payload}))
@@ -157,7 +160,9 @@
                (AsyncExistsListener. op-future)
                ^Policy (:policy conf)
                ^Key (pt/create-key index dbns set-name))
-      (register-events op-future client-events :exists index start-time conf)))
+      (-> op-future
+          (p/then identity completion-executor)
+          (register-events client-events :exists index start-time conf))))
 
   (get-batch [this batch-reads]
     (pt/get-batch this batch-reads {}))
@@ -171,10 +176,10 @@
             (AsyncBatchListListener. op-future)
             ^BatchPolicy (:policy conf)
             ^List batch-reads-arr)
-      (let [d (p/chain op-future
-                       #(mapv batch-record->map %)
-                       (:transcoder conf identity))]
-        (register-events d client-events :read-batch nil start-time conf))))
+      (-> op-future
+          (p/then' #(mapv batch-record->map %) completion-executor)
+          (p/then' (:transcoder conf identity))
+          (register-events client-events :read-batch nil start-time conf))))
 
   (exists-batch [this indices]
     (pt/exists-batch this indices {}))
@@ -188,10 +193,10 @@
                (AsyncExistsArrayListener. op-future)
                ^BatchPolicy (:policy conf)
                ^"[Lcom.aerospike.client.Key;" indices)
-      (let [d (p/chain op-future
-                       vec
-                       (:transcoder conf identity))]
-        (register-events d client-events :exists-batch nil start-time conf))))
+      (-> op-future
+          (p/then' vec completion-executor)
+          (p/then' (:transcoder conf identity))
+          (register-events client-events :exists-batch nil start-time conf))))
 
   pt/AerospikeWriteOps
   (put [this index set-name data expiration]
@@ -296,7 +301,9 @@
               (AsyncWriteListener. op-future)
               ^WritePolicy (policy/write-policy client expiration RecordExistsAction/UPDATE_ONLY)
               ^Key (pt/create-key index dbns set-name))
-      (register-events op-future client-events :touch index start-time {})))
+      (-> op-future
+          (p/then' identity completion-executor)
+          (register-events client-events :touch index start-time {}))))
 
   pt/AerospikeDeleteOps
   (delete [this index set-name]
@@ -310,7 +317,9 @@
                (AsyncDeleteListener. op-future)
                ^WritePolicy (:policy conf)
                ^Key (pt/create-key index dbns set-name))
-      (register-events op-future client-events :delete index start-time conf)))
+      (-> op-future
+          (p/then' identity completion-executor)
+          (register-events client-events :delete index start-time conf))))
 
   (delete-bins [this index set-name bin-names new-expiration]
     (pt/delete-bins this index set-name bin-names new-expiration {}))
@@ -326,7 +335,9 @@
             ^WritePolicy policy
             ^Key (pt/create-key index dbns set-name)
             ^"[Lcom.aerospike.client.Bin;" (utils/v->array Bin (mapv bins/set-bin-as-null bin-names)))
-      (register-events op-future client-events :write index start-time conf)))
+      (-> op-future
+          (p/then' identity completion-executor)
+          (register-events client-events :write index start-time conf))))
 
   pt/AerospikeSingleIndexBatchOps
   (operate [this index set-name expiration operations]
@@ -343,7 +354,9 @@
                   ^WritePolicy (:policy conf (policy/write-policy client expiration RecordExistsAction/UPDATE))
                   ^Key (pt/create-key index dbns set-name)
                   (utils/v->array Operation operations))
-        (register-events (p/then op-future record/record->map) client-events :operate index start-time conf))))
+        (-> op-future
+            (p/then' record/record->map completion-executor)
+            (register-events client-events :operate index start-time conf)))))
 
   pt/AerospikeBatchOps
   (batch-operate [this batch-records]
@@ -363,10 +376,10 @@
                 ^BatchOperateListListener (AsyncBatchOperateListListener. op-future)
                 ^BatchPolicy policy
                 ^List batch-list)
-      (let [d (p/chain op-future
-                       #(mapv batch-record->map %)
-                       (:transcoder conf identity))]
-        (register-events d client-events :batch-operate nil start-time conf))))
+      (-> op-future
+          (p/then' #(mapv batch-record->map %) completion-executor)
+          (p/then' (:transcoder conf identity))
+          (register-events client-events :batch-operate nil start-time conf))))
 
 
   pt/AerospikeSetOps
@@ -383,7 +396,9 @@
                 aero-namespace
                 set-name
                 (when bin-names ^"[Ljava.lang.String;" (utils/v->array String bin-names)))
-      (register-events op-future client-events :scan nil start-time conf)))
+      (-> op-future
+          (p/then' identity completion-executor)
+          (register-events client-events :scan nil start-time conf))))
 
   pt/AerospikeAdminOps
   (info [this node info-commands]
@@ -398,7 +413,9 @@
              ^InfoPolicy (:policy conf (.infoPolicyDefault ^AerospikeClient client))
              ^Node node
              (into-array String info-commands))
-      (register-events op-future client-events :info nil start-time conf)))
+      (-> op-future
+          (p/then' identity completion-executor)
+          (register-events client-events :info nil start-time conf))))
 
   (get-nodes [_this]
     (into [] (.getNodes ^AerospikeClient client)))
@@ -464,12 +481,14 @@
   ([hosts aero-ns]
    (init-simple-aerospike-client hosts aero-ns {}))
   ([hosts aero-ns conf]
-   (let [close-event-loops? (nil? (:event-loops conf))
-         event-loops        (or (:event-loops conf) (create-event-loops conf))
-         client-policy      (:client-policy conf (policy/create-client-policy event-loops conf))]
+   (let [close-event-loops?  (nil? (:event-loops conf))
+         event-loops         (or (:event-loops conf) (create-event-loops conf))
+         completion-executor (:completion-executor conf p-exec/default-executor)
+         client-policy       (:client-policy conf (policy/create-client-policy event-loops conf))]
      (log/info (format "Starting aerospike client for hosts %s with username %s" hosts (get conf "username")))
      (->SimpleAerospikeClient (create-client hosts client-policy (:port conf 3000))
                               event-loops
+                              completion-executor
                               hosts
                               aero-ns
                               (utils/vectorize (:client-events conf))
