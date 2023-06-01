@@ -55,18 +55,18 @@
   (let [elp (policy/map->event-policy conf)]
     (NioEventLoops. elp 1 true "NioEventLoops")))
 
-(defn- client-events-reducer [op-name index op-start-time]
+(defn- client-events-reducer [op-name index op-start-time ctx]
   (fn [op-future client-events]
     (-> op-future
         (p/then (fn [op-result]
-                  (pt/on-success client-events op-name op-result index op-start-time)))
+                  (pt/on-success client-events op-name op-result index op-start-time ctx)))
         (p/catch (fn [op-exception]
-                   (pt/on-failure client-events op-name op-exception index op-start-time))))))
+                   (pt/on-failure client-events op-name op-exception index op-start-time ctx))))))
 
-(defn- register-events [op-future client-events op-name index op-start-time]
+(defn- register-events [op-future client-events op-name index op-start-time {:keys [client-events-ctx]}]
   (if (empty? client-events)
     op-future
-    (reduce (client-events-reducer op-name index op-start-time) op-future client-events)))
+    (reduce (client-events-reducer op-name index op-start-time client-events-ctx) op-future client-events)))
 
 (extend-protocol pt/UserKey
   Key
@@ -91,7 +91,7 @@
       (BatchRead. k ^"[Ljava.lang.String;" (utils/v->array String (:bins batch-read-map))))))
 
 ;; put
-(defn- put* [^AerospikeClient client ^EventLoops event-loops dbns client-events index data policy set-name]
+(defn- put* [^AerospikeClient client ^EventLoops event-loops dbns client-events index data policy set-name conf]
   (let [bins       (bins/data->bins data)
         op-future  (p/deferred)
         start-time (System/nanoTime)]
@@ -101,7 +101,7 @@
           ^WritePolicy policy
           ^Key (pt/create-key index dbns set-name)
           ^"[Lcom.aerospike.client.Bin;" bins)
-    (register-events op-future client-events :write index start-time)))
+    (register-events op-future client-events :write index start-time conf)))
 
 (deftype SimpleAerospikeClient [client
                                 el
@@ -138,7 +138,7 @@
       (let [p (p/chain op-future
                        record/record->map
                        (:transcoder conf identity))]
-        (register-events p client-events :read index start-time))))
+        (register-events p client-events :read index start-time conf))))
 
   (get-single-no-meta [this index set-name]
     (pt/get-single this index set-name {:transcoder :payload}))
@@ -157,7 +157,7 @@
                (AsyncExistsListener. op-future)
                ^Policy (:policy conf)
                ^Key (pt/create-key index dbns set-name))
-      (register-events op-future client-events :exists index start-time)))
+      (register-events op-future client-events :exists index start-time conf)))
 
   (get-batch [this batch-reads]
     (pt/get-batch this batch-reads {}))
@@ -174,7 +174,7 @@
       (let [d (p/chain op-future
                        #(mapv batch-record->map %)
                        (:transcoder conf identity))]
-        (register-events d client-events :read-batch nil start-time))))
+        (register-events d client-events :read-batch nil start-time conf))))
 
   (exists-batch [this indices]
     (pt/exists-batch this indices {}))
@@ -191,7 +191,7 @@
       (let [d (p/chain op-future
                        vec
                        (:transcoder conf identity))]
-        (register-events d client-events :exists-batch nil start-time))))
+        (register-events d client-events :exists-batch nil start-time conf))))
 
   pt/AerospikeWriteOps
   (put [this index set-name data expiration]
@@ -205,7 +205,8 @@
           index
           ((:transcoder conf identity) data)
           (:policy conf (policy/write-policy client expiration))
-          set-name))
+          set-name
+          conf))
 
   (create [this index set-name data expiration]
     (pt/create this index set-name data expiration {}))
@@ -218,7 +219,8 @@
           index
           ((:transcoder conf identity) data)
           (policy/create-only-policy client expiration)
-          set-name))
+          set-name
+          conf))
 
   (put-multiple [this indices set-names payloads expirations]
     (pt/put-multiple this indices set-names payloads expirations {}))
@@ -241,7 +243,8 @@
           index
           ((:transcoder conf identity) data)
           (policy/set-policy client expiration)
-          set-name))
+          set-name
+          conf))
 
   (replace-only [this index set-name data expiration]
     (pt/replace-only this index set-name data expiration {}))
@@ -254,7 +257,8 @@
           index
           ((:transcoder conf identity) data)
           (policy/replace-only-policy client expiration)
-          set-name))
+          set-name
+          conf))
 
   (update [this index set-name new-record generation new-expiration]
     (pt/update this index set-name new-record generation new-expiration {}))
@@ -267,7 +271,8 @@
           index
           ((:transcoder conf identity) new-record)
           (policy/update-policy client generation new-expiration)
-          set-name))
+          set-name
+          conf))
 
   (add-bins [this index set-name new-data new-expiration]
     (pt/add-bins this index set-name new-data new-expiration {}))
@@ -280,7 +285,8 @@
           index
           ((:transcoder conf identity) new-data)
           (policy/update-only-policy client new-expiration)
-          set-name))
+          set-name
+          conf))
 
   (touch [_this index set-name expiration]
     (let [op-future  (p/deferred)
@@ -290,7 +296,7 @@
               (AsyncWriteListener. op-future)
               ^WritePolicy (policy/write-policy client expiration RecordExistsAction/UPDATE_ONLY)
               ^Key (pt/create-key index dbns set-name))
-      (register-events op-future client-events :touch index start-time)))
+      (register-events op-future client-events :touch index start-time {})))
 
   pt/AerospikeDeleteOps
   (delete [this index set-name]
@@ -304,7 +310,7 @@
                (AsyncDeleteListener. op-future)
                ^WritePolicy (:policy conf)
                ^Key (pt/create-key index dbns set-name))
-      (register-events op-future client-events :delete index start-time)))
+      (register-events op-future client-events :delete index start-time conf)))
 
   (delete-bins [this index set-name bin-names new-expiration]
     (pt/delete-bins this index set-name bin-names new-expiration {}))
@@ -320,7 +326,7 @@
             ^WritePolicy policy
             ^Key (pt/create-key index dbns set-name)
             ^"[Lcom.aerospike.client.Bin;" (utils/v->array Bin (mapv bins/set-bin-as-null bin-names)))
-      (register-events op-future client-events :write index start-time)))
+      (register-events op-future client-events :write index start-time conf)))
 
   pt/AerospikeSingleIndexBatchOps
   (operate [this index set-name expiration operations]
@@ -337,7 +343,7 @@
                   ^WritePolicy (:policy conf (policy/write-policy client expiration RecordExistsAction/UPDATE))
                   ^Key (pt/create-key index dbns set-name)
                   (utils/v->array Operation operations))
-        (register-events (p/then op-future record/record->map) client-events :operate index start-time))))
+        (register-events (p/then op-future record/record->map) client-events :operate index start-time conf))))
 
   pt/AerospikeBatchOps
   (batch-operate [this batch-records]
@@ -360,7 +366,7 @@
       (let [d (p/chain op-future
                        #(mapv batch-record->map %)
                        (:transcoder conf identity))]
-        (register-events d client-events :batch-operate nil start-time))))
+        (register-events d client-events :batch-operate nil start-time conf))))
 
 
   pt/AerospikeSetOps
@@ -377,7 +383,7 @@
                 aero-namespace
                 set-name
                 (when bin-names ^"[Ljava.lang.String;" (utils/v->array String bin-names)))
-      (register-events op-future client-events :scan nil start-time)))
+      (register-events op-future client-events :scan nil start-time conf)))
 
   pt/AerospikeAdminOps
   (info [this node info-commands]
@@ -392,7 +398,7 @@
              ^InfoPolicy (:policy conf (.infoPolicyDefault ^AerospikeClient client))
              ^Node node
              (into-array String info-commands))
-      (register-events op-future client-events :info nil start-time)))
+      (register-events op-future client-events :info nil start-time conf)))
 
   (get-nodes [_this]
     (into [] (.getNodes ^AerospikeClient client)))

@@ -164,9 +164,9 @@
 (defprotocol ClientEvents
   "Continuation functions that are registered when an async DB operation is called.
   The value returned from those function will be the value of the returned future from the async operation."
-  (on-success [this op-name op-result index op-start-time]
+  (on-success [this op-name op-result index op-start-time ctx]
     "A continuation function. Registered on the operation future and called when operations succeeds.")
-  (on-failure [this op-name op-ex index op-start-time]
+  (on-failure [this op-name op-ex index op-start-time ctx]
     "A continuation function. Registered on the operation future and called when operations fails."))
 
 (defprotocol UserKey

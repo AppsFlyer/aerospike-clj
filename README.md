@@ -56,17 +56,19 @@ user=> (def c (aero/init-simple-aerospike-client
 It is possible to inject additional asynchronous user-defined behaviour. To do that add an implementation of  the
 `ClientEvents` protocol.
 Some useful info is passed in-order to support metering and to read client configuration. `op-start-time` is
-`(System/nanoTime)`, see more [here](https://appsflyer.github.io/aerospike-clj/advanced-async-hooks.html).
+`(System/nanoTime)`.
+Additional context can be supplied by attaching a map to the config object under `:client-events-ctx` key. 
+see more [here](https://appsflyer.github.io/aerospike-clj/advanced-async-hooks.html).
 
 ```clojure
 (let [c (aero/init-simple-aerospike-client
           ["localhost"]
           "test"
           {:client-events (reify ClientEvents
-                            (on-success [_ op-name op-result index op-start-time db]
-                              (when (:enable-logging? db)
+                            (on-success [_ op-name op-result index op-start-time ctx]
+                              (when (-> ctx :enable-logging?)
                                 (println op-name "success!")))
-                            (on-failure [_  op-name op-ex index op-start-time db]
+                            (on-failure [_  oop-name op-result index op-start-time ctx]
                               (println "oh-no" op-name "failed on index" index)))})]
 
   (get-single c "index" "set-name"))
