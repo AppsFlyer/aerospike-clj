@@ -3,11 +3,13 @@
 
 ###  VERSION 3.0.0
 #### Changed
-* use aerospike client version 6.1.7
+* use aerospike client version 6.1.10
 * use test containers for integration tests
 
 #### Added
 * batch operate support
+* completion executor support (with default)
+* client-events additional context support
 
 #### Removed
 * empty test namespace
