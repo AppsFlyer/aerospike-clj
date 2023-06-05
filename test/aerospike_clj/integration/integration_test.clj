@@ -10,15 +10,15 @@
             [aerospike-clj.key :as as-key]
             [aerospike-clj.utils :as utils]
             [spy.core :as spy])
-  (:import [com.aerospike.client Value AerospikeClient BatchWrite Operation Bin]
-           [com.aerospike.client.cdt ListOperation ListPolicy ListOrder ListWriteFlags ListReturnType
-                                     MapOperation MapPolicy MapOrder MapWriteFlags MapReturnType CTX]
-           [com.aerospike.client.policy ReadModeSC ReadModeAP Replica GenerationPolicy RecordExistsAction
-                                        WritePolicy BatchPolicy Policy CommitLevel BatchWritePolicy]
-           [java.util HashMap ArrayList]
-           [java.util.concurrent ExecutionException]
-           [clojure.lang PersistentArrayMap]
-           [aerospike_clj.client SimpleAerospikeClient]
+  (:import (com.aerospike.client Value AerospikeClient BatchWrite Operation Bin)
+           (com.aerospike.client.cdt ListOperation ListPolicy ListOrder ListWriteFlags ListReturnType
+                                     MapOperation MapPolicy MapOrder MapWriteFlags MapReturnType CTX)
+           (com.aerospike.client.policy ReadModeSC ReadModeAP Replica GenerationPolicy RecordExistsAction
+                                        WritePolicy BatchPolicy Policy CommitLevel BatchWritePolicy)
+           (java.util HashMap ArrayList)
+           (java.util.concurrent ExecutionException)
+           (clojure.lang PersistentArrayMap)
+           (aerospike_clj.client SimpleAerospikeClient)
            (com.aerospike.client.exp Exp)))
 
 (def _set "set")

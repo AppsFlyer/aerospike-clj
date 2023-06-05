@@ -12,18 +12,18 @@
             [aerospike-clj.listeners]
             [aerospike-clj.aerospike-record :as record]
             [aerospike-clj.protocols :as pt])
-  (:import [java.time Instant]
-           [java.util List Collection ArrayList Arrays]
-           [com.aerospike.client AerospikeClient Key Bin Operation BatchRead]
-           [com.aerospike.client.async EventLoop NioEventLoops EventLoops]
-           [com.aerospike.client.cluster Node]
-           [com.aerospike.client.policy Policy BatchPolicy ClientPolicy
+  (:import (java.time Instant)
+           (java.util List Collection ArrayList Arrays)
+           (com.aerospike.client AerospikeClient Key Bin Operation BatchRead)
+           (com.aerospike.client.async EventLoop NioEventLoops EventLoops)
+           (com.aerospike.client.cluster Node)
+           (com.aerospike.client.policy Policy BatchPolicy ClientPolicy
                                         RecordExistsAction WritePolicy ScanPolicy
-                                        InfoPolicy]
-           [com.aerospike.client Key Host BatchRecord]
-           [aerospike_clj.listeners AsyncExistsListener AsyncDeleteListener AsyncWriteListener
+                                        InfoPolicy)
+           (com.aerospike.client Key Host BatchRecord)
+           (aerospike_clj.listeners AsyncExistsListener AsyncDeleteListener AsyncWriteListener
                                     AsyncInfoListener AsyncRecordListener AsyncRecordSequenceListener
-                                    AsyncBatchListListener AsyncExistsArrayListener AsyncBatchOperateListListener]
+                                    AsyncBatchListListener AsyncExistsArrayListener AsyncBatchOperateListListener)
            (com.aerospike.client.listener BatchOperateListListener)
            (java.util.concurrent Executor)))
 
@@ -139,8 +139,11 @@
               ^Key (pt/create-key index dbns set-name)
               ^"[Ljava.lang.String;" (utils/v->array String bin-names)))
       (-> op-future
-          (p/then' record/record->map completion-executor)
-          (p/then' (:transcoder conf identity))
+          (p/then' (fn [res]
+                     (let [transcoder (:transcoder conf identity)]
+                       (-> res
+                           record/record->map
+                           transcoder))) completion-executor)
           (register-events client-events :read index start-time conf))))
 
   (get-single-no-meta [this index set-name]
@@ -161,7 +164,7 @@
                ^Policy (:policy conf)
                ^Key (pt/create-key index dbns set-name))
       (-> op-future
-          (p/then identity completion-executor)
+          (p/then' identity completion-executor)
           (register-events client-events :exists index start-time conf))))
 
   (get-batch [this batch-reads]

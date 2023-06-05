@@ -68,7 +68,7 @@ see more [here](https://appsflyer.github.io/aerospike-clj/advanced-async-hooks.h
                             (on-success [_ op-name op-result index op-start-time ctx]
                               (when (-> ctx :enable-logging?)
                                 (println op-name "success!")))
-                            (on-failure [_  oop-name op-result index op-start-time ctx]
+                            (on-failure [_  op-name op-ex index op-start-time ctx]
                               (println "oh-no" op-name "failed on index" index)))})]
 
   (get-single c "index" "set-name"))

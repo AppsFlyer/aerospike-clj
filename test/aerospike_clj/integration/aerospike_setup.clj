@@ -20,7 +20,7 @@
 
 (defn- stop! []
   (tc/stop! @container)
-  (reset! container nil?))
+  (reset! container nil))
 
 (defn with-aerospike [test-fn]
   (start-container)
