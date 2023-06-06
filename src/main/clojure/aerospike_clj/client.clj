@@ -57,18 +57,19 @@
   (let [elp (policy/map->event-policy conf)]
     (NioEventLoops. elp 1 true "NioEventLoops")))
 
-(defn- client-events-reducer [op-name index op-start-time ctx]
+(defn- client-events-reducer [op-name index op-start-time]
   (fn [op-future client-events]
     (-> op-future
         (p/then (fn [op-result]
-                  (pt/on-success client-events op-name op-result index op-start-time ctx)))
+                  (pt/on-success client-events op-name op-result index op-start-time)))
         (p/catch (fn [op-exception]
-                   (pt/on-failure client-events op-name op-exception index op-start-time ctx))))))
+                   (pt/on-failure client-events op-name op-exception index op-start-time))))))
 
-(defn- register-events [op-future client-events op-name index op-start-time {:keys [client-events-ctx]}]
-  (if (empty? client-events)
-    op-future
-    (reduce (client-events-reducer op-name index op-start-time client-events-ctx) op-future client-events)))
+(defn- register-events [op-future default-client-events op-name index op-start-time conf]
+  (let [client-events (:client-events conf default-client-events)]
+    (if (empty? client-events)
+      op-future
+      (reduce (client-events-reducer op-name index op-start-time) op-future client-events))))
 
 (extend-protocol pt/UserKey
   Key

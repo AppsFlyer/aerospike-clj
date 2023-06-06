@@ -17,6 +17,7 @@ An opinionated Clojure library wrapping Aerospike Java Client.
 - Java 8
 - Clojure 1.8
 - Aerospike server version >= `4.9.0`
+- Clojure version >= `1.11.0`
 
 # Features
 - Converts Java client's callback model into Java(8) `CompletableFuture` based API.
