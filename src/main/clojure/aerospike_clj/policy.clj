@@ -95,9 +95,9 @@
 (defn batch-write-policy
   "Create a write policy to be passed to put methods via `{:policy wp}`.
   Also used in `update` and `create`.
-  The default policy in case the record exists is `RecordExistsAction/REPLACE`."
+  The default policy in case the record exists is `RecordExistsAction/UPDATE`."
   (^BatchWritePolicy [client expiration]
-   (batch-write-policy client expiration (RecordExistsAction/REPLACE)))
+   (batch-write-policy client expiration (RecordExistsAction/UPDATE)))
   (^BatchWritePolicy [client expiration record-exists-action]
    (let [wp (BatchWritePolicy. (.getBatchWritePolicyDefault ^AerospikeClient client))]
      (set! (.expiration wp) expiration)
