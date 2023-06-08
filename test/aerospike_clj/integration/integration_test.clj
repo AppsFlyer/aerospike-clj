@@ -19,8 +19,7 @@
            (java.util.concurrent ExecutionException)
            (clojure.lang PersistentArrayMap)
            (aerospike_clj.client SimpleAerospikeClient)
-           (com.aerospike.client.exp Exp)
-           (aerospike_clj.protocols ClientEvents)))
+           (com.aerospike.client.exp Exp)))
 
 (def _set "set")
 (def _set2 "set2")
