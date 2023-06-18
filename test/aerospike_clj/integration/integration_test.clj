@@ -531,6 +531,9 @@
                 (BatchWrite. as-key (utils/v->array Operation [(ListOperation/append list-bin (Value/get (str v)) nil)
                                                                (MapOperation/put (MapPolicy.) map-bin (Value/get map-key) (Value/get (str v)) nil)
                                                                (Operation/put (Bin. string-bin (str v)))]))))
+            (create-touch-record [k _v]
+              (let [as-key (pt/create-key k as-namespace _set)]
+                (BatchWrite. as-key (utils/v->array Operation [(Operation/touch)]))))
             (create-read-batch-record [k]
               {:index k :set _set})]
       (let [list-bin                      "list"
@@ -551,11 +554,13 @@
                                                          map-bin
                                                          map-key
                                                          string-bin) ks (range))
+            batch-touch-records           (mapv create-touch-record ks (range))
             batch-read-records            (mapv create-read-batch-record ks)]
         (is (every? #(= expected-write-result-payload (select-keys % [:result-code :payload]))
                     @(pt/batch-operate *c* batch-write-records)))
         (is (= expected-read-payloads
-               (mapv :payload @(pt/get-batch *c* batch-read-records))))))))
+               (mapv :payload @(pt/get-batch *c* batch-read-records))))
+        (is (= (every? #(zero? (:result-code %)) @(pt/batch-operate *c* batch-touch-records))))))))
 
 (deftest default-read-policy
   (let [rp (.getReadPolicyDefault ^AerospikeClient (.-client ^SimpleAerospikeClient *c*))]
