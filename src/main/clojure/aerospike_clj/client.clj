@@ -368,7 +368,7 @@
 
   (batch-operate [_this batch-records conf]
     (let [op-future  (p/deferred)
-          policy     (or (:policy conf) (policy/map->batch-policy conf))
+          policy     (:policy conf)
           batch-list (if (list? batch-records)
                        batch-records
                        (->> batch-records
