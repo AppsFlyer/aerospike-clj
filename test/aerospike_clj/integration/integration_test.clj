@@ -560,7 +560,7 @@
                     @(pt/batch-operate *c* batch-write-records)))
         (is (= expected-read-payloads
                (mapv :payload @(pt/get-batch *c* batch-read-records))))
-        (is (= (every? #(zero? (:result-code %)) @(pt/batch-operate *c* batch-touch-records))))))))
+        (is (every? #(zero? (:result-code %)) @(pt/batch-operate *c* batch-touch-records)))))))
 
 (deftest default-read-policy
   (let [rp (.getReadPolicyDefault ^AerospikeClient (.-client ^SimpleAerospikeClient *c*))]
