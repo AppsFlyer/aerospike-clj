@@ -65,11 +65,10 @@ see more [here](https://appsflyer.github.io/aerospike-clj/advanced-async-hooks.h
           ["localhost"]
           "test"
           {:client-events (reify ClientEvents
-                            (on-success [_ op-name op-result index op-start-time ctx]
-                              (when (-> ctx :enable-logging?)
+                            (on-success [_ op-name op-result index op-start-time]
                                 (println op-name "success!")))
-                            (on-failure [_  op-name op-ex index op-start-time ctx]
-                              (println "oh-no" op-name "failed on index" index)))})]
+                            (on-failure [_  op-name op-ex index op-start-time]
+                                (println "oh-no" op-name "failed on index" index)))})]
 
   (get-single c "index" "set-name"))
 ; for better performance, a `deftype` might be preferred over `reify`, if possible.
