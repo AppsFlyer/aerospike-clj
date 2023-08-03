@@ -144,7 +144,8 @@
                      (let [transcoder (:transcoder conf identity)]
                        (-> res
                            record/record->map
-                           transcoder))) completion-executor)
+                           transcoder)))
+                   completion-executor)
           (register-events client-events :read index start-time conf))))
 
   (get-single-no-meta [this index set-name]
@@ -191,6 +192,7 @@
   (exists-batch [_this indices conf]
     (let [op-future  (p/deferred)
           start-time (System/nanoTime)
+          transcoder (:transcoder conf identity)
           indices    (utils/v->array Key (mapv #(pt/create-key (:index %) dbns (:set %)) indices))]
       (.exists ^AerospikeClient client
                ^EventLoop (.next ^EventLoops el)
@@ -198,8 +200,7 @@
                ^BatchPolicy (:policy conf)
                ^"[Lcom.aerospike.client.Key;" indices)
       (-> op-future
-          (p/then' vec completion-executor)
-          (p/then' (:transcoder conf identity))
+          (p/then' (comp transcoder vec) completion-executor)
           (register-events client-events :exists-batch nil start-time conf))))
 
   pt/AerospikeWriteOps
@@ -297,7 +298,10 @@
           set-name
           conf))
 
-  (touch [_this index set-name expiration]
+  (touch [this index set-name expiration]
+    (pt/touch this index set-name expiration {}))
+
+  (touch [_this index set-name expiration conf]
     (let [op-future  (p/deferred)
           start-time (System/nanoTime)]
       (.touch ^AerospikeClient client
@@ -307,7 +311,7 @@
               ^Key (pt/create-key index dbns set-name))
       (-> op-future
           (p/then' identity completion-executor)
-          (register-events client-events :touch index start-time {}))))
+          (register-events client-events :touch index start-time conf))))
 
   pt/AerospikeDeleteOps
   (delete [this index set-name]
@@ -374,15 +378,15 @@
                        (->> batch-records
                             (utils/v->array BatchRecord)
                             (Arrays/asList)))
-          start-time (System/nanoTime)]
+          start-time (System/nanoTime)
+          transcoder (:transcoder conf identity)]
       (.operate ^AerospikeClient client
                 ^EventLoop (.next ^EventLoops el)
                 ^BatchOperateListListener (AsyncBatchOperateListListener. op-future)
                 ^BatchPolicy policy
                 ^List batch-list)
       (-> op-future
-          (p/then' #(mapv batch-record->map %) completion-executor)
-          (p/then' (:transcoder conf identity))
+          (p/then' (comp transcoder #(mapv batch-record->map %)) completion-executor)
           (register-events client-events :batch-operate nil start-time conf))))
 
 

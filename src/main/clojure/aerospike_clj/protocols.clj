@@ -86,7 +86,9 @@
     "Add bins to an existing record without modifying old data. The `new-data` must be a
     Clojure map.")
 
-  (touch [this index set-name expiration]
+  (touch
+    [this index set-name expiration]
+    [this index set-name expiration conf]
     "Updates the TTL of the record stored under at `index` to `expiration` seconds from now.
     Expects records to exist."))
 
