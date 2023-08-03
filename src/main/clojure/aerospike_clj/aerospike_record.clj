@@ -14,15 +14,16 @@
 
 (defn record->map [^Record record]
   (and record
-       (let [bins      ^Map (.bins record)
-             payload   (if (single-bin? bins)
+       (let [bins    ^Map (.bins record)
+             payload (when (some? bins)
+                       (if (single-bin? bins)
                          ;; single bin record
                          (utils/desanitize-bin-value (.get bins ""))
                          ;; multiple-bin record
                          (reduce-kv (fn [m k v]
                                       (assoc m k (utils/desanitize-bin-value v)))
                                     {}
-                                    bins))]
+                                    bins)))]
          (->AerospikeRecord
            payload
            ^Integer (.generation ^Record record)

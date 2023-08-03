@@ -1,4 +1,4 @@
-(defproject com.appsflyer/aerospike-clj "2.0.8-SNAPSHOT"
+(defproject com.appsflyer/aerospike-clj "3.0.0-SNAPSHOT"
   :description "An Aerospike Clojure client."
   :url "https://github.com/AppsFlyer/aerospike-clj"
   :license {:name "Eclipse Public License"
@@ -14,12 +14,14 @@
                                       :password      :env/clojars_password
                                       :sign-releases false}]]
   :dependencies [[org.clojure/tools.logging "1.2.4"]
-                 [com.aerospike/aerospike-client "4.4.15"]
+                 [com.aerospike/aerospike-client "6.1.10"]
                  [funcool/promesa "8.0.450"]]
   :profiles {:dev  {:plugins        [[lein-eftest "0.5.9"]]
                     :dependencies   [[org.clojure/clojure "1.11.1"]
+                                     [clj-test-containers "0.7.4"]
                                      [criterium "0.4.6"]
                                      [cheshire "5.11.0"]
+                                     [tortue/spy "2.14.0"]
                                      [com.fasterxml.jackson.core/jackson-databind "2.11.2"]
                                      [clj-kondo "2022.04.25"]]
                     :eftest         {:multithread?   false
@@ -31,7 +33,7 @@
                     :test-selectors {:integration :integration
                                      :all         (constantly true)
                                      :default     (complement :integration)}}
-             :docs {:plugins [[lein-codox "0.10.7"]]
+             :docs {:plugins [[lein-codox "0.10.8"]]
                     :codox   {:output-path "codox"
                               :source-uri  "http://github.com/AppsFlyer/aerospike-clj/blob/{version}/{filepath}#L{line}"
                               :metadata    {:doc/format :markdown}}}})

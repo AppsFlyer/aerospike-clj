@@ -1,6 +1,19 @@
 ## This library follows [Semantic Versioning](https://semver.org).
 ## This CHANGELOG follows [keepachangelog](https://keepachangelog.com/en/1.0.0/).
 
+###  VERSION [3.0.0]: https://github.com/AppsFlyer/aerospike-clj/pull/62
+#### Changed
+* use aerospike client version 6.1.10
+* use test containers for integration tests
+
+#### Added
+* batch operate support
+* completion executor support (with default)
+* client-events additional context support
+
+#### Removed
+* empty test namespace
+
 ###  VERSION 2.0.7
 #### Changed
 * Fixed a bug with reporting metrics for `AerospikeSingleIndexBatchOps/operate`.

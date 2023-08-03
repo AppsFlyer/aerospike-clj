@@ -86,7 +86,9 @@
     "Add bins to an existing record without modifying old data. The `new-data` must be a
     Clojure map.")
 
-  (touch [this index set-name expiration]
+  (touch
+    [this index set-name expiration]
+    [this index set-name expiration conf]
     "Updates the TTL of the record stored under at `index` to `expiration` seconds from now.
     Expects records to exist."))
 
@@ -111,6 +113,16 @@
     This method registers the command with an event loop and returns. The event loop thread
     will process the command and send the results to the listener.
     `commands` is a sequence of Aerospike CDT operations."))
+
+(defprotocol AerospikeBatchOps
+  (batch-operate
+    [this batch-records]
+    [this batch-records conf]
+    "Asynchronously perform multiple read/write operations on a single key in one batch call.
+    This method registers the command with an event loop and returns. The event loop thread
+    will process the command and send the results to the listener.
+    `commands` is a sequence of Aerospike CDT operations."))
+
 
 (defprotocol AerospikeSetOps
   (scan-set [this aero-namespace set-name conf]

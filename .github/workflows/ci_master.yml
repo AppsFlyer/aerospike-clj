@@ -49,41 +49,7 @@ jobs:
 
   test:
     needs: build
-    runs-on: ubuntu-22.04
-    timeout-minutes: 5
-    services:
-      aerospike-test:
-        image: aerospike:4.9.0.11
-        ports:
-          - 3000:3000
-          - 3001:3001
-          - 3002:3002
-          - 3003:3003
-    env:
-      AEROSPIKE_HOST: localhost
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          fetch-depth: 0
-
-      - name: Set up JDK 8
-        uses: actions/setup-java@v3
-        with:
-          distribution: corretto
-          java-version: 8
-
-      - name: Restore local Maven repository from cache
-        uses: actions/cache@v3
-        with:
-          path: ~/.m2/repository
-          key: ${{ runner.os }}-maven-${{ hashFiles( 'project.clj' ) }}
-          restore-keys: |
-            ${{ runner.os }}-maven-
-
-      - name: Unit and Integration tests
-        run: lein eftest :all
+    uses: ./.github/workflows/test.yml
 
   deploy:
     needs: test

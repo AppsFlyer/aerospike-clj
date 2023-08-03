@@ -16,6 +16,8 @@ An opinionated Clojure library wrapping Aerospike Java Client.
 # Requirements
 - Java 8
 - Clojure 1.8
+- Aerospike server version >= `4.9.0`
+- Clojure version >= `1.11.0`
 
 # Features
 - Converts Java client's callback model into Java(8) `CompletableFuture` based API.
@@ -53,20 +55,20 @@ user=> (def c (aero/init-simple-aerospike-client
 ```
 
 It is possible to inject additional asynchronous user-defined behaviour. To do that add an implementation of  the
-`ClientEvents` protocol.
+`ClientEvents` protocol during client initialization or per operation.  
 Some useful info is passed in-order to support metering and to read client configuration. `op-start-time` is
-`(System/nanoTime)`, see more [here](https://appsflyer.github.io/aerospike-clj/advanced-async-hooks.html).
+`(System/nanoTime)`. 
+see more [here](https://appsflyer.github.io/aerospike-clj/advanced-async-hooks.html).
 
 ```clojure
 (let [c (aero/init-simple-aerospike-client
           ["localhost"]
           "test"
           {:client-events (reify ClientEvents
-                            (on-success [_ op-name op-result index op-start-time db]
-                              (when (:enable-logging? db)
+                            (on-success [_ op-name op-result index op-start-time]
                                 (println op-name "success!")))
-                            (on-failure [_  op-name op-ex index op-start-time db]
-                              (println "oh-no" op-name "failed on index" index)))})]
+                            (on-failure [_  op-name op-ex index op-start-time]
+                                (println "oh-no" op-name "failed on index" index)))})]
 
   (get-single c "index" "set-name"))
 ; for better performance, a `deftype` might be preferred over `reify`, if possible.
@@ -114,12 +116,7 @@ Call `expiry-unix` with the returned TTL to get a TTL relative to the UNIX epoch
 Executed via running `lein test`.
 
 ### Integration tests
-Testing is performed against a local Aerospike instance. You can also run an instance inside a docker container:
-
-```shell
-$ sudo docker run -d --name aerospike -p 3000:3000 -p 3001:3001 -p 3002:3002 -p 3003:3003 aerospike
-$ lein test :integration
-```
+Testing is performed against a local Aerospike docker container.
 
 #### Mocking in application unit tests
 For unit tests purposes you can use a mock client that implements the client protocols: `MockClient`.
