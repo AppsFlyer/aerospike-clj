@@ -33,7 +33,7 @@
                     :test-selectors {:integration :integration
                                      :all         (constantly true)
                                      :default     (complement :integration)}}
-             :docs {:plugins [[lein-codox "0.10.7"]]
+             :docs {:plugins [[lein-codox "0.10.8"]]
                     :codox   {:output-path "codox"
                               :source-uri  "http://github.com/AppsFlyer/aerospike-clj/blob/{version}/{filepath}#L{line}"
                               :metadata    {:doc/format :markdown}}}})
