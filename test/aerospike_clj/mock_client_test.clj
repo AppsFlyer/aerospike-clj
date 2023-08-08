@@ -1,12 +1,11 @@
 (ns aerospike-clj.mock-client-test
   (:refer-clojure :exclude [update])
-  (:require [clojure.test :refer [deftest is testing use-fixtures]]
-            [aerospike-clj.mock-client :as mock]
+  (:require [aerospike-clj.mock-client :as mock]
             [aerospike-clj.protocols :as pt]
-            [clojure.string])
-  (:import [com.aerospike.client ResultCode AerospikeException]
-           [java.util.concurrent ExecutionException]
-           [aerospike_clj.client SimpleAerospikeClient]))
+            [clojure.test :refer [deftest is testing use-fixtures]])
+  (:import (aerospike_clj.client SimpleAerospikeClient)
+           (com.aerospike.client AerospikeException ResultCode)
+           (java.util.concurrent ExecutionException)))
 
 (def ^:dynamic ^SimpleAerospikeClient client nil)
 
@@ -290,36 +289,6 @@
 
 (deftest get-cluster-stats-test
   (is (= [[]] (pt/get-cluster-stats client))))
-
-(deftest apply-transcoder-test
-  (testing "it should apply the transcoder function to the payload before inserting it"
-    (let [conf     {:transcoder #(clojure.core/update % "bar" inc)}
-          expected {:payload {"bar" 21} :ttl 378777600 :gen 1}]
-
-      (pt/put client "foo" "my-set" {"bar" 20} 86400 conf)
-      (is (= @(pt/get-single client "foo" "my-set") expected))))
-
-  (testing "it should apply the transcoder function to the whole record before returning it"
-    (let [conf     {:transcoder #(clojure.core/update-in % [:payload "bar"] inc)}
-          expected {:payload {"bar" 22} :ttl 378777600 :gen 1}
-          actual   (pt/get-single client "foo" "my-set" conf)]
-      (is (= @actual expected))))
-
-  (testing "it should apply the transcoder function on each record before returning them"
-    (pt/put-multiple client ["a" "b" "c"] [nil nil nil] ["d" "e" "f"] [10 20 30])
-
-    (let [upper-case-value #(clojure.core/update % :payload clojure.string/upper-case)
-          increment-ttl    #(clojure.core/update % :ttl inc)
-          conf             {:transcoder (comp increment-ttl upper-case-value)}
-          expected         [{:payload "D" :ttl 378691211 :gen 1}
-                            {:payload "E" :ttl 378691221 :gen 1}
-                            {:payload "F" :ttl 378691231 :gen 1}]
-          actual           @(pt/get-batch client
-                                          [{:index "a" :set nil}
-                                           {:index "b" :set nil}
-                                           {:index "c" :set nil}]
-                                          conf)]
-      (is (= actual expected)))))
 
 (deftest replace-only-test
   (testing "it should throw an exception when the replaced item doesn't exist"

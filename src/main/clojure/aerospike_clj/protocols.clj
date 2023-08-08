@@ -7,7 +7,7 @@
     [this index set-name]
     [this index set-name conf]
     [this index set-name conf bin-names]
-    "Returns a single record: `(transcoder AerospikeRecord)`. The default transcoder is `identity`.
+    "Returns a single record: `AerospikeRecord`.
     Pass a `:policy` in `conf` to use a non-default `ReadPolicy`.")
 
   (get-single-no-meta
@@ -42,8 +42,7 @@
     [this index set-name data expiration]
     [this index set-name data expiration conf]
     "Writes `data` into a record with the key `index`, with the TTL of `expiration` seconds.
-    `index` should be string. Pass a function in `(:transcoder conf)` to modify `data` before it
-    is sent to the DB.
+    `index` should be string.
     Pass a `WritePolicy` in `(:policy conf)` to uses the non-default policy.
     When a Clojure map is provided for the `data` argument, a multiple bin record will be created.
     Each key-value pair in the map will be treated as a bin-name, bin-value pair. Bin-names must be
@@ -77,8 +76,7 @@
     [this index set-name new-record generation new-expiration conf]
     "Write a new value for the key `index`.
     Generation: the expected modification count of the record (i.e. how many times was it
-    modified before my current action). Pass a function in `(:transcoder conf)` to modify
-    `data` before it is sent to the DB.")
+    modified before my current action).")
 
   (add-bins
     [this index set-name new-data new-expiration]
@@ -162,14 +160,6 @@
   (stop [this]
     "Gracefully stop a client, waiting until all async operations finish.
     The underlying EventLoops instance is closed iff it was not provided externally."))
-
-(defprotocol ClientEvents
-  "Continuation functions that are registered when an async DB operation is called.
-  The value returned from those function will be the value of the returned future from the async operation."
-  (on-success [this op-name op-result index op-start-time]
-    "A continuation function. Registered on the operation future and called when operations succeeds.")
-  (on-failure [this op-name op-ex index op-start-time]
-    "A continuation function. Registered on the operation future and called when operations fails."))
 
 (defprotocol UserKey
   "Use `create-key` directly to pass a pre-made custom key to the public API.

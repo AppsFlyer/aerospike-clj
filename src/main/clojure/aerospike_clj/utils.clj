@@ -41,12 +41,3 @@
   "An optimized way to convert vectors into Java arrays of type `clazz`."
   [clazz v]
   (.toArray ^Collection v ^"[Ljava.lang.Object;" (make-array clazz (count v))))
-
-(defn vectorize
-  "convert a single value to a vector or any collection to the equivalent vector.
-  NOTE: a map or a set have no defined order so vectorize them is not allowed"
-  [v]
-  (cond
-    (or (map? v) (set? v)) (throw (IllegalArgumentException. "undefined sequence order for argument"))
-    (or (nil? v) (vector? v) (seq? v)) (vec v)
-    :else [v]))

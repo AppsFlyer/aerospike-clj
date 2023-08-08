@@ -1,75 +1,75 @@
 (ns aerospike-clj.listeners
-  (:require [promesa.core :as p]
-            [aerospike-clj.aerospike-record :as record])
-  (:import (java.util List Map)
-           (com.aerospike.client Key Record AerospikeException AerospikeException$QueryTerminated)
-           (com.aerospike.client.listener RecordListener WriteListener DeleteListener
-                                          ExistsListener BatchListListener RecordSequenceListener InfoListener ExistsArrayListener BatchOperateListListener)))
+  (:require [aerospike-clj.aerospike-record :as record])
+  (:import (com.aerospike.client AerospikeException AerospikeException$QueryTerminated Key Record)
+           (com.aerospike.client.listener BatchListListener BatchOperateListListener DeleteListener
+                                          ExistsArrayListener ExistsListener InfoListener RecordListener RecordSequenceListener WriteListener)
+           (java.util List Map)
+           (java.util.concurrent CompletableFuture)))
 
-(deftype AsyncExistsListener [op-future]
+(deftype AsyncExistsListener [^CompletableFuture op-future]
   ExistsListener
   (^void onFailure [_this ^AerospikeException ex]
-    (p/reject! op-future ex))
+    (.completeExceptionally op-future ex))
   (^void onSuccess [_this ^Key _k ^boolean exists]
-    (p/resolve! op-future exists)))
+    (.complete op-future exists)))
 
-(deftype AsyncDeleteListener [op-future]
+(deftype AsyncDeleteListener [^CompletableFuture op-future]
   DeleteListener
   (^void onSuccess [_this ^Key _k ^boolean existed]
-    (p/resolve! op-future existed))
+    (.complete op-future existed))
   (^void onFailure [_ ^AerospikeException ex]
-    (p/reject! op-future ex)))
+    (.completeExceptionally op-future ex)))
 
-(deftype AsyncWriteListener [op-future]
+(deftype AsyncWriteListener [^CompletableFuture op-future]
   WriteListener
   (^void onSuccess [_this ^Key _]
-    (p/resolve! op-future true))
+    (.complete op-future true))
   (^void onFailure [_this ^AerospikeException ex]
-    (p/reject! op-future ex)))
+    (.completeExceptionally op-future ex)))
 
-(deftype AsyncInfoListener [op-future]
+(deftype AsyncInfoListener [^CompletableFuture op-future]
   InfoListener
   (^void onSuccess [_this ^Map result-map]
-    (p/resolve! op-future (into {} result-map)))
+    (.complete op-future (into {} result-map)))
   (^void onFailure [_this ^AerospikeException ex]
-    (p/reject! op-future ex)))
+    (.completeExceptionally op-future ex)))
 
-(deftype AsyncRecordListener [op-future]
+(deftype AsyncRecordListener [^CompletableFuture op-future]
   RecordListener
   (^void onFailure [_this ^AerospikeException ex]
-    (p/reject! op-future ex))
+    (.completeExceptionally op-future ex))
   (^void onSuccess [_this ^Key _k ^Record record]
-    (p/resolve! op-future record)))
+    (.complete op-future record)))
 
-(deftype AsyncRecordSequenceListener [op-future callback]
+(deftype AsyncRecordSequenceListener [^CompletableFuture op-future callback]
   RecordSequenceListener
   (^void onRecord [_this ^Key k ^Record record]
     (when (= :abort-scan (callback (.userKey k) (record/record->map record)))
       (throw (AerospikeException$QueryTerminated.))))
   (^void onSuccess [_this]
-    (p/resolve! op-future true))
+    (.complete op-future true))
   (^void onFailure [_this ^AerospikeException exception]
     (if (instance? AerospikeException$QueryTerminated exception)
-      (p/resolve! op-future false)
-      (p/reject! op-future exception))))
+      (.complete op-future false)
+      (.completeExceptionally op-future exception))))
 
-(deftype AsyncBatchListListener [op-future]
+(deftype AsyncBatchListListener [^CompletableFuture op-future]
   BatchListListener
   (^void onFailure [_this ^AerospikeException ex]
-    (p/reject! op-future ex))
+    (.completeExceptionally op-future ex))
   (^void onSuccess [_this ^List records]
-    (p/resolve! op-future records)))
+    (.complete op-future records)))
 
-(deftype AsyncExistsArrayListener [op-future]
+(deftype AsyncExistsArrayListener [^CompletableFuture op-future]
   ExistsArrayListener
   (^void onFailure [_this ^AerospikeException ex]
-    (p/reject! op-future ex))
+    (.completeExceptionally op-future ex))
   (^void onSuccess [_this ^"[Lcom.aerospike.client.Key;" _keys ^"[Z" exists]
-    (p/resolve! op-future exists)))
+    (.complete op-future exists)))
 
-(deftype AsyncBatchOperateListListener [op-future]
+(deftype AsyncBatchOperateListListener [^CompletableFuture op-future]
   BatchOperateListListener
   (^void onSuccess [_this ^List records ^boolean _status]
-    (p/resolve! op-future records))
+    (.complete op-future records))
   (^void onFailure [_this ^AerospikeException ex]
-    (p/reject! op-future ex)))
+    (.completeExceptionally op-future ex)))
