@@ -48,7 +48,8 @@
     (swap! state swap-fn)
     (CompletableFuture/completedFuture true)
     (catch AerospikeException ex
-      (CompletableFuture/failedFuture ex))))
+      (doto (CompletableFuture.)
+        (.completeExceptionally ex)))))
 
 (defn- filter-bins [bins record]
   (clojure.core/update record :payload #(select-keys % bins)))
