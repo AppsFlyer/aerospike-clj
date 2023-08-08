@@ -115,15 +115,15 @@
               ^Key (pt/create-key index dbns set-name)
               ^"[Ljava.lang.String;" (utils/v->array String bin-names)))
       (-> ^CompletableFuture op-future
-          (.thenApplyAsync functions/record->map completion-executor))))
+          (.thenApplyAsync functions/record->map-function completion-executor))))
 
   (get-single-no-meta [this index set-name]
     (-> ^CompletableFuture (pt/get-single this index set-name)
-        (.thenApply functions/extract-payload)))
+        (.thenApply functions/extract-payload-function)))
 
   (get-single-no-meta [this index set-name bin-names]
     (-> ^CompletableFuture (pt/get-single this index set-name {} bin-names)
-        (.thenApply functions/extract-payload)))
+        (.thenApply functions/extract-payload-function)))
 
   (exists? [this index set-name]
     (pt/exists? this index set-name {}))
@@ -136,7 +136,7 @@
                ^Policy (:policy conf)
                ^Key (pt/create-key index dbns set-name))
       (-> ^CompletableFuture op-future
-          (.thenApplyAsync functions/identity completion-executor))))
+          (.thenApplyAsync functions/identity-function completion-executor))))
 
   (get-batch [this batch-reads]
     (pt/get-batch this batch-reads {}))
@@ -150,7 +150,7 @@
             ^BatchPolicy (:policy conf)
             ^List batch-reads-arr)
       (-> ^CompletableFuture op-future
-          (.thenApplyAsync functions/mapv-batch-record->map completion-executor))))
+          (.thenApplyAsync functions/mapv-batch-record->map-function completion-executor))))
 
   (exists-batch [this indices]
     (pt/exists-batch this indices {}))
@@ -164,7 +164,7 @@
                ^BatchPolicy (:policy conf)
                ^"[Lcom.aerospike.client.Key;" indices)
       (-> ^CompletableFuture op-future
-          (.thenApplyAsync functions/->vec completion-executor))))
+          (.thenApplyAsync functions/vec-function completion-executor))))
 
   pt/AerospikeWriteOps
   (put [this index set-name data expiration]
@@ -269,7 +269,7 @@
               ^WritePolicy (policy/write-policy client expiration RecordExistsAction/UPDATE_ONLY)
               ^Key (pt/create-key index dbns set-name))
       (-> ^CompletableFuture op-future
-          (.thenApplyAsync functions/identity completion-executor))))
+          (.thenApplyAsync functions/identity-function completion-executor))))
 
   pt/AerospikeDeleteOps
   (delete [this index set-name]
@@ -283,7 +283,7 @@
                ^WritePolicy (:policy conf)
                ^Key (pt/create-key index dbns set-name))
       (-> ^CompletableFuture op-future
-          (.thenApplyAsync functions/identity completion-executor))))
+          (.thenApplyAsync functions/identity-function completion-executor))))
 
   (delete-bins [this index set-name bin-names new-expiration]
     (pt/delete-bins this index set-name bin-names new-expiration {}))
@@ -298,7 +298,7 @@
             ^Key (pt/create-key index dbns set-name)
             ^"[Lcom.aerospike.client.Bin;" (utils/v->array Bin (mapv bins/set-bin-as-null bin-names)))
       (-> ^CompletableFuture op-future
-          (.thenApplyAsync functions/identity completion-executor))))
+          (.thenApplyAsync functions/identity-function completion-executor))))
 
   pt/AerospikeSingleIndexBatchOps
   (operate [this index set-name expiration operations]
@@ -315,7 +315,7 @@
                   ^Key (pt/create-key index dbns set-name)
                   (utils/v->array Operation operations))
         (-> ^CompletableFuture op-future
-            (.thenApplyAsync functions/record->map completion-executor)))))
+            (.thenApplyAsync functions/record->map-function completion-executor)))))
 
   pt/AerospikeBatchOps
   (batch-operate [this batch-records]
@@ -335,7 +335,7 @@
                 ^BatchPolicy policy
                 ^List batch-list)
       (-> ^CompletableFuture op-future
-          (.thenApplyAsync functions/mapv-batch-record->map completion-executor))))
+          (.thenApplyAsync functions/mapv-batch-record->map-function completion-executor))))
 
 
   pt/AerospikeSetOps
@@ -352,7 +352,7 @@
                 set-name
                 (when bin-names ^"[Ljava.lang.String;" (utils/v->array String bin-names)))
       (-> ^CompletableFuture op-future
-          (.thenApplyAsync functions/identity completion-executor))))
+          (.thenApplyAsync functions/identity-function completion-executor))))
 
   pt/AerospikeAdminOps
   (info [this node info-commands]
@@ -367,7 +367,7 @@
              ^Node node
              (into-array String info-commands))
       (-> ^CompletableFuture op-future
-          (.thenApplyAsync functions/identity completion-executor))))
+          (.thenApplyAsync functions/identity-function completion-executor))))
 
   (get-nodes [_this]
     (into [] (.getNodes ^AerospikeClient client)))
@@ -392,7 +392,7 @@
         @(pt/put this k set-name v ttl)
         (= v
            (-> ^CompletableFuture (pt/get-single this k set-name {:policy read-policy})
-               (.thenApply functions/extract-payload)
+               (.thenApply functions/extract-payload-function)
                deref))
         (catch Exception _ex
           false))))

@@ -6,8 +6,7 @@
             [aerospike-clj.utils])
   (:import (com.aerospike.client AerospikeException ResultCode)
            (java.time Clock Instant ZoneOffset)
-           (java.util.concurrent CompletableFuture)
-           (java.util.function Function)))
+           (java.util.concurrent CompletableFuture)))
 
 (def ^:private DEFAULT_SET "__DEFAULT__")
 (def FIXED_CLOCK (Clock/fixed (Instant/parse "2022-01-01T00:00:00.00Z") ZoneOffset/UTC))
@@ -66,11 +65,11 @@
 
   (get-single-no-meta [this k set-name]
     (-> ^CompletableFuture (pt/get-single this k set-name)
-        (.thenApply functions/extract-payload)))
+        (.thenApply functions/extract-payload-function)))
 
   (get-single-no-meta [this k set-name bin-names]
     (-> ^CompletableFuture (pt/get-single this k set-name {} bin-names)
-        (.thenApply functions/extract-payload)))
+        (.thenApply functions/extract-payload-function)))
 
   (exists? [this k set-name]
     (pt/exists? this k set-name {}))
