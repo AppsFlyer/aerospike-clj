@@ -111,10 +111,9 @@ under the `:policy` key of the API calls.
 
 #### Querying
 Querying is only possible (read: easy) via the asynchronous APIs of the client.
-`aerospike-clj` also converts the callback model of the underlying APIs to a future
-based model (using [`promesa`](https://github.com/funcool/promesa)). This allows
-users to configure additional logic to happen when the response returns.
-But first, let's see a simple query:
+`aerospike-clj` converts the callback model of the underlying APIs to a
+`java.util.concurrent.CompletableFuture` based model. This allows users to configure 
+additional logic to happen when the response returns. But first, let's see a simple query:
 ```clojure
 user=> (require '[aerospike-clj.protocols :as pt])
 nil
@@ -126,13 +125,14 @@ nil
 ```
 Joy! We got a future answer. In this case, the deferred result is `nil`, since the
 key `"not-there"` is missing. Futures can be composed with logic that happens once
-they are delivered (for a complete documentation, see `promesa`'s docs [here](https://funcool.github.io/promesa/latest/). 
-Behold:
+they are delivered using Java's `CompletableFuture` API. Behold:
 ```clojure
-user=> (require '[promesa.core :as p])
-nil
-user=> (p/then (pt/get-single c "index" "set-name")
-  #_=>         #(if %1 (prn "good!") (prn "not there")))
+user=> (import java.util.function.Function)
+java.util.function.Function
+user=> (-> (pt/get-single c "index" "set-name")
+  #_=>     (.thenApply (reify Function
+  #_=>                   (apply [_ result]
+  #_=>                     (if result (prn "good!") (prn "not there"))))))
 "not there"
 ```
 If the record existed we would get an `AerospikeRecord`:
@@ -174,60 +174,16 @@ user=> (-> f
 ```
 Let's do it in an asynchronous manner:
 ```clojure
-user=> (p/chain (pt/get-single c "index" "set-name")
-  #_=>          :ttl
-  #_=>          client/expiry-unix
-  #_=>          #(java.time.Instant/ofEpochSecond %)
-  #_=>          str
-  #_=>          println)
+user=> (-> (pt/get-single c "index" "set-name")
+  #_=>     (.thenApply (reify Function
+  #_=>                   (apply [_ record]
+  #_=>                     (-> record
+  #_=>                         :ttl
+  #_=>                         client/expiry-unix
+  #_=>                         java.time.Instant/ofEpochSecond
+  #_=>                         str
+  #_=>                         println)))))
 #object[java.util.concurrent.CompletableFuture 0x4a9620a9 "pending"]
 2019-01-10T09:02:45Z
 ```
-We got a deferred back and some time later the whole chain of composed logic
-was triggered. We can also get the result once multiple required records return.
-We will simply get a sequence of `AerospikeRecord`s once all of them arrive:
-```clojure
-user=> (run! #(pt/put c (str %1) "set-name" %1 1000) (range 5))
-nil
-user=> @(p/then (pt/get-batch c (map #(hash-map :index (str %) :set "set-name") (range 5)))
-  #_=>          #(map :payload %))
-(0 1 2 3 4)
-```
-
-##### Sync Querying
-Since the returned future objects can be easily `deref`ed, simply adding a `@`
-before queries makes them synchronous.
-
-#### Using Transcoders
-The library takes advantage of futures' ability to compose and allows you to configure
-a `:transcoder` to conveniently set this logic:
-* `get` Transcoders are functions of the **AerospikeRecord instance**, not the
-`deferred` value of it.
-* `put` Transcoders are functions on the passed **payload**. They are called _before_
-the request is even put on the event-loop.
-
-##### On get:
-```clojure
-user=> (pt/put c "index" "set-name" 42 1000)
-#object[java.util.concurrent.CompletableFuture 0x4a9620a9 "pending"]
-user=> (defn inc-transcoder [rec] (when rec
-  #_=>                                  (update rec :payload inc)))
-#'user/inc-transcoder
-user=> (p/chain (pt/get-single c "index" "set-name" {:transcoder inc-transcoder})
-  #_=>          :payload
-  #_=>          println)
-#object[java.util.concurrent.CompletableFuture 0x4a9620af "pending"]
-43
-```
-
-##### On put:
-
-The transcoder here is a function on the _payload_ itself
-```clojure
-user=> (pt/put c "17" "set-name" 1 1000 {:transcoder str})
-#object[java.util.concurrent.CompletableFuture 0x4d025d9b "pending"]
-user=> @(pt/get-single c "17" "set-name" {:transcoder #(:payload %1)})
-"1"
-```
-The transcoder option saves some boilerplate and can be easily used to do more
-useful stuff, like de-serializing or (de)compressing data on the client side.
+We got a future back and some time later the chain of composed logic was triggered.

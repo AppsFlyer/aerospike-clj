@@ -50,9 +50,9 @@
                  (create-key k-digest as-ns as-set nil)))))
 
 (deftest too-long-key
-  (let [too-long-key   (s/join "" (repeat (ThreadLocalData/DefaultBufferSize) "k"))
-        too-long-ba    (byte-array (ThreadLocalData/DefaultBufferSize))
-        too-long-value (Value/get (byte-array (ThreadLocalData/DefaultBufferSize)))]
+  (let [too-long-key   (s/join "" (repeat ThreadLocalData/DefaultBufferSize "k"))
+        too-long-ba    (byte-array ThreadLocalData/DefaultBufferSize)
+        too-long-value (Value/get (byte-array ThreadLocalData/DefaultBufferSize))]
     (is (thrown-with-msg? Exception #"key is too long"
                           (create-key too-long-key "ns" nil)))
     (is (thrown-with-msg? Exception #"key is too long"

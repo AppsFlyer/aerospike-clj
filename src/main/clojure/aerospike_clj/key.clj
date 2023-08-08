@@ -14,17 +14,17 @@
                         (let [set-name-length (if set-name
                                                 (.length set-name)
                                                 0)]
-                          (when (<= (ThreadLocalData/DefaultBufferSize) (+ (alength this) set-name-length))
+                          (when (<= ThreadLocalData/DefaultBufferSize (+ (alength this) set-name-length))
                             (throw (Exception. (format "key is too long: %s..." this)))))
                         (Key. as-namesapce set-name this))})
 
 (extend-protocol AerospikeIndex
-  String 
+  String
   (create-key-method ^Key [this ^String as-namesapce ^String set-name]
     (let [set-name-length (if set-name
                             (.length set-name)
                             0)]
-      (when (<= (ThreadLocalData/DefaultBufferSize) (+ (.length this) set-name-length))
+      (when (<= ThreadLocalData/DefaultBufferSize (+ (.length this) set-name-length))
         (throw (Exception. (format "key is too long: %s..." (subs this 0 40))))))
     (Key. as-namesapce set-name this))
 
@@ -45,7 +45,7 @@
     (let [set-name-length (if set-name
                             (.length set-name)
                             0)]
-      (when (<= (ThreadLocalData/DefaultBufferSize) (+ (.estimateSize this) set-name-length))
+      (when (<= ThreadLocalData/DefaultBufferSize (+ (.estimateSize this) set-name-length))
         (throw (Exception. (format "key is too long: %s..." (subs (.toString this) 0 40))))))
     (Key. as-namesapce set-name this)))
 

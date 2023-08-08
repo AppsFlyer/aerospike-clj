@@ -27,7 +27,7 @@
         (let [entry     (.next iterator)
               key-entry (key entry)]
           (when-not (string? key-entry)
-            (throw (Exception. (format "Aerospike only accepts string values as bin names. Please ensure all keys in the map are strings."))))
+            (throw (Exception. "Aerospike only accepts string values as bin names. Please ensure all keys in the map are strings.")))
           (aset res i (create-bin key-entry (utils/sanitize-bin-value (val entry))))
           (recur (inc i)))))
     res))

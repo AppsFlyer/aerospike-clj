@@ -8,8 +8,7 @@
             [aerospike-clj.protocols :as pt]
             [aerospike-clj.policy :as policy]
             [aerospike-clj.key :as as-key]
-            [aerospike-clj.utils :as utils]
-            [spy.core :as spy])
+            [aerospike-clj.utils :as utils])
   (:import (com.aerospike.client Value AerospikeClient BatchWrite Operation Bin)
            (com.aerospike.client.cdt ListOperation ListPolicy ListOrder ListWriteFlags ListReturnType
                                      MapOperation MapPolicy MapOrder MapWriteFlags MapReturnType CTX)
@@ -288,7 +287,7 @@
       (is (nil? g3)))))
 
 (deftest get-batch-transcoded
-  (let [put-json (fn [k d] (pt/put *c* k _set d TTL {:transcoder json/generate-string}))
+  (let [put-json (fn [k d] (pt/put *c* k _set (json/generate-string d) TTL))
         data     [{:a (rand-int 1000)} {:a (rand-int 1000)}]
         k        (random-key)
         k2       (random-key)
@@ -297,12 +296,10 @@
     (is (true? @(put-json k2 (second data))))
     (let [[{d1 :payload g1 :gen}
            {d2 :payload g2 :gen}]
-          @(pt/get-batch *c* batch
-                         {:transcoder (fn [batch-result]
-                                        (mapv
-                                          (fn [res]
-                                            (update res :payload #(json/parse-string % keyword)))
-                                          batch-result))})]
+          (mapv
+            (fn [res]
+              (update res :payload #(json/parse-string % keyword)))
+            @(pt/get-batch *c* batch))]
       (is (= d1 (first data)))
       (is (= d2 (second data)))
       (is (= 1 g1 g2)))))
@@ -321,12 +318,6 @@
       (is (true? @(pt/touch *c* k _set (inc TTL))))
       (let [{new-ttl :ttl} @(pt/get-single *c* k _set)]
         (is (< ttl new-ttl))))))
-
-(deftest transcoder-failure
-  (let [k (random-key)]
-    (is (true? @(pt/create *c* k _set 1 TTL)))
-    (let [transcoder (fn [_] (throw (Exception. "oh-no")))]
-      (is (thrown-with-msg? Exception #"oh-no" @(pt/get-single *c* k _set {:transcoder transcoder}))))))
 
 (def empty-ctx-varargs (into-array CTX []))
 
@@ -474,7 +465,7 @@
               (letfn [(->set [res] (->> ^HashMap (:payload res)
                                         .keySet
                                         (into #{})))]
-                @(pt/get-single *c* k _set {:transcoder ->set})))
+                (->set @(pt/get-single *c* k _set))))
             (set-size []
               (pt/operate *c* k _set TTL
                           [(MapOperation/size "" empty-ctx-varargs)]))]
@@ -509,7 +500,7 @@
                              empty-ctx-varargs)]))
             (set-getall []
               (letfn [(->set [res] (->> res :payload (into #{})))]
-                @(pt/get-single *c* k _set {:transcoder ->set})))
+                (->set @(pt/get-single *c* k _set))))
             (set-size []
               (pt/operate *c* k _set TTL
                           [(ListOperation/size "" empty-ctx-varargs)]))]
@@ -792,61 +783,3 @@
         (is (= 1 (count @res))))
 
       (delete-records))))
-
-(deftest client-events-test
-  (let [success-spy               (spy/spy)
-        failure-spy               (spy/spy)
-        create-mock-client-events (fn [on-success-spy on-failure-spy]
-                                    (reify pt/ClientEvents
-                                      (on-success [_this op-name op-result index op-start-time]
-                                        (on-success-spy op-name op-result index op-start-time)
-                                        op-result)
-                                      (on-failure [_this op-name op-ex index op-start-time]
-                                        (on-failure-spy op-name op-ex index op-start-time)
-                                        op-ex)))
-        client-events             (create-mock-client-events success-spy failure-spy)
-        c                         (client/init-simple-aerospike-client *as-hosts* as-namespace {:client-events client-events})
-        index                     (random-key)
-        payload                   {"string" "hello"}]
-    (letfn [(nth-args-map [spy-instance ks n]
-              (let [args-map (zipmap ks (spy/nth-call spy-instance n))]
-                (assert number? (:op-start-time args-map))
-                (dissoc args-map :op-start-time)))
-            (success-nth-args-map [spy-instance n]
-              (nth-args-map spy-instance [:op-name :op-result :index :op-start-time] n))
-            (failure-nth-args-map [spy-instance n]
-              (nth-args-map spy-instance [:op-name :op-ex :index :op-start-time] n))]
-      (testing "client events is called with the right parameters using default client-events passed on client initialization"
-        @(pt/create c index _set payload TTL)
-        @(pt/get-single c index _set)
-        (is (thrown-with-msg? ExecutionException #"Generation error" @(pt/update c index _set "new-payload" 42 TTL)))
-
-        (is (= {:op-name   :write
-                :op-result true
-                :index     index} (success-nth-args-map success-spy 0)))
-        (is (= {:op-name   :read
-                :op-result payload
-                :index     index} (-> (success-nth-args-map success-spy 1)
-                                      (update :op-result :payload))))
-        (is (= {:op-name :write
-                :op-ex   3
-                :index   index} (-> (failure-nth-args-map failure-spy 0)
-                                    (update :op-ex #(.getResultCode %))))))
-      (testing "client events is called with the right parameters using custom client-events per op"
-        (let [custom-success-spy   (spy/spy)
-              custom-failure-spy   (spy/spy)
-              custom-client-events (create-mock-client-events custom-success-spy custom-failure-spy)]
-          @(pt/put c index _set payload TTL {:client-events [custom-client-events]})
-          @(pt/get-single c index _set {:client-events [custom-client-events]})
-          (is (thrown-with-msg? ExecutionException #"Generation error" @(pt/update c index _set "new-payload" 42 TTL {:client-events [custom-client-events]})))
-          (is (= {:op-name   :write
-                  :op-result true
-                  :index     index} (success-nth-args-map custom-success-spy 0)))
-          (is (= {:op-name   :read
-                  :op-result payload
-                  :index     index} (-> (success-nth-args-map custom-success-spy 1)
-                                        (update :op-result :payload))))
-          (is (= {:op-name :write
-                  :op-ex   3
-                  :index   index} (-> (failure-nth-args-map custom-failure-spy 0)
-                                      (update :op-ex #(.getResultCode %))))))))))
