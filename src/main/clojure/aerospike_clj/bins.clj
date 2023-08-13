@@ -33,8 +33,8 @@
 (defn data->bins
   "Function to identify whether `data` will be stored as a single or multiple bin record.
   Only Clojure maps will default to multiple bins. Nested data structures are supported."
-  [data]
+  ^"[Lcom.aerospike.client.Bin;" [data]
   (if (map? data)
     (map->multiple-bins data)
-    (doto ^"[Ljava.lang.Object;" (make-array Bin 1)
+    (doto ^"[Lcom.aerospike.client.Bin;" (make-array Bin 1)
       (aset 0 (Bin. "" (utils/sanitize-bin-value data))))))

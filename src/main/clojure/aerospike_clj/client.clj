@@ -104,7 +104,7 @@
           (AsyncWriteListener. op-future)
           ^WritePolicy policy
           ^Key (pt/create-key index dbns set-name)
-          ^"[Lcom.aerospike.client.Bin;" bins)
+          bins)
     (register-events op-future client-events :write index start-time conf)))
 
 (deftype SimpleAerospikeClient [client
