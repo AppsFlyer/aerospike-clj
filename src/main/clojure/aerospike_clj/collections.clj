@@ -2,7 +2,7 @@
   (:import (java.util ArrayList Collection Collections List)
            (java.util.function Consumer)))
 
-(defn ->map
+(defn ->list
   "Returns a new [java.util.List] containing the result of applying `mapper-fn` to each item in `col`.
    Returns an unmodifiable list.
    *Note*: This will usually be faster than `(mapv mapper-fn col)` because:

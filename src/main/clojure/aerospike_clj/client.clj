@@ -176,14 +176,14 @@
   (get-batch [_this batch-reads conf]
     (let [op-future       (p/deferred)
           start-time      (System/nanoTime)
-          batch-reads-arr (collections/->map #(map->batch-read % dbns) batch-reads)]
+          batch-reads-arr (collections/->list #(map->batch-read % dbns) batch-reads)]
       (.get ^AerospikeClient client
             ^EventLoop (.next ^EventLoops el)
             (AsyncBatchListListener. op-future)
             ^BatchPolicy (:policy conf)
             batch-reads-arr)
       (-> op-future
-          (p/then' #(collections/->map batch-record->map %) completion-executor)
+          (p/then' #(collections/->list batch-record->map %) completion-executor)
           (p/then' (:transcoder conf identity))
           (register-events client-events :read-batch nil start-time conf))))
 
@@ -385,7 +385,7 @@
                 ^BatchPolicy policy
                 ^List batch-list)
       (-> op-future
-          (p/then' (comp transcoder #(collections/->map batch-record->map %)) completion-executor)
+          (p/then' (comp transcoder #(collections/->list batch-record->map %)) completion-executor)
           (register-events client-events :batch-operate nil start-time conf))))
 
 
