@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Changed
 
-* Make the `aerospike-clj.utils.v->array` multi-arity, allowing to pass a `mapper-fn` to map the values before setting
+* Make the `aerospike-clj.utils/v->array` multi-arity, allowing to pass a `mapper-fn` to map the values before setting
   them into the array.
 * Optimize the `aerospike-clj.utils/v->array` function by `java.util.Collection#toArray` with a 0-length array, this
   will force the implementation to use the more performant `java.util.Arrays.copyOf`.

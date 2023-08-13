@@ -23,7 +23,8 @@
                                      [cheshire "5.11.0"]
                                      [tortue/spy "2.14.0"]
                                      [com.fasterxml.jackson.core/jackson-databind "2.11.2"]
-                                     [clj-kondo "2022.04.25"]]
+                                     [clj-kondo "2022.04.25"]
+                                     [com.clojure-goes-fast/clj-java-decompiler "0.3.4"]]
                     :eftest         {:multithread?   false
                                      :report         eftest.report.junit/report
                                      :report-to-file "target/junit.xml"}
