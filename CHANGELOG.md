@@ -9,13 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Added
 
-* Add the `aerospike-clj.collections/mapv` function, which is similar to `clojure.core/mapv`, but it's more efficient
+* Add the `aerospike-clj.collections/->map` function, which is similar to `clojure.core/mapv`, but it's more efficient
   when the input is not a Clojure sequence.
 
 #### Changed
 
 * Make the `aerospike-clj.utils.v->array` multi-arity, allowing to pass a `mapper-fn` to map the values before setting
   them into the array.
+* Optimize the `aerospike-clj.utils/v->array` function by `java.util.Collection#toArray` with a 0-length array, this
+  will force the implementation to use the more performant `java.util.Arrays.copyOf`.
+
+#### Deprecated
+
+* Deprecate `aerospike-clj.utils/string-keys?`.
 
 ## [3.0.0] - 2023-08-03
 

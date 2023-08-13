@@ -21,7 +21,8 @@
   (= bin-names [""]))
 
 (defn string-keys?
-  "Predicate function to determine whether all keys provided for bins are strings."
+  {:docstring  "Predicate function to determine whether all keys provided for bins are strings."
+   :deprecated "3.1.0"}
   [bin-names]
   (every? string? bin-names))
 
@@ -41,9 +42,9 @@
   "An optimized way to convert vectors into Java arrays of type `clazz`."
   ([clazz ^Collection v]
    (.toArray v ^"[Ljava.lang.Object;" (make-array clazz 0)))
-  ([clazz ^Collection v mapper-fn]
+  ([clazz mapper-fn ^Collection v]
    (let [size     (.size v)
-         res      (make-array clazz size)
+         res      ^"[Ljava.lang.Object;" (make-array clazz size)
          iterator (.iterator v)]
      (loop [i (int 0)]
        (when (and (< i size)

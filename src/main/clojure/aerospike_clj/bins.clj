@@ -15,11 +15,20 @@
     (throw (Exception. (format "%s is %s characters. Bin names have to be <= %d characters..." bin-name (.length bin-name) MAX_BIN_NAME_LENGTH))))
   (Bin/asNull bin-name))
 
-(defn- map->multiple-bins ^"[Lcom.aerospike.client.Bin;@4fee060b" [^IPersistentMap m]
-  (let [bin-names (keys m)]
-    (if (utils/string-keys? bin-names)
-      (utils/v->array Bin #(create-bin (key %) (utils/sanitize-bin-value (val %))))
-      (throw (Exception. (format "Aerospike only accepts string values as bin names. Please ensure all keys in the map are strings."))))))
+(defn- map->multiple-bins ^"[Lcom.aerospike.client.Bin;" [^IPersistentMap m]
+  (let [size     (.count m)
+        iterator (.iterator m)
+        res      (make-array Bin size)]
+    (loop [i (int 0)]
+      (when (and (< i size)
+                 (.hasNext iterator))
+        (let [entry     (.next iterator)
+              key-entry (key entry)]
+          (when-not (string? key-entry)
+            (throw (Exception. (format "Aerospike only accepts string values as bin names. Please ensure all keys in the map are strings."))))
+          (aset res i (create-bin key-entry (utils/sanitize-bin-value (val entry))))
+          (recur (unchecked-inc-int i)))))
+    res))
 
 (defn data->bins
   "Function to identify whether `data` will be stored as a single or multiple bin record.
@@ -27,5 +36,5 @@
   [data]
   (if (map? data)
     (map->multiple-bins data)
-    (doto (make-array Bin 1)
+    (doto ^"[Ljava.lang.Object;" (make-array Bin 1)
       (aset 0 (Bin. "" (utils/sanitize-bin-value data))))))

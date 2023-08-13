@@ -176,14 +176,14 @@
   (get-batch [_this batch-reads conf]
     (let [op-future       (p/deferred)
           start-time      (System/nanoTime)
-          batch-reads-arr (collections/map #(map->batch-read % dbns) batch-reads)]
+          batch-reads-arr (collections/->map #(map->batch-read % dbns) batch-reads)]
       (.get ^AerospikeClient client
             ^EventLoop (.next ^EventLoops el)
             (AsyncBatchListListener. op-future)
             ^BatchPolicy (:policy conf)
             batch-reads-arr)
       (-> op-future
-          (p/then' #(collections/map batch-record->map %) completion-executor)
+          (p/then' #(collections/->map batch-record->map %) completion-executor)
           (p/then' (:transcoder conf identity))
           (register-events client-events :read-batch nil start-time conf))))
 
@@ -194,7 +194,7 @@
     (let [op-future  (p/deferred)
           start-time (System/nanoTime)
           transcoder (:transcoder conf identity)
-          indices    (utils/v->array Key indices #(pt/create-key (:index %) dbns (:set %)))]
+          indices    (utils/v->array Key #(pt/create-key (:index %) dbns (:set %)) indices)]
       (.exists ^AerospikeClient client
                ^EventLoop (.next ^EventLoops el)
                (AsyncExistsArrayListener. op-future)
@@ -343,7 +343,7 @@
             (AsyncWriteListener. op-future)
             ^WritePolicy policy
             ^Key (pt/create-key index dbns set-name)
-            ^"[Lcom.aerospike.client.Bin;" (utils/v->array Bin bin-names bins/set-bin-as-null))
+            ^"[Lcom.aerospike.client.Bin;" (utils/v->array Bin bins/set-bin-as-null bin-names))
       (-> op-future
           (p/then' identity completion-executor)
           (register-events client-events :write index start-time conf))))
@@ -385,7 +385,7 @@
                 ^BatchPolicy policy
                 ^List batch-list)
       (-> op-future
-          (p/then' (comp transcoder #(collections/map batch-record->map %)) completion-executor)
+          (p/then' (comp transcoder #(collections/->map batch-record->map %)) completion-executor)
           (register-events client-events :batch-operate nil start-time conf))))
 
 
