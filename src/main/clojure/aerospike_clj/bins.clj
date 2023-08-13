@@ -19,7 +19,7 @@
   (let [size     (.count m)
         iterator (.iterator m)
         res      (make-array Bin size)]
-    (loop [i (int 0)]
+    (loop [i 0]
       (when (and (< i size)
                  (.hasNext iterator))
         (let [entry     (.next iterator)
@@ -27,7 +27,7 @@
           (when-not (string? key-entry)
             (throw (Exception. (format "Aerospike only accepts string values as bin names. Please ensure all keys in the map are strings."))))
           (aset res i (create-bin key-entry (utils/sanitize-bin-value (val entry))))
-          (recur (unchecked-inc-int i)))))
+          (recur (inc i)))))
     res))
 
 (defn data->bins

@@ -46,11 +46,11 @@
    (let [size     (.size v)
          res      ^"[Ljava.lang.Object;" (make-array clazz size)
          iterator (.iterator v)]
-     (loop [i (int 0)]
+     (loop [i 0]
        (when (and (< i size)
                   (.hasNext iterator))
          (aset res i (mapper-fn (.next iterator)))
-         (recur (unchecked-inc-int i))))
+         (recur (inc i))))
      res)))
 
 (defn vectorize
