@@ -39,8 +39,18 @@
 
 (defn v->array
   "An optimized way to convert vectors into Java arrays of type `clazz`."
-  [clazz v]
-  (.toArray ^Collection v ^"[Ljava.lang.Object;" (make-array clazz (count v))))
+  ([clazz ^Collection v]
+   (.toArray v ^"[Ljava.lang.Object;" (make-array clazz 0)))
+  ([clazz ^Collection v mapper-fn]
+   (let [size (.size v)
+         res  (make-array clazz size)]
+     (loop [i        (int 0)
+            iterator (.iterator v)]
+       (when (and (< i size)
+                  (.hasNext iterator))
+         (aset res i (mapper-fn (.next iterator)))
+         (recur (unchecked-inc-int i))))
+     res)))
 
 (defn vectorize
   "convert a single value to a vector or any collection to the equivalent vector.

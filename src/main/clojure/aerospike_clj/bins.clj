@@ -1,7 +1,7 @@
 (ns aerospike-clj.bins
   (:require [aerospike-clj.utils :as utils])
-  (:import [com.aerospike.client Bin]
-           [clojure.lang IPersistentMap]))
+  (:import (clojure.lang IPersistentMap)
+           (com.aerospike.client Bin)))
 
 (def ^:private ^:const MAX_BIN_NAME_LENGTH 14)
 
@@ -15,16 +15,10 @@
     (throw (Exception. (format "%s is %s characters. Bin names have to be <= %d characters..." bin-name (.length bin-name) MAX_BIN_NAME_LENGTH))))
   (Bin/asNull bin-name))
 
-(def ^:private x-bin-convert
-  (comp
-    (map (fn [[k v]] [k (utils/sanitize-bin-value v)]))
-    (map (fn [[k v]] (create-bin k v)))))
-
-(defn- map->multiple-bins [^IPersistentMap m]
+(defn- map->multiple-bins ^"[Lcom.aerospike.client.Bin;@4fee060b" [^IPersistentMap m]
   (let [bin-names (keys m)]
     (if (utils/string-keys? bin-names)
-      (->> (into [] x-bin-convert m)
-           (utils/v->array Bin))
+      (utils/v->array Bin #(create-bin (key %) (utils/sanitize-bin-value (val %))))
       (throw (Exception. (format "Aerospike only accepts string values as bin names. Please ensure all keys in the map are strings."))))))
 
 (defn data->bins
@@ -33,4 +27,5 @@
   [data]
   (if (map? data)
     (map->multiple-bins data)
-    (utils/v->array Bin [^Bin (Bin. "" (utils/sanitize-bin-value data))])))
+    (doto (make-array Bin 1)
+      (aset 0 (Bin. "" (utils/sanitize-bin-value data))))))

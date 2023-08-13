@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### [3.1.0]- 2023-08-22
+
+#### Added
+
+* Add the `aerospike-clj.collections/mapv` function, which is similar to `clojure.core/mapv`, but it's more efficient
+  when the input is not a Clojure sequence.
+
+#### Changed
+
+* Make the `aerospike-clj.utils.v->array` multi-arity, allowing to pass a `mapper-fn` to map the values before setting
+  them into the array.
+
 ## [3.0.0] - 2023-08-03
 
 ### Changed
