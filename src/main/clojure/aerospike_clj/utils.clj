@@ -42,10 +42,10 @@
   ([clazz ^Collection v]
    (.toArray v ^"[Ljava.lang.Object;" (make-array clazz 0)))
   ([clazz ^Collection v mapper-fn]
-   (let [size (.size v)
-         res  (make-array clazz size)]
-     (loop [i        (int 0)
-            iterator (.iterator v)]
+   (let [size     (.size v)
+         res      (make-array clazz size)
+         iterator (.iterator v)]
+     (loop [i (int 0)]
        (when (and (< i size)
                   (.hasNext iterator))
          (aset res i (mapper-fn (.next iterator)))

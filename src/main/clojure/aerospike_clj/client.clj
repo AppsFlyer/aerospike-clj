@@ -2,10 +2,10 @@
   (:refer-clojure :exclude [update])
   (:require [aerospike-clj.aerospike-record :as record]
             [aerospike-clj.bins :as bins]
+            [aerospike-clj.collections :as collections]
             [aerospike-clj.key :as as-key]
             [aerospike-clj.listeners]
             [aerospike-clj.metrics :as metrics]
-            [aerospike-clj.collections :as collections]
             [aerospike-clj.policy :as policy]
             [aerospike-clj.protocols :as pt]
             [aerospike-clj.utils :as utils]
@@ -25,7 +25,7 @@
                                         Policy RecordExistsAction ScanPolicy
                                         WritePolicy)
            (java.time Instant)
-           (java.util ArrayList Arrays Collection List)
+           (java.util Arrays List)
            (java.util.concurrent Executor)))
 
 (def
@@ -176,14 +176,14 @@
   (get-batch [_this batch-reads conf]
     (let [op-future       (p/deferred)
           start-time      (System/nanoTime)
-          batch-reads-arr (collections/mapv #(map->batch-read % dbns) batch-reads)]
+          batch-reads-arr (collections/map #(map->batch-read % dbns) batch-reads)]
       (.get ^AerospikeClient client
             ^EventLoop (.next ^EventLoops el)
             (AsyncBatchListListener. op-future)
             ^BatchPolicy (:policy conf)
             batch-reads-arr)
       (-> op-future
-          (p/then' #(collections/mapv batch-record->map %) completion-executor)
+          (p/then' #(collections/map batch-record->map %) completion-executor)
           (p/then' (:transcoder conf identity))
           (register-events client-events :read-batch nil start-time conf))))
 
@@ -385,7 +385,7 @@
                 ^BatchPolicy policy
                 ^List batch-list)
       (-> op-future
-          (p/then' (comp transcoder #(collections/mapv batch-record->map %)) completion-executor)
+          (p/then' (comp transcoder #(collections/map batch-record->map %)) completion-executor)
           (register-events client-events :batch-operate nil start-time conf))))
 
 
