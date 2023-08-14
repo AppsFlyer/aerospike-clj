@@ -1,11 +1,12 @@
 (ns aerospike-clj.mock-client
   (:refer-clojure :exclude [update])
-  (:require [promesa.core :as p]
-            [aerospike-clj.client :as client]
+  (:require [aerospike-clj.client :as client]
+            [aerospike-clj.functions :as functions]
             [aerospike-clj.protocols :as pt]
             [aerospike-clj.utils])
   (:import (com.aerospike.client AerospikeException ResultCode)
-           (java.time Clock Instant ZoneOffset)))
+           (java.time Clock Instant ZoneOffset)
+           (java.util.concurrent CompletableFuture)))
 
 (def ^:private DEFAULT_SET "__DEFAULT__")
 (def FIXED_CLOCK (Clock/fixed (Instant/parse "2022-01-01T00:00:00.00Z") ZoneOffset/UTC))
@@ -37,9 +38,6 @@
   [state set-name k]
   (:gen (get-record state set-name k) 0))
 
-(defn- get-transcoder [conf]
-  (:transcoder conf identity))
-
 (defn- create-record
   ([payload ttl] (create-record payload ttl 1))
   ([payload ttl generation]
@@ -48,9 +46,10 @@
 (defn- do-swap [state swap-fn]
   (try
     (swap! state swap-fn)
-    (p/resolved true)
+    (CompletableFuture/completedFuture true)
     (catch AerospikeException ex
-      (p/rejected ex))))
+      (doto (CompletableFuture.)
+        (.completeExceptionally ex)))))
 
 (defn- filter-bins [bins record]
   (clojure.core/update record :payload #(select-keys % bins)))
@@ -62,27 +61,28 @@
 
   (get-single [this k set-name conf] (pt/get-single this k set-name conf nil))
 
-  (get-single [_ k set-name conf _]
-    (let [transcoder (get-transcoder conf)]
-      (p/resolved (transcoder (get-record @state set-name k)))))
+  (get-single [_ k set-name _ _]
+    (CompletableFuture/completedFuture (get-record @state set-name k)))
 
   (get-single-no-meta [this k set-name]
-    (pt/get-single this k set-name {:transcoder :payload}))
+    (-> ^CompletableFuture (pt/get-single this k set-name)
+        (.thenApply functions/extract-payload-function)))
 
   (get-single-no-meta [this k set-name bin-names]
-    (pt/get-single this k set-name {:transcoder :payload} bin-names))
+    (-> ^CompletableFuture (pt/get-single this k set-name {} bin-names)
+        (.thenApply functions/extract-payload-function)))
 
   (exists? [this k set-name]
     (pt/exists? this k set-name {}))
 
   (exists? [_ k set-name _]
-    (p/resolved (record-exists? @state set-name k)))
+    (CompletableFuture/completedFuture (record-exists? @state set-name k)))
 
   (get-batch [this batch-reads]
     (pt/get-batch this batch-reads {}))
 
   (get-batch [this batch-reads conf]
-    (p/resolved
+    (CompletableFuture/completedFuture
       (mapv
         (fn [record]
           (let [bins     (if (= [:all] (:bins record)) nil (:bins record))
@@ -94,31 +94,29 @@
     (pt/exists-batch this indices {}))
 
   (exists-batch [_ indices _]
-    (p/resolved
+    (CompletableFuture/completedFuture
       (mapv (fn [v] (record-exists? @state (:set v) (:index v))) indices)))
 
   pt/AerospikeWriteOps
   (put [this k set-name data expiration]
     (pt/put this k set-name data expiration {}))
 
-  (put [_ k set-name data expiration conf]
-    (let [transcoder (get-transcoder conf)
-          new-record (create-record (transcoder data) expiration)
+  (put [_ k set-name data expiration _]
+    (let [new-record (create-record data expiration)
           swap-fn    (fn [current-state] (set-record current-state new-record set-name k))]
       (do-swap state swap-fn)))
 
   (create [this k set-name data expiration]
     (pt/create this k set-name data expiration {}))
 
-  (create [_ k set-name data expiration conf]
+  (create [_ k set-name data expiration _]
     (let [swap-fn (fn [current-state]
                     (when (some? (get-record current-state set-name k))
                       (throw (AerospikeException.
                                (ResultCode/KEY_EXISTS_ERROR)
                                (str "Call to `create` on existing key '" k "'"))))
 
-                    (let [transcoder (get-transcoder conf)
-                          new-record (create-record (transcoder data) expiration)]
+                    (let [new-record (create-record data expiration)]
                       (set-record current-state new-record set-name k)))]
       (do-swap state swap-fn)))
 
@@ -126,7 +124,7 @@
     (pt/put-multiple this indices set-names payloads expiration-seq {}))
 
   (put-multiple [this indices set-names payloads expiration-seq conf]
-    (p/resolved
+    (CompletableFuture/completedFuture
       (mapv (fn [k set-name payload expiration]
               @(pt/put this k set-name payload expiration conf))
             indices set-names payloads expiration-seq)))
@@ -142,27 +140,25 @@
   (add-bins [this k set-name new-data new-expiration]
     (pt/add-bins this k set-name new-data new-expiration {}))
 
-  (add-bins [_ k set-name new-data new-expiration conf]
-    (let [transcoder (get-transcoder conf)
-          swap-fn    (fn [current-state]
-                       (if-let [old-data (:payload (get-record current-state set-name k))]
-                         (let [merged-data (merge old-data new-data)
-                               generation  (get-generation current-state set-name k)
-                               new-record  (create-record
-                                             (transcoder merged-data) new-expiration generation)]
-                           (set-record current-state new-record set-name k))
-                         (throw (AerospikeException.
-                                  (ResultCode/KEY_NOT_FOUND_ERROR)
-                                  (str "Call to `add-bins` on non-existing key '" k "'")))))]
+  (add-bins [_ k set-name new-data new-expiration _]
+    (let [swap-fn (fn [current-state]
+                    (if-let [old-data (:payload (get-record current-state set-name k))]
+                      (let [merged-data (merge old-data new-data)
+                            generation  (get-generation current-state set-name k)
+                            new-record  (create-record
+                                          merged-data new-expiration generation)]
+                        (set-record current-state new-record set-name k))
+                      (throw (AerospikeException.
+                               (ResultCode/KEY_NOT_FOUND_ERROR)
+                               (str "Call to `add-bins` on non-existing key '" k "'")))))]
       (do-swap state swap-fn)))
   (replace-only [this k set-name data expiration]
     (pt/replace-only this k set-name data expiration {}))
 
-  (replace-only [_ k set-name data expiration conf]
+  (replace-only [_ k set-name data expiration _]
     (let [swap-fn (fn [current-state]
                     (if (some? (get-record current-state set-name k))
-                      (let [transcoder (get-transcoder conf)
-                            new-record (create-record (transcoder data) expiration)]
+                      (let [new-record (create-record data expiration)]
                         (set-record current-state new-record set-name k))
                       (throw (AerospikeException.
                                ResultCode/KEY_NOT_FOUND_ERROR
@@ -172,7 +168,7 @@
   (update [this k set-name new-record generation new-expiration]
     (pt/update this k set-name new-record generation new-expiration {}))
 
-  (update [_ k set-name new-record expected-generation new-expiration conf]
+  (update [_ k set-name new-record expected-generation new-expiration _]
     (let [swap-fn (fn [current-state]
                     (let [current-generation (get-generation current-state set-name k)]
                       (when-not (= current-generation expected-generation)
@@ -181,9 +177,8 @@
                                  (str "Record 'generation' count does not match expected value: '"
                                       expected-generation "'"))))
 
-                      (let [transcoder (get-transcoder conf)
-                            new-record (create-record
-                                         (transcoder new-record) new-expiration (inc current-generation))]
+                      (let [new-record (create-record
+                                         new-record new-expiration (inc current-generation))]
                         (set-record current-state new-record set-name k))))]
       (do-swap state swap-fn)))
 
@@ -211,7 +206,7 @@
           bins     (:bins conf)
           get-bins (if bins (partial filter-bins bins) identity)]
 
-      (p/resolved
+      (CompletableFuture/completedFuture
         (try
           (doseq [[k v] state]
             (when (= (callback k (get-bins v)) :abort-scan)
@@ -234,7 +229,7 @@
                          (reset! success? false)
                          current-state)))]
       (do-swap state swap-fn)
-      (p/resolved @success?)))
+      (CompletableFuture/completedFuture @success?)))
 
   (delete-bins [this k set-name bin-names new-expiration]
     (pt/delete-bins this k set-name bin-names new-expiration {}))

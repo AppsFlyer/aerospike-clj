@@ -1,6 +1,6 @@
 (ns aerospike-clj.aerospike-record
   (:require [aerospike-clj.utils :as utils])
-  (:import (com.aerospike.client Record)
+  (:import (com.aerospike.client BatchRecord Record)
            (java.util Map)))
 
 (defrecord AerospikeRecord [payload ^Integer gen ^Integer ttl])
@@ -28,3 +28,10 @@
            payload
            ^Integer (.generation ^Record record)
            ^Integer (.expiration ^Record record)))))
+
+(defn batch-record->map [^BatchRecord batch-record]
+  (let [k (.key batch-record)]
+    (-> (record->map (.record batch-record))
+        (assoc :index (.toString (.userKey k)))
+        (assoc :set (.setName k))
+        (assoc :result-code (.resultCode batch-record)))))

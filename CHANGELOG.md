@@ -1,6 +1,32 @@
 ## This library follows [Semantic Versioning](https://semver.org).
 ## This CHANGELOG follows [keepachangelog](https://keepachangelog.com/en/1.0.0/).
 
+### VERSION [4.0.0] - 2023-08-08
+
+### Removed
+
+* Remove the `funcool/promesa` dependency.
+  * This doesn't affect the return values, they remain `java.util.concurrent.CompletableFuture` as before.
+  * This reduces the libraries dependencies without sacrificing its functionality.
+* Remove the `:client-events` from the options map per client and per operation.  
+  The return values are `java.util.concurrent.CompletableFuture`, and the client is feel to compose additional
+  functionally on top of these futures.
+  * The previous `on-success` can be achieved with `CompletableFuture.thenApply` or `CompletableFuture.thenCompose`.
+  * The previous `on-failure` can be achieved with `CompletableFuture.exceptionally`
+    or `CompletableFuture.exceptionallyCompose`.
+* Remove the `:transcoder` from the options map per client and per operation.
+  * Mapping the response can be achieved with `CompletableFuture.thenApply` or `CompletableFuture.thenCompose`.
+  * To map the request's payload, supply a different payload.
+* Remove the `advanced-async-hooks.md`.
+
+### Changed
+
+* Update the [README.md](README.md) and the [tutorial.md](doc/tutorial.md) to reflect the above changes.
+* Bump `clj-kondo`: `2022.04.25` -> `2023.07.13`.
+* Move `batch-record->map` from `aerospike-clj.client` to `aerospike-clj.aerospike-record`.
+* All async continuation functions are now reified and assigned as a `def` at compile-time.
+  * This should reduce the number of allocations due to the removal of `(p/then' (fn [...))`.
+
 ###  VERSION [3.0.0]: https://github.com/AppsFlyer/aerospike-clj/pull/62
 #### Changed
 * use aerospike client version 6.1.10

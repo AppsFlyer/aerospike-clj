@@ -204,37 +204,3 @@ user=> @(p/then (aero/get-multiple c (map str (range 5)) (repeat "set-name"))
 ##### Sync Querying
 Since the returned future objects can be easily `deref`ed, simply adding a `@`
 before queries makes them synchronous.
-
-#### Using Transcoders
-The library takes advantage of futures' ability to compose and allows you to configure
-a `:transcoder` to conveniently set this logic:
-* `get` Transcoders are functions of the **AerospikeRecord instance**, not the
-`deferred` value of it.
-* `put` Transcoders are functions on the passed **payload**. They are called _before_
-the request is even put on the event-loop.
-
-##### On get:
-```clojure
-user=> (pt/put c "index" "set-name" 42 1000)
-#object[java.util.concurrent.CompletableFuture 0x4a9620a9 "pending"]
-user=> (defn inc-transcoder [rec] (when rec
-  #_=>                                  (update rec :payload inc)))
-#'user/inc-transcoder
-user=> (p/chain (pt/get-single c "index" "set-name" {:transcoder inc-transcoder})
-  #_=>          :payload
-  #_=>          println)
-#object[java.util.concurrent.CompletableFuture 0x4a9620af "pending"]
-43
-```
-
-##### On put:
-
-The transcoder here is a function on the _payload_ itself
-```clojure
-user=> (pt/put c "17" "set-name" 1 1000 {:transcoder str})
-#object[java.util.concurrent.CompletableFuture 0x4d025d9b "pending"]
-user=> @(pt/get-single c "17" "set-name" {:transcoder #(:payload %1)})
-"1"
-```
-The transcoder option saves some boilerplate and can be easily used to do more
-useful stuff, like de-serializing or (de)compressing data on the client side.
