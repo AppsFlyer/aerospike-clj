@@ -3,6 +3,8 @@
   (:import (clojure.lang IPersistentMap)
            (com.aerospike.client Bin)))
 
+(set! *warn-on-reflection* true)
+
 (def ^:private ^:const MAX_BIN_NAME_LENGTH 14)
 
 (defn- create-bin ^Bin [^String bin-name bin-value]
@@ -18,7 +20,7 @@
 (defn- map->multiple-bins ^"[Lcom.aerospike.client.Bin;" [^IPersistentMap m]
   (let [size     (.count m)
         iterator (.iterator m)
-        res      (make-array Bin size)]
+        res      ^"[Lcom.aerospike.client.Bin;" (make-array Bin size)]
     (loop [i 0]
       (when (and (< i size)
                  (.hasNext iterator))
