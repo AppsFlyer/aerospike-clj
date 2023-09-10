@@ -1,30 +1,31 @@
 (ns aerospike-clj.client
   (:refer-clojure :exclude [update])
-  (:require [clojure.string :as s]
-            [clojure.tools.logging :as log]
-            [promesa.core :as p]
-            [promesa.exec :as p-exec]
-            [aerospike-clj.policy :as policy]
+  (:require [aerospike-clj.aerospike-record :as record]
             [aerospike-clj.bins :as bins]
-            [aerospike-clj.utils :as utils]
-            [aerospike-clj.metrics :as metrics]
+            [aerospike-clj.collections :as collections]
             [aerospike-clj.key :as as-key]
             [aerospike-clj.listeners]
-            [aerospike-clj.aerospike-record :as record]
-            [aerospike-clj.protocols :as pt])
-  (:import (java.time Instant)
-           (java.util List Collection ArrayList Arrays)
-           (com.aerospike.client AerospikeClient Key Bin Operation BatchRead)
-           (com.aerospike.client.async EventLoop NioEventLoops EventLoops)
+            [aerospike-clj.metrics :as metrics]
+            [aerospike-clj.policy :as policy]
+            [aerospike-clj.protocols :as pt]
+            [aerospike-clj.utils :as utils]
+            [clojure.string :as s]
+            [clojure.tools.logging :as log]
+            [promesa.core :as p]
+            [promesa.exec :as p-exec])
+  (:import (aerospike_clj.listeners AsyncBatchListListener AsyncBatchOperateListListener AsyncDeleteListener
+                                    AsyncExistsArrayListener AsyncExistsListener AsyncInfoListener
+                                    AsyncRecordListener AsyncRecordSequenceListener AsyncWriteListener)
+           (com.aerospike.client BatchRecord Host Key)
+           (com.aerospike.client AerospikeClient BatchRead Bin Key Operation)
+           (com.aerospike.client.async EventLoop EventLoops NioEventLoops)
            (com.aerospike.client.cluster Node)
-           (com.aerospike.client.policy Policy BatchPolicy ClientPolicy
-                                        RecordExistsAction WritePolicy ScanPolicy
-                                        InfoPolicy)
-           (com.aerospike.client Key Host BatchRecord)
-           (aerospike_clj.listeners AsyncExistsListener AsyncDeleteListener AsyncWriteListener
-                                    AsyncInfoListener AsyncRecordListener AsyncRecordSequenceListener
-                                    AsyncBatchListListener AsyncExistsArrayListener AsyncBatchOperateListListener)
            (com.aerospike.client.listener BatchOperateListListener)
+           (com.aerospike.client.policy BatchPolicy ClientPolicy InfoPolicy
+                                        Policy RecordExistsAction ScanPolicy
+                                        WritePolicy)
+           (java.time Instant)
+           (java.util Arrays List)
            (java.util.concurrent Executor)))
 
 (def
@@ -103,7 +104,7 @@
           (AsyncWriteListener. op-future)
           ^WritePolicy policy
           ^Key (pt/create-key index dbns set-name)
-          ^"[Lcom.aerospike.client.Bin;" bins)
+          bins)
     (register-events op-future client-events :write index start-time conf)))
 
 (deftype SimpleAerospikeClient [client
@@ -175,14 +176,14 @@
   (get-batch [_this batch-reads conf]
     (let [op-future       (p/deferred)
           start-time      (System/nanoTime)
-          batch-reads-arr (ArrayList. ^Collection (mapv #(map->batch-read % dbns) batch-reads))]
+          batch-reads-arr (collections/->list #(map->batch-read % dbns) batch-reads)]
       (.get ^AerospikeClient client
             ^EventLoop (.next ^EventLoops el)
             (AsyncBatchListListener. op-future)
             ^BatchPolicy (:policy conf)
-            ^List batch-reads-arr)
+            batch-reads-arr)
       (-> op-future
-          (p/then' #(mapv batch-record->map %) completion-executor)
+          (p/then' #(collections/->list batch-record->map %) completion-executor)
           (p/then' (:transcoder conf identity))
           (register-events client-events :read-batch nil start-time conf))))
 
@@ -193,7 +194,7 @@
     (let [op-future  (p/deferred)
           start-time (System/nanoTime)
           transcoder (:transcoder conf identity)
-          indices    (utils/v->array Key (mapv #(pt/create-key (:index %) dbns (:set %)) indices))]
+          indices    (utils/v->array Key #(pt/create-key (:index %) dbns (:set %)) indices)]
       (.exists ^AerospikeClient client
                ^EventLoop (.next ^EventLoops el)
                (AsyncExistsArrayListener. op-future)
@@ -342,7 +343,7 @@
             (AsyncWriteListener. op-future)
             ^WritePolicy policy
             ^Key (pt/create-key index dbns set-name)
-            ^"[Lcom.aerospike.client.Bin;" (utils/v->array Bin (mapv bins/set-bin-as-null bin-names)))
+            ^"[Lcom.aerospike.client.Bin;" (utils/v->array Bin bins/set-bin-as-null bin-names))
       (-> op-future
           (p/then' identity completion-executor)
           (register-events client-events :write index start-time conf))))
@@ -375,9 +376,7 @@
           policy     (:policy conf)
           batch-list (if (list? batch-records)
                        batch-records
-                       (->> batch-records
-                            (utils/v->array BatchRecord)
-                            (Arrays/asList)))
+                       (into [] batch-records))
           start-time (System/nanoTime)
           transcoder (:transcoder conf identity)]
       (.operate ^AerospikeClient client
@@ -386,7 +385,7 @@
                 ^BatchPolicy policy
                 ^List batch-list)
       (-> op-future
-          (p/then' (comp transcoder #(mapv batch-record->map %)) completion-executor)
+          (p/then' (comp transcoder #(collections/->list batch-record->map %)) completion-executor)
           (register-events client-events :batch-operate nil start-time conf))))
 
 
@@ -426,7 +425,7 @@
           (register-events client-events :info nil start-time conf))))
 
   (get-nodes [_this]
-    (into [] (.getNodes ^AerospikeClient client)))
+    (Arrays/asList (.getNodes ^AerospikeClient client)))
 
   (get-cluster-stats [_this]
     (-> (.getClusterStats ^AerospikeClient client)

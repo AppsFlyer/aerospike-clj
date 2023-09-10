@@ -1,7 +1,9 @@
 (ns aerospike-clj.bins
   (:require [aerospike-clj.utils :as utils])
-  (:import [com.aerospike.client Bin]
-           [clojure.lang IPersistentMap]))
+  (:import (clojure.lang IPersistentMap)
+           (com.aerospike.client Bin)))
+
+(set! *warn-on-reflection* true)
 
 (def ^:private ^:const MAX_BIN_NAME_LENGTH 14)
 
@@ -15,22 +17,26 @@
     (throw (Exception. (format "%s is %s characters. Bin names have to be <= %d characters..." bin-name (.length bin-name) MAX_BIN_NAME_LENGTH))))
   (Bin/asNull bin-name))
 
-(def ^:private x-bin-convert
-  (comp
-    (map (fn [[k v]] [k (utils/sanitize-bin-value v)]))
-    (map (fn [[k v]] (create-bin k v)))))
-
-(defn- map->multiple-bins [^IPersistentMap m]
-  (let [bin-names (keys m)]
-    (if (utils/string-keys? bin-names)
-      (->> (into [] x-bin-convert m)
-           (utils/v->array Bin))
-      (throw (Exception. (format "Aerospike only accepts string values as bin names. Please ensure all keys in the map are strings."))))))
+(defn- map->multiple-bins ^"[Lcom.aerospike.client.Bin;" [^IPersistentMap m]
+  (let [size     (.count m)
+        iterator (.iterator m)
+        res      ^"[Lcom.aerospike.client.Bin;" (make-array Bin size)]
+    (loop [i 0]
+      (when (and (< i size)
+                 (.hasNext iterator))
+        (let [entry     (.next iterator)
+              key-entry (key entry)]
+          (when-not (string? key-entry)
+            (throw (Exception. (format "Aerospike only accepts string values as bin names. Please ensure all keys in the map are strings."))))
+          (aset res i (create-bin key-entry (utils/sanitize-bin-value (val entry))))
+          (recur (inc i)))))
+    res))
 
 (defn data->bins
   "Function to identify whether `data` will be stored as a single or multiple bin record.
   Only Clojure maps will default to multiple bins. Nested data structures are supported."
-  [data]
+  ^"[Lcom.aerospike.client.Bin;" [data]
   (if (map? data)
     (map->multiple-bins data)
-    (utils/v->array Bin [^Bin (Bin. "" (utils/sanitize-bin-value data))])))
+    (doto ^"[Lcom.aerospike.client.Bin;" (make-array Bin 1)
+      (aset 0 (Bin. "" (utils/sanitize-bin-value data))))))

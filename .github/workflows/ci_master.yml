@@ -1,5 +1,8 @@
 name: "Push CI - master"
 
+permissions:
+  contents: write
+
 on:
   push:
     branches:

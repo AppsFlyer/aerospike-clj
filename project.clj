@@ -1,4 +1,4 @@
-(defproject com.appsflyer/aerospike-clj "3.0.0-SNAPSHOT"
+(defproject com.appsflyer/aerospike-clj "3.1.0-SNAPSHOT"
   :description "An Aerospike Clojure client."
   :url "https://github.com/AppsFlyer/aerospike-clj"
   :license {:name "Eclipse Public License"
@@ -23,7 +23,8 @@
                                      [cheshire "5.11.0"]
                                      [tortue/spy "2.14.0"]
                                      [com.fasterxml.jackson.core/jackson-databind "2.11.2"]
-                                     [clj-kondo "2022.04.25"]]
+                                     [clj-kondo "2023.09.07"]
+                                     [com.clojure-goes-fast/clj-java-decompiler "0.3.4"]]
                     :eftest         {:multithread?   false
                                      :report         eftest.report.junit/report
                                      :report-to-file "target/junit.xml"}
