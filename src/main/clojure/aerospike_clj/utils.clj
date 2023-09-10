@@ -21,7 +21,7 @@
   (= bin-names [""]))
 
 (defn string-keys?
-  {:docstring  "Predicate function to determine whether all keys provided for bins are strings."
+  {:doc        "Predicate function to determine whether all keys provided for bins are strings."
    :deprecated "3.1.0"}
   [bin-names]
   (every? string? bin-names))
@@ -39,7 +39,7 @@
   (get reverse-boolean-replacements bin-value bin-value))
 
 (defn v->array
-  "An optimized way to convert vectors into Java arrays of type `clazz`."
+  "An optimized way to convert [[java.util.Collection]]s into Java arrays of type `clazz`."
   ([clazz ^Collection v]
    (.toArray v ^"[Ljava.lang.Object;" (make-array clazz 0)))
   ([clazz mapper-fn ^Collection v]
