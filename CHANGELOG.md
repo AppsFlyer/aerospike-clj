@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   them into the array.
 * Optimize the `aerospike-clj.utils/v->array` function by calling `java.util.Collection#toArray` with a 0-length array,
   this will force the implementation to use the more performant `java.util.Arrays.copyOf`.
+* Add contents: write to the Push CI - master action, this should resolve the git push issues from the GitHub actions
+  bot.
 
 #### Deprecated
 
@@ -219,7 +221,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 [A complete list of all java client related changes](https://www.aerospike.com/download/client/java/notes.html)
 
-[3.1.0]: https://github.com/AppsFlyer/aerospike-clj/pull/68
+[3.1.0]: https://github.com/AppsFlyer/aerospike-clj/pull/69
 
 [3.0.0]: https://github.com/AppsFlyer/aerospike-clj/pull/62
 
