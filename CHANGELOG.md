@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### [4.0.0] - 2024-01-14
+
+#### Changed
+
+* Introduce a `aerospike-clj.batch-client` namespace.
+  This namespace extends the `aerospike-clj.client` namespace with batch operations using the `AerospikeBatchOps`
+  protocol.
+* This will allow clients to use the `aerospike-clj.client` namespace with older versions of the Aerospike Java client
+  library, and use the `aerospike-clj.batch-client` namespace with newer versions of the Aerospike Java client library.
+
 ### [3.1.0] - 2023-08-22
 
 #### Added
