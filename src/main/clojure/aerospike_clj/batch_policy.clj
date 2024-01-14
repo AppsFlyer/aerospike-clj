@@ -1,7 +1,12 @@
 (ns aerospike-clj.batch-policy
   (:require [aerospike-clj.policy :as policy])
   (:import #_{:clj-kondo/ignore [:unused-import]}
-    (com.aerospike.client.policy BatchPolicy BatchWritePolicy ClientPolicy RecordExistsAction)))
+    (com.aerospike.client.policy BatchPolicy
+                                 BatchWritePolicy
+                                 ClientPolicy
+                                 CommitLevel
+                                 GenerationPolicy
+                                 RecordExistsAction)))
 
 (defn map->batch-policy
   "Create a `BatchPolicy` from a map.
@@ -35,3 +40,10 @@
   [^ClientPolicy client-policy conf]
   (set! (.batchParentPolicyWriteDefault client-policy) (get conf "batchParentPolicyWriteDefault" (map->batch-policy conf)))
   (set! (.batchWritePolicyDefault client-policy) (get conf "batchWritePolicyDefault" (map->batch-write-policy conf))))
+
+(defn create-client-policy
+  "This is a wrapper around [[policy/create-client-policy]] that adds the batch policies to the client policy."
+  ^ClientPolicy [event-loops conf]
+  (let [client-policy (policy/create-client-policy event-loops conf)]
+    (add-batch-write-policy client-policy conf)
+    client-policy))

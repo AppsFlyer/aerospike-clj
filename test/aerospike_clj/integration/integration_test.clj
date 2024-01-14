@@ -2,26 +2,26 @@
       :integration true}
   aerospike-clj.integration.integration-test
   (:require [aerospike-clj.batch-client]
-            [clojure.test :refer [deftest testing is use-fixtures]]
-            [cheshire.core :as json]
-            [aerospike-clj.integration.aerospike-setup :as as-setup]
             [aerospike-clj.batch-policy :as batch-policy]
             [aerospike-clj.client :as client]
-            [aerospike-clj.protocols :as pt]
-            [aerospike-clj.policy :as policy]
+            [aerospike-clj.integration.aerospike-setup :as as-setup]
             [aerospike-clj.key :as as-key]
+            [aerospike-clj.policy :as policy]
+            [aerospike-clj.protocols :as pt]
             [aerospike-clj.utils :as utils]
+            [cheshire.core :as json]
+            [clojure.test :refer [deftest is testing use-fixtures]]
             [spy.core :as spy])
-  (:import (com.aerospike.client Value AerospikeClient BatchWrite Operation Bin)
-           (com.aerospike.client.cdt ListOperation ListPolicy ListOrder ListWriteFlags ListReturnType
-                                     MapOperation MapPolicy MapOrder MapWriteFlags MapReturnType CTX)
-           (com.aerospike.client.policy ReadModeSC ReadModeAP Replica GenerationPolicy RecordExistsAction
-                                        WritePolicy BatchPolicy Policy CommitLevel BatchWritePolicy)
-           (java.util HashMap ArrayList)
-           (java.util.concurrent ExecutionException)
+  (:import (aerospike_clj.client SimpleAerospikeClient)
            (clojure.lang PersistentArrayMap)
-           (aerospike_clj.client SimpleAerospikeClient)
-           (com.aerospike.client.exp Exp)))
+           (com.aerospike.client AerospikeClient BatchWrite Bin Operation Value)
+           (com.aerospike.client.cdt CTX ListOperation ListOrder ListPolicy ListReturnType
+                                     ListWriteFlags MapOperation MapOrder MapPolicy MapReturnType MapWriteFlags)
+           (com.aerospike.client.exp Exp)
+           (com.aerospike.client.policy BatchPolicy BatchWritePolicy CommitLevel GenerationPolicy Policy
+                                        ReadModeAP ReadModeSC RecordExistsAction Replica WritePolicy)
+           (java.util ArrayList HashMap)
+           (java.util.concurrent ExecutionException)))
 
 (def _set "set")
 (def _set2 "set2")
@@ -650,18 +650,22 @@
 
 (deftest configure-batch-write-policies
   (let [expression                (Exp/build (Exp/ge (Exp/intBin "a") (Exp/intBin "b")))
+        event-loops               (client/create-event-loops {})
         c                         (client/init-simple-aerospike-client
-                                    *as-hosts* as-namespace
-                                    {"batchWritePolicyDefault"       (batch-policy/map->batch-write-policy {"CommitLevel"        "COMMIT_MASTER"
-                                                                                                            "durableDelete"      true
-                                                                                                            "expiration"         1000
-                                                                                                            "generation"         7
-                                                                                                            "GenerationPolicy"   "EXPECT_GEN_GT"
-                                                                                                            "RecordExistsAction" "REPLACE_ONLY"
-                                                                                                            "filterExp"          expression})
-                                     "batchParentPolicyWriteDefault" (policy/map->batch-policy {"allowInline"          false
-                                                                                                "maxConcurrentThreads" 2
-                                                                                                "sendSetName"          true})})
+                                    *as-hosts*
+                                    as-namespace
+                                    {:client-policy (batch-policy/create-client-policy
+                                                      event-loops
+                                                      {"batchWritePolicyDefault"       (batch-policy/map->batch-write-policy {"CommitLevel"        "COMMIT_MASTER"
+                                                                                                                              "durableDelete"      true
+                                                                                                                              "expiration"         1000
+                                                                                                                              "generation"         7
+                                                                                                                              "GenerationPolicy"   "EXPECT_GEN_GT"
+                                                                                                                              "RecordExistsAction" "REPLACE_ONLY"
+                                                                                                                              "filterExp"          expression})
+                                                       "batchParentPolicyWriteDefault" (policy/map->batch-policy {"allowInline"          false
+                                                                                                                  "maxConcurrentThreads" 2
+                                                                                                                  "sendSetName"          true})})})
 
         batch-write-policy        ^BatchWritePolicy (.getBatchWritePolicyDefault ^AerospikeClient (.-client ^SimpleAerospikeClient c))
         batch-parent-write-policy ^BatchPolicy (.getBatchParentPolicyWriteDefault ^AerospikeClient (.-client ^SimpleAerospikeClient c))]
