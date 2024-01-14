@@ -110,6 +110,17 @@ user=> @(aero/get-single c "index" "set-name")
 Aerospike returns a TTL on the queried records that is epoch style, but with a different "beginning of time" which is "2010-01-01T00:00:00Z".
 Call `expiry-unix` with the returned TTL to get a TTL relative to the UNIX epoch.
 
+### Using the `AerospikeBatchOps` protocol
+
+Since library version `4.0.0`, the implementation of the `AerospikeBatchOps` protocol is available as an extension to
+the `aerospike-clj.client` namespace.  
+The extension is available via the `aerospike-clj.batch-client` namespace.  
+To use it, require the `aerospike-clj.batch-client` namespace.  
+The implementation of the `AerospikeBatchOps` protocol is implemented in a separate namespace to allow older versions of
+the `com.aerospike/aerospike-client` dependency to be used.
+Please note that the `aerospike-clj.batch-client` namespace requires the `com.aerospike/aerospike-client` dependency to
+be version `6.0.0` or higher.
+
 ## Testing
 ### Unit tests
 Executed via running `lein test`.
