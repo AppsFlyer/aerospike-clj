@@ -1,6 +1,7 @@
 (ns aerospike-clj.batch-policy
   (:require [aerospike-clj.policy :as policy])
-  (:import (com.aerospike.client.policy BatchPolicy BatchWritePolicy ClientPolicy)))
+  (:import #_{:clj-kondo/ignore [:unused-import]}
+    (com.aerospike.client.policy BatchPolicy BatchWritePolicy ClientPolicy RecordExistsAction)))
 
 (defn map->batch-policy
   "Create a `BatchPolicy` from a map.

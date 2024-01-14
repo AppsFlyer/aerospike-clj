@@ -9,11 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Changed
 
-* Introduce a `aerospike-clj.batch-client` namespace.
-  This namespace extends the `aerospike-clj.client` namespace with batch operations using the `AerospikeBatchOps`
-  protocol.
-* This will allow clients to use the `aerospike-clj.client` namespace with older versions of the Aerospike Java client
-  library, and use the `aerospike-clj.batch-client` namespace with newer versions of the Aerospike Java client library.
+* Enable the usage of `com.aerospike/aerospike-client` with versions 4.9 and up.
+  * Introduce a `aerospike-clj.batch-client` namespace.
+    This namespace extends the `aerospike-clj.client` namespace with batch operations using the `AerospikeBatchOps`
+    protocol, which is relevant for Java client library versions 6.0.0 and up.
+  * Introduce a `aerospike-clj.batch-policy` namespace.
+    This namespace contains functions to create batch policies for the Aerospike Java client library. 
 
 ### [3.1.0] - 2023-08-22
 
