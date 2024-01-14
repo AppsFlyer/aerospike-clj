@@ -15,7 +15,6 @@ An opinionated Clojure library wrapping Aerospike Java Client.
 
 # Requirements
 - Java 8
-- Clojure 1.8
 - Aerospike server version >= `4.9.0`
 - Clojure version >= `1.11.0`
 
