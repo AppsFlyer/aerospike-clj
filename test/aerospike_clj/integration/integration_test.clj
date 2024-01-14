@@ -5,12 +5,12 @@
             [clojure.test :refer [deftest testing is use-fixtures]]
             [cheshire.core :as json]
             [aerospike-clj.integration.aerospike-setup :as as-setup]
+            [aerospike-clj.batch-policy :as batch-policy]
             [aerospike-clj.client :as client]
             [aerospike-clj.protocols :as pt]
             [aerospike-clj.policy :as policy]
             [aerospike-clj.key :as as-key]
             [aerospike-clj.utils :as utils]
-            [clojure.tools.logging :as log]
             [spy.core :as spy])
   (:import (com.aerospike.client Value AerospikeClient BatchWrite Operation Bin)
            (com.aerospike.client.cdt ListOperation ListPolicy ListOrder ListWriteFlags ListReturnType
@@ -652,13 +652,13 @@
   (let [expression                (Exp/build (Exp/ge (Exp/intBin "a") (Exp/intBin "b")))
         c                         (client/init-simple-aerospike-client
                                     *as-hosts* as-namespace
-                                    {"batchWritePolicyDefault"       (policy/map->batch-write-policy {"CommitLevel"        "COMMIT_MASTER"
-                                                                                                      "durableDelete"      true
-                                                                                                      "expiration"         1000
-                                                                                                      "generation"         7
-                                                                                                      "GenerationPolicy"   "EXPECT_GEN_GT"
-                                                                                                      "RecordExistsAction" "REPLACE_ONLY"
-                                                                                                      "filterExp"          expression})
+                                    {"batchWritePolicyDefault"       (batch-policy/map->batch-write-policy {"CommitLevel"        "COMMIT_MASTER"
+                                                                                                            "durableDelete"      true
+                                                                                                            "expiration"         1000
+                                                                                                            "generation"         7
+                                                                                                            "GenerationPolicy"   "EXPECT_GEN_GT"
+                                                                                                            "RecordExistsAction" "REPLACE_ONLY"
+                                                                                                            "filterExp"          expression})
                                      "batchParentPolicyWriteDefault" (policy/map->batch-policy {"allowInline"          false
                                                                                                 "maxConcurrentThreads" 2
                                                                                                 "sendSetName"          true})})

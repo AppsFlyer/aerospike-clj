@@ -121,6 +121,11 @@ the `com.aerospike/aerospike-client` dependency to be used.
 Please note that the `aerospike-clj.batch-client` namespace requires the `com.aerospike/aerospike-client` dependency to
 be version `6.0.0` or higher.
 
+### Setting up a client policy for `com.aerospike/aerospike-client` with version 6.0.0 and above
+
+The `com.aerospike/aerospike-client` dependency version `6.0.0` is a breaking change.  
+To set batch operation policies, please use the `aerospike-clj.batch-policy` namespace.
+
 ## Testing
 ### Unit tests
 Executed via running `lein test`.

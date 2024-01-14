@@ -5,12 +5,18 @@
             [aerospike-clj.protocols :as pt]
             [promesa.core :as p])
   (:import (aerospike_clj.client SimpleAerospikeClient)
-           (aerospike_clj.listeners AsyncBatchOperateListListener)
-           (com.aerospike.client AerospikeClient BatchRecord)
+           (com.aerospike.client AerospikeClient AerospikeException BatchRecord)
            (com.aerospike.client.async EventLoop EventLoops)
            (com.aerospike.client.listener BatchOperateListListener)
            (com.aerospike.client.policy BatchPolicy)
            (java.util List)))
+
+(deftype ^:private AsyncBatchOperateListListener [op-future]
+  BatchOperateListListener
+  (^void onSuccess [_this ^List records ^boolean _status]
+    (p/resolve! op-future records))
+  (^void onFailure [_this ^AerospikeException ex]
+    (p/reject! op-future ex)))
 
 (defn- batch-record->map [^BatchRecord batch-record]
   (let [k (.key batch-record)]
