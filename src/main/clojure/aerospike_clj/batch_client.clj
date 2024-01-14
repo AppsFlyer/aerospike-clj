@@ -1,4 +1,7 @@
 (ns aerospike-clj.batch-client
+  "This namespace contains implementation of the [[AerospikeBatchOps]] protocol.
+   Clients should `require` this namespace to extend the protocol to the [[SimpleAerospikeClient]].
+   This protocol is only usable with `com.aerospike/aerospike-client` version 6.0.0 or higher."
   (:require [aerospike-clj.aerospike-record :as record]
             [aerospike-clj.client :as client]
             [aerospike-clj.collections :as collections]

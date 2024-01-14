@@ -1,4 +1,6 @@
 (ns aerospike-clj.batch-policy
+  "This namespace contains functions to create batch policies.
+   These policies are only usable with `com.aerospike/aerospike-client` version 6.0.0 or higher."
   (:require [aerospike-clj.policy :as policy])
   (:import #_{:clj-kondo/ignore [:unused-import]}
     (com.aerospike.client.policy BatchPolicy
