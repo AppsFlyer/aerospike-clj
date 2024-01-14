@@ -21,22 +21,22 @@
 
 (extend-type SimpleAerospikeClient
   pt/AerospikeBatchOps
-  (batch-operate [this batch-records]
-    (pt/batch-operate this batch-records {}))
-
-  (batch-operate [this batch-records conf]
-    (let [op-future  (p/deferred)
-          policy     (:policy conf)
-          batch-list (if (list? batch-records)
-                       batch-records
-                       (into [] batch-records))
-          start-time (System/nanoTime)
-          transcoder (:transcoder conf identity)]
-      (.operate ^AerospikeClient (.-client this)
-                ^EventLoop (.next ^EventLoops (.-el this))
-                ^BatchOperateListListener (AsyncBatchOperateListListener. op-future)
-                ^BatchPolicy policy
-                ^List batch-list)
-      (-> op-future
-          (p/then' (comp transcoder #(collections/->list batch-record->map %)) (.-completion-executor this))
-          (client/register-events (.-client-events this) :batch-operate nil start-time conf)))))
+  (batch-operate
+    ([this batch-records]
+     (pt/batch-operate this batch-records {}))
+    ([this batch-records conf]
+     (let [op-future  (p/deferred)
+           policy     (:policy conf)
+           batch-list (if (list? batch-records)
+                        batch-records
+                        (into [] batch-records))
+           start-time (System/nanoTime)
+           transcoder (:transcoder conf identity)]
+       (.operate ^AerospikeClient (.-client this)
+                 ^EventLoop (.next ^EventLoops (.-el this))
+                 ^BatchOperateListListener (AsyncBatchOperateListListener. op-future)
+                 ^BatchPolicy policy
+                 ^List batch-list)
+       (-> op-future
+           (p/then' (comp transcoder #(collections/->list batch-record->map %)) (.-completion-executor this))
+           (client/register-events (.-client-events this) :batch-operate nil start-time conf))))))

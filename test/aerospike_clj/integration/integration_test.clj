@@ -1,7 +1,8 @@
 (ns ^{:author      "Ido Barkan"
       :integration true}
   aerospike-clj.integration.integration-test
-  (:require [clojure.test :refer [deftest testing is use-fixtures]]
+  (:require [aerospike-clj.batch-client]
+            [clojure.test :refer [deftest testing is use-fixtures]]
             [cheshire.core :as json]
             [aerospike-clj.integration.aerospike-setup :as as-setup]
             [aerospike-clj.client :as client]
@@ -9,6 +10,7 @@
             [aerospike-clj.policy :as policy]
             [aerospike-clj.key :as as-key]
             [aerospike-clj.utils :as utils]
+            [clojure.tools.logging :as log]
             [spy.core :as spy])
   (:import (com.aerospike.client Value AerospikeClient BatchWrite Operation Bin)
            (com.aerospike.client.cdt ListOperation ListPolicy ListOrder ListWriteFlags ListReturnType
@@ -27,7 +29,6 @@
 (def ^:dynamic *c* nil)
 (def ^:dynamic *as-hosts* nil)
 (def TTL 5)
-
 
 (defn with-db-connection [test-fn]
   (let [as-hosts [(as-setup/get-host-and-port)]]
