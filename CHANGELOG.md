@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   * Introduce a `aerospike-clj.batch-policy` namespace.
     This namespace contains functions to create batch policies for the Aerospike Java client library. 
 
+#### Removed
+
+* Remove `:result-code` from the `get-batch`'s response.
+
 ### [3.1.0] - 2023-08-22
 
 #### Added

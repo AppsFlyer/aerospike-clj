@@ -79,12 +79,11 @@
   (create-key ^Key [this as-namespace set-name]
     (as-key/create-key this as-namespace set-name)))
 
-(defn batch-read->map [^BatchRead batch-record]
-  (let [k (.key batch-record)]
-    (-> (record/record->map (.record batch-record))
+(defn batch-read->map [^BatchRead batch-read]
+  (let [k (.key batch-read)]
+    (-> (record/record->map (.record batch-read))
         (assoc :index (.toString (.userKey k)))
-        (assoc :set (.setName k))
-        (assoc :result-code (.resultCode batch-record)))))
+        (assoc :set (.setName k)))))
 
 (defn- map->batch-read ^BatchRead [batch-read-map dbns]
   (let [k ^Key (pt/create-key (:index batch-read-map) dbns (:set batch-read-map))]
