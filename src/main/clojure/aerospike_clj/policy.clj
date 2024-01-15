@@ -4,7 +4,7 @@
     #_{:clj-kondo/ignore [:unused-import]}
            [com.aerospike.client.policy Policy ClientPolicy WritePolicy RecordExistsAction
                                         GenerationPolicy BatchPolicy CommitLevel
-                                        AuthMode ReadModeAP ReadModeSC Replica BatchWritePolicy]))
+                                        AuthMode ReadModeAP ReadModeSC Replica]))
 
 (defmacro set-java [obj conf obj-name]
   `(when (some? (get ~conf ~obj-name))
@@ -36,21 +36,6 @@
     (set-java p conf "socketTimeout")
     (set-java p conf "timeoutDelay")
     (set-java p conf "totalTimeout")
-    p))
-
-(defn map->batch-write-policy
-  "Create a `BatchWritePolicy` from a map. Enumeration names should start with capitalized letter.
-  This function is slow due to possible reflection."
-  ^BatchWritePolicy [conf]
-  (let [p (BatchWritePolicy.)]
-    (set-java-enum p conf "RecordExistsAction")
-    (set-java-enum p conf "CommitLevel")
-    (set-java-enum p conf "GenerationPolicy")
-    (set-java p conf "filterExp")
-    (set-java p conf "generation")
-    (set-java p conf "expiration")
-    (set-java p conf "durableDelete")
-    (set-java p conf "sendKey")
     p))
 
 (defn map->batch-policy
@@ -88,18 +73,6 @@
    (write-policy client expiration (RecordExistsAction/REPLACE)))
   (^WritePolicy [client expiration record-exists-action]
    (let [wp (WritePolicy. (.getWritePolicyDefault ^AerospikeClient client))]
-     (set! (.expiration wp) expiration)
-     (set! (.recordExistsAction wp) record-exists-action)
-     wp)))
-
-(defn batch-write-policy
-  "Create a write policy to be passed to put methods via `{:policy wp}`.
-  Also used in `update` and `create`.
-  The default policy in case the record exists is `RecordExistsAction/UPDATE`."
-  (^BatchWritePolicy [client expiration]
-   (batch-write-policy client expiration (RecordExistsAction/UPDATE)))
-  (^BatchWritePolicy [client expiration record-exists-action]
-   (let [wp (BatchWritePolicy. (.getBatchWritePolicyDefault ^AerospikeClient client))]
      (set! (.expiration wp) expiration)
      (set! (.recordExistsAction wp) record-exists-action)
      wp)))
@@ -187,8 +160,6 @@
     (set! (.readPolicyDefault cp) (get conf "readPolicyDefault" (map->policy conf)))
     (set! (.writePolicyDefault cp) (get conf "writePolicyDefault" (map->write-policy conf)))
     (set! (.batchPolicyDefault cp) (get conf "batchPolicyDefault" (map->batch-policy conf)))
-    (set! (.batchParentPolicyWriteDefault cp) (get conf "batchParentPolicyWriteDefault" (map->batch-policy conf)))
-    (set! (.batchWritePolicyDefault cp) (get conf "batchWritePolicyDefault" (map->batch-write-policy conf)))
 
     (set-java-enum cp conf "AuthMode")
     (set-java cp conf "clusterName")
