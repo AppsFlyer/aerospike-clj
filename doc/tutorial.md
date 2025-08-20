@@ -23,13 +23,13 @@ For this tutorial we will take advantage of a locally deployed Aerospike DB with
 docker container. The following command should download and install a docker
 image with the latest Aerospike image on your machine.
 ```bash
-$ sudo docker run -d --name aerospike -p 3000:3000 -p 3001:3001 -p 3002:3002 -p 3003:3003 aerospike"
+$ sudo docker run -d --name aerospike -p 3000:3000 -p 3001:3001 -p 3002:3002 -p 3003:3003 aerospike:ee-6.2.0.3
 ```
 The DB created contains a single namespace named `test`. On production, Aerospike
 is a distributed cluster composed of several nodes.
 
 #### REPL
-In order to follow the example further in this tutorial, you should run a Clojure
+In order to follow the examples in this tutorial, you should run a Clojure
 REPL with the library located in the classpath.
 This can be done:
 - by cloning the library and running a REPL:
@@ -38,17 +38,10 @@ $ git clone https://github.com/AppsFlyer/aerospike-clj.git
 $ cd aerospike-clj
 $ lein repl
 ```
-* -or- using [lein-try](https://github.com/avescodes/lein-try):
-```bash
-$ lein try aerospike-clj "0.2.1"
-...
-user=> (require '[aerospike-clj.client :as aero])
-nil
-```
-* -or- by referencing it in your project `profiles.clj` and running a repl there:
+* -or- by referencing it in your project dependencies and running a repl there:
 ```clojure
-(defproject af-common-rta-aerospike "3.0.0"
-  :dependencies [[aerospike-clj "2.0.0"]]
+(defproject my-aerospike-project "1.0.0"
+  :dependencies [[com.appsflyer/aerospike-clj "3.1.0"]]
   ; ...
   )
 ```
@@ -56,10 +49,10 @@ nil
 #### Client creation
 First, let's create a client:
 ```clojure
-user=> (require '[aerospike-clj.client :as aero])
+user=> (require '[aerospike-clj.client :as client])
 nil
-user=> (def c (aero/init-simple-aerospike-client ["localhost"] "test"))
-;; Starting aerospike clients for clusters localhost with username null
+user=> (def c (client/init-simple-aerospike-client ["localhost"] "test"))
+;; Starting aerospike client for hosts [localhost] with username null
 #'user/c
 user=>
 ```
@@ -70,14 +63,14 @@ In order to further configure the client for your needs pass a configuration map
 as the last argument. The map is a flat map of string keys, corresponding to the
 `ClientPolicy` class. To use the Java enumerations, simply uppercase the first character:
 ```clojure
-user=> (def c (aero/init-simple-aerospike-client ["localhost"]
-                                                 "test"
-                                                 {"failIfNotConnected" true
-                                                  "AuthMode" "INTERNAL"
-                                                  "username" nil
-                                                  "password" nil
-                                                  "maxCommandsInProcess" 0}))
-;; Starting aerospike clients for clusters localhost with username null
+user=> (def c (client/init-simple-aerospike-client ["localhost"]
+                                                   "test"
+                                                   {"failIfNotConnected" true
+                                                    "AuthMode" "INTERNAL"
+                                                    "username" nil
+                                                    "password" nil
+                                                    "maxCommandsInProcess" 0}))
+;; Starting aerospike client for hosts [localhost] with username null
 #'user/c
 ```
 
@@ -106,9 +99,9 @@ The functions `map->policy` and `map->write-policy` are slow due to reflection a
 are here to save you some Java interop. Since they are slow, **do not** use them
 to create one-time-use policies for each API call. Use them just to tweak the defaults:
 ```clojure
-user=> (def c (aero/init-simple-aerospike-client ["localhost"] "test" {"writePolicyDefault" new-wp}))
+user=> (def c (client/init-simple-aerospike-client ["localhost"] "test" {"writePolicyDefault" new-wp}))
 #'user/c
-user=> (.commitLevel (.writePolicyDefault (aero/get-client c)))
+user=> (.commitLevel (.writePolicyDefault (.client ^SimpleAerospikeClient c)))
 #object[com.aerospike.client.policy.CommitLevel 0x2f1f3fef "COMMIT_MASTER"]
 ```
 
@@ -174,7 +167,7 @@ it later to a more standard timestamp.
 user=> (-> f
   #_=>     deref
   #_=>     :ttl
-  #_=>     aero/expiry-unix
+  #_=>     client/expiry-unix
   #_=>     java.time.Instant/ofEpochSecond
   #_=>     str)
 "2019-01-10T08:43:25Z"
@@ -183,7 +176,7 @@ Let's do it in an asynchronous manner:
 ```clojure
 user=> (p/chain (pt/get-single c "index" "set-name")
   #_=>          :ttl
-  #_=>          aero/expiry-unix
+  #_=>          client/expiry-unix
   #_=>          #(java.time.Instant/ofEpochSecond %)
   #_=>          str
   #_=>          println)
@@ -196,7 +189,7 @@ We will simply get a sequence of `AerospikeRecord`s once all of them arrive:
 ```clojure
 user=> (run! #(pt/put c (str %1) "set-name" %1 1000) (range 5))
 nil
-user=> @(p/then (aero/get-multiple c (map str (range 5)) (repeat "set-name"))
+user=> @(p/then (pt/get-batch c (map #(hash-map :index (str %) :set "set-name") (range 5)))
   #_=>          #(map :payload %))
 (0 1 2 3 4)
 ```
