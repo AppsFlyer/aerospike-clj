@@ -13,19 +13,18 @@
             [clojure.tools.logging :as log]
             [promesa.core :as p]
             [promesa.exec :as p-exec])
-  (:import (aerospike_clj.listeners AsyncBatchListListener AsyncBatchOperateListListener AsyncDeleteListener
+  (:import (aerospike_clj.listeners AsyncBatchListListener AsyncDeleteListener
                                     AsyncExistsArrayListener AsyncExistsListener AsyncInfoListener
                                     AsyncRecordListener AsyncRecordSequenceListener AsyncWriteListener)
-           (com.aerospike.client BatchRecord Host Key)
+           (com.aerospike.client Host Key)
            (com.aerospike.client AerospikeClient BatchRead Bin Key Operation)
            (com.aerospike.client.async EventLoop EventLoops NioEventLoops)
            (com.aerospike.client.cluster Node)
-           (com.aerospike.client.listener BatchOperateListListener)
            (com.aerospike.client.policy BatchPolicy ClientPolicy InfoPolicy
                                         Policy RecordExistsAction ScanPolicy
                                         WritePolicy)
            (java.time Instant)
-           (java.util Arrays List)
+           (java.util Arrays)
            (java.util.concurrent Executor)))
 
 (def
@@ -66,7 +65,7 @@
         (p/catch (fn [op-exception]
                    (pt/on-failure client-events op-name op-exception index op-start-time))))))
 
-(defn- register-events [op-future default-client-events op-name index op-start-time conf]
+(defn register-events [op-future default-client-events op-name index op-start-time conf]
   (let [client-events (:client-events conf default-client-events)]
     (if (empty? client-events)
       op-future
@@ -80,12 +79,11 @@
   (create-key ^Key [this as-namespace set-name]
     (as-key/create-key this as-namespace set-name)))
 
-(defn- batch-record->map [^BatchRecord batch-record]
-  (let [k (.key batch-record)]
-    (-> (record/record->map (.record batch-record))
+(defn batch-read->map [^BatchRead batch-read]
+  (let [k (.key batch-read)]
+    (-> (record/record->map (.record batch-read))
         (assoc :index (.toString (.userKey k)))
-        (assoc :set (.setName k))
-        (assoc :result-code (.resultCode batch-record)))))
+        (assoc :set (.setName k)))))
 
 (defn- map->batch-read ^BatchRead [batch-read-map dbns]
   (let [k ^Key (pt/create-key (:index batch-read-map) dbns (:set batch-read-map))]
@@ -183,7 +181,7 @@
             ^BatchPolicy (:policy conf)
             batch-reads-arr)
       (-> op-future
-          (p/then' #(collections/->list batch-record->map %) completion-executor)
+          (p/then' #(collections/->list batch-read->map %) completion-executor)
           (p/then' (:transcoder conf identity))
           (register-events client-events :read-batch nil start-time conf))))
 
@@ -366,28 +364,6 @@
         (-> op-future
             (p/then' record/record->map completion-executor)
             (register-events client-events :operate index start-time conf)))))
-
-  pt/AerospikeBatchOps
-  (batch-operate [this batch-records]
-    (pt/batch-operate this batch-records {}))
-
-  (batch-operate [_this batch-records conf]
-    (let [op-future  (p/deferred)
-          policy     (:policy conf)
-          batch-list (if (list? batch-records)
-                       batch-records
-                       (into [] batch-records))
-          start-time (System/nanoTime)
-          transcoder (:transcoder conf identity)]
-      (.operate ^AerospikeClient client
-                ^EventLoop (.next ^EventLoops el)
-                ^BatchOperateListListener (AsyncBatchOperateListListener. op-future)
-                ^BatchPolicy policy
-                ^List batch-list)
-      (-> op-future
-          (p/then' (comp transcoder #(collections/->list batch-record->map %)) completion-executor)
-          (register-events client-events :batch-operate nil start-time conf))))
-
 
   pt/AerospikeSetOps
   (scan-set [_this aero-namespace set-name conf]

@@ -15,7 +15,6 @@ An opinionated Clojure library wrapping Aerospike Java Client.
 
 # Requirements
 - Java 8
-- Clojure 1.8
 - Aerospike server version >= `4.9.0`
 - Clojure version >= `1.11.0`
 
@@ -110,6 +109,22 @@ user=> @(aero/get-single c "index" "set-name")
 #### Unix EPOCH TTL
 Aerospike returns a TTL on the queried records that is epoch style, but with a different "beginning of time" which is "2010-01-01T00:00:00Z".
 Call `expiry-unix` with the returned TTL to get a TTL relative to the UNIX epoch.
+
+### Using the `AerospikeBatchOps` protocol
+
+Since library version `4.0.0`, the implementation of the `AerospikeBatchOps` protocol is available as an extension to
+the `aerospike-clj.client` namespace.  
+The extension is available via the `aerospike-clj.batch-client` namespace.  
+To use it, require the `aerospike-clj.batch-client` namespace.  
+The implementation of the `AerospikeBatchOps` protocol is implemented in a separate namespace to allow older versions of
+the `com.aerospike/aerospike-client` dependency to be used.
+Please note that the `aerospike-clj.batch-client` namespace requires the `com.aerospike/aerospike-client` dependency to
+be version `6.0.0` or higher.
+
+### Setting up a client policy for `com.aerospike/aerospike-client` with version 6.0.0 and above
+
+The `com.aerospike/aerospike-client` dependency version `6.0.0` is a breaking change.  
+To set batch operation policies, please use the `aerospike-clj.batch-policy` namespace.
 
 ## Testing
 ### Unit tests
