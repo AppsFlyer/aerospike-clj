@@ -120,7 +120,7 @@
                {:index "not there" :set _set}]
           res @(pt/get-batch *c* brs)]
       (is (= [data data2 nil data3 nil] (mapv :payload res)))
-      (is (= [1 1 nil 1 nil] (mapv :gen res)))
+      (is (= [1 1 0 1 0] (mapv :gen res)))
       (is (= [k k2 k2 k3 "not there"] (mapv :index res)))
       (is (= [_set _set2 _set _set _set] (mapv :set res))))))
 
@@ -195,7 +195,7 @@
                {:index "not there" :set _set}]
           res @(pt/get-batch *c* brs)]
       (is (= [data data (select-keys data ["bar"]) nil] (mapv :payload res)))
-      (is (= [1 1 1 nil] (mapv :gen res))))))
+      (is (= [1 1 1 0] (mapv :gen res))))))
 
 (deftest adding-bins-to-record
   (let [data     {"foo" [(rand-int 1000)]
@@ -284,7 +284,7 @@
       (is (= d2 (second data)))
       (is (= 1 g1 g2))
       (is (nil? d3))
-      (is (nil? g3)))))
+      (is (zero? g3)))))
 
 (deftest get-batch-transcoded
   (let [put-json (fn [k d] (pt/put *c* k _set (json/generate-string d) TTL))

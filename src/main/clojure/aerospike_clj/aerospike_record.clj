@@ -15,18 +15,19 @@
        (.containsKey bins "")))
 
 (defn- Record->payload [^Record record]
-  (let [bins (.bins record)]
-    (when (some? bins)
-      (if (single-bin? bins)
-        ;; single bin record
-        (utils/desanitize-bin-value (.get bins ""))
-        ;; multiple-bin record
-        (let [res (HashMap. (.size bins))]
-          (.forEach bins
-                    (reify BiConsumer
-                      (accept [_ k v]
-                        (.put res k (utils/desanitize-bin-value v)))))
-          (into {} res))))))
+  (when (some? record)
+    (let [bins (.bins record)]
+      (when (some? bins)
+        (if (single-bin? bins)
+          ;; single bin record
+          (utils/desanitize-bin-value (.get bins ""))
+          ;; multiple-bin record
+          (let [res (HashMap. (.size bins))]
+            (.forEach bins
+                      (reify BiConsumer
+                        (accept [_ k v]
+                          (.put res k (utils/desanitize-bin-value v)))))
+            (into {} res)))))))
 
 (defn record->map [^Record record]
   (when (some? record)
@@ -38,10 +39,18 @@
 (defn batch-record->map [^BatchRecord batch-record]
   (let [k      (.key batch-record)
         record (.record batch-record)]
-    (->AerospikeBatchRecord
-      (Record->payload record)
-      (.generation record)
-      (.expiration record)
-      (.toString (.userKey k))
-      (.setName k)
-      (.resultCode batch-record))))
+    (if (nil? record)
+      (->AerospikeBatchRecord
+        nil
+        0
+        0
+        (.toString (.userKey k))
+        (.setName k)
+        (.resultCode batch-record))
+      (->AerospikeBatchRecord
+        (Record->payload record)
+        (.generation record)
+        (.expiration record)
+        (.toString (.userKey k))
+        (.setName k)
+        (.resultCode batch-record)))))
