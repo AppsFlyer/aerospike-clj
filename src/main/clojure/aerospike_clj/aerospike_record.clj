@@ -1,9 +1,11 @@
 (ns aerospike-clj.aerospike-record
   (:require [aerospike-clj.utils :as utils])
-  (:import (com.aerospike.client Record)
-           (java.util Map)))
+  (:import (com.aerospike.client BatchRecord Record)
+           (java.util HashMap Map)
+           (java.util.function BiConsumer)))
 
-(defrecord AerospikeRecord [payload ^Integer gen ^Integer ttl])
+(defrecord AerospikeRecord [payload ^long gen ^long ttl])
+(defrecord AerospikeBatchRecord [payload ^long gen ^long ttl index set ^long result-code])
 
 (defn- single-bin?
   "Predicate function to determine whether data will be stored as a single bin or
@@ -12,19 +14,43 @@
   (and (= (.size bins) 1)
        (.containsKey bins "")))
 
+(defn- Record->payload [^Record record]
+  (when (some? record)
+    (let [bins (.bins record)]
+      (when (some? bins)
+        (if (single-bin? bins)
+          ;; single bin record
+          (utils/desanitize-bin-value (.get bins ""))
+          ;; multiple-bin record
+          (let [res (HashMap. (.size bins))]
+            (.forEach bins
+                      (reify BiConsumer
+                        (accept [_ k v]
+                          (.put res k (utils/desanitize-bin-value v)))))
+            (into {} res)))))))
+
 (defn record->map [^Record record]
-  (and record
-       (let [bins    ^Map (.bins record)
-             payload (when (some? bins)
-                       (if (single-bin? bins)
-                         ;; single bin record
-                         (utils/desanitize-bin-value (.get bins ""))
-                         ;; multiple-bin record
-                         (reduce-kv (fn [m k v]
-                                      (assoc m k (utils/desanitize-bin-value v)))
-                                    {}
-                                    bins)))]
-         (->AerospikeRecord
-           payload
-           ^Integer (.generation ^Record record)
-           ^Integer (.expiration ^Record record)))))
+  (when (some? record)
+    (->AerospikeRecord
+      (Record->payload record)
+      (.generation record)
+      (.expiration record))))
+
+(defn batch-record->map [^BatchRecord batch-record]
+  (let [k      (.key batch-record)
+        record (.record batch-record)]
+    (if (nil? record)
+      (->AerospikeBatchRecord
+        nil
+        0
+        0
+        (.toString (.userKey k))
+        (.setName k)
+        (.resultCode batch-record))
+      (->AerospikeBatchRecord
+        (Record->payload record)
+        (.generation record)
+        (.expiration record)
+        (.toString (.userKey k))
+        (.setName k)
+        (.resultCode batch-record)))))

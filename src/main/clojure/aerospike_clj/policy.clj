@@ -85,7 +85,7 @@
   Also used in `update` and `create`.
   The default policy in case the record exists is `RecordExistsAction/REPLACE`."
   (^WritePolicy [client expiration]
-   (write-policy client expiration (RecordExistsAction/REPLACE)))
+   (write-policy client expiration RecordExistsAction/REPLACE))
   (^WritePolicy [client expiration record-exists-action]
    (let [wp (WritePolicy. (.getWritePolicyDefault ^AerospikeClient client))]
      (set! (.expiration wp) expiration)
@@ -97,7 +97,7 @@
   Also used in `update` and `create`.
   The default policy in case the record exists is `RecordExistsAction/UPDATE`."
   (^BatchWritePolicy [client expiration]
-   (batch-write-policy client expiration (RecordExistsAction/UPDATE)))
+   (batch-write-policy client expiration RecordExistsAction/UPDATE))
   (^BatchWritePolicy [client expiration record-exists-action]
    (let [wp (BatchWritePolicy. (.getBatchWritePolicyDefault ^AerospikeClient client))]
      (set! (.expiration wp) expiration)

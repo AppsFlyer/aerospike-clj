@@ -5,14 +5,53 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-### [3.1.0] - 2023-08-22
+## [4.0.0] - 2026-01-18
 
-#### Added
+### Removed
+
+* Remove the `funcool/promesa` dependency.
+    * This doesn't affect the return values, they remain `java.util.concurrent.CompletableFuture` as before.
+    * This reduces the libraries dependencies without sacrificing its functionality.
+* Remove the `:client-events` from the options map per client and per operation.  
+  The return values are `java.util.concurrent.CompletableFuture`, and the client is feel to compose additional
+  functionally on top of these futures.
+    * The previous `on-success` can be achieved with `CompletableFuture.thenApply` or `CompletableFuture.thenCompose`.
+    * The previous `on-failure` can be achieved with `CompletableFuture.exceptionally`
+      or `CompletableFuture.exceptionallyCompose`.
+* Remove the `:transcoder` from the options map per client and per operation.
+    * Mapping the response can be achieved with `CompletableFuture.thenApply` or `CompletableFuture.thenCompose`.
+    * To map the request's payload, supply a different payload.
+* Remove the `advanced-async-hooks.md`.
+
+### Changed
+
+* Update the [README.md](README.md) and the [tutorial.md](doc/tutorial.md) to reflect the above changes.
+* Bump `clj-kondo`: `2022.04.25` -> `2026.01.12`.
+* Move `batch-record->map` from `aerospike-clj.client` to `aerospike-clj.aerospike-record`.
+* All async continuation functions are now reified and assigned as a `def` at compile-time.
+    * This should reduce the number of allocations due to the removal of `(p/then' (fn [...))`.
+* For batch functions that used to return Clojure maps (e.g., `get-batch`, `batch-operate`), the return type
+  is not a `defrecord` type with the same keys as before.
+    * This should reduce the number of allocations and speed up batch operations.
+    * Some fields now have type hints for better performance:
+      * `^long gen` 
+      * `^long ttl`
+      * `^long result-code`
+* Run CI tests on Java 17 instead of Java 8.
+* Run CI runners on `ubuntu-latest`.
+
+### Removed
+
+* Remove `clj-kondo` from the `project.clj`, running it via GitHub Actions only.
+
+## [3.1.0] - 2023-08-22
+
+### Added
 
 * Add the `aerospike-clj.collections/->list` function, which is similar to `clojure.core/mapv`, but it's more efficient
   when the input is not a Clojure sequence.
 
-#### Changed
+### Changed
 
 * Make the `aerospike-clj.utils/v->array` multi-arity, allowing to pass a `mapper-fn` to map the values before setting
   them into the array.
@@ -220,6 +259,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * License changed to Apache 2.
 
 [A complete list of all java client related changes](https://www.aerospike.com/download/client/java/notes.html)
+
+[4.0.0]: https://github.com/AppsFlyer/aerospike-clj/pull/72
 
 [3.1.0]: https://github.com/AppsFlyer/aerospike-clj/pull/69
 
