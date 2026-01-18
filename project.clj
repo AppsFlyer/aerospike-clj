@@ -22,13 +22,10 @@
                                      [cheshire "5.11.0"]
                                      [tortue/spy "2.14.0"]
                                      [com.fasterxml.jackson.core/jackson-databind "2.11.2"]
-                                     [clj-kondo "2026.01.12"]
                                      [com.clojure-goes-fast/clj-java-decompiler "0.3.4"]]
                     :eftest         {:multithread?   false
                                      :report         eftest.report.junit/report
                                      :report-to-file "target/junit.xml"}
-                    :aliases        {"clj-kondo" ["run" "-m" "clj-kondo.main"]
-                                     "lint"      ["run" "-m" "clj-kondo.main" "--lint" "src" "test"]}
                     :global-vars    {*warn-on-reflection* true}
                     :test-selectors {:integration :integration
                                      :all         (constantly true)

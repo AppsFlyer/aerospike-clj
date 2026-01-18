@@ -37,6 +37,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
       * `^long gen` 
       * `^long ttl`
       * `^long result-code`
+* Run CI tests on Java 17 instead of Java 8.
+* Run CI runners on `ubuntu-latest`.
+
+### Removed
+
+* Remove `clj-kondo` from the `project.clj`, running it via GitHub Actions only.
 
 ## [3.1.0] - 2023-08-22
 
