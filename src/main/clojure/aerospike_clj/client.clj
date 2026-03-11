@@ -433,16 +433,15 @@
         metrics/cluster-metrics->dotted))
 
   (healthy? [this]
-    (pt/healthy? this 1000))
+    (let [p (Policy. (.readPolicyDefault ^AerospikeClient client))]
+      (set! (.totalTimeout p) 1000)
+      (pt/healthy? this p)))
 
-  (healthy? [this operation-timeout-ms]
-    (let [read-policy (let [p ^Policy (.readPolicyDefault ^AerospikeClient client)]
-                        (set! (.totalTimeout p) operation-timeout-ms)
-                        p)
-          k           (str "__health__" (rand-int Integer/MAX_VALUE))
-          v           (rand-int Integer/MAX_VALUE)
-          ttl         (min 1 (int (/ operation-timeout-ms 1000)))
-          set-name    "__health-check"]
+  (healthy? [this read-policy]
+    (let [k        (str "__health__" (rand-int Integer/MAX_VALUE))
+          v        (rand-int Integer/MAX_VALUE)
+          ttl      (max 1 (int (/ (.totalTimeout ^Policy read-policy) 1000)))
+          set-name "__health-check"]
       (try
         @(pt/put this k set-name v ttl)
         (= v

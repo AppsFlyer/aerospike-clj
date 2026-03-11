@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.0] - 2026-03-11
+
+### Changed
+
+* **BREAKING**: `AerospikeAdminOps/healthy?` 2-arity now accepts a
+  `com.aerospike.client.policy.Policy` instead of an `operation-timeout-ms`
+  integer. The 1-arity default behavior is unchanged (totalTimeout of 1000ms),
+  but callers using the 2-arity must now pass a pre-built `Policy` object.
+
+  Before:
+  ```clojure
+  (pt/healthy? client 500)
+  ```
+  After:
+  ```clojure
+  (pt/healthy? client (doto (Policy.) (set! -totalTimeout 500)))
+  ```
+
+  **Rationale**: The previous implementation mutated the shared
+  `readPolicyDefault` instance on the underlying `AerospikeClient` in-place,
+  permanently overwriting the configured `totalTimeout` for all subsequent
+  operations that relied on the default policy. Passing an explicit `Policy`
+  eliminates this shared-state mutation entirely.
+
 ### [3.1.0] - 2023-08-22
 
 #### Added

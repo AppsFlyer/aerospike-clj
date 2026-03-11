@@ -153,11 +153,12 @@
     The metric name is a dot separated string that should be convenient for
     reporting to statsd/graphite. All values are gauges.")
 
-  (healthy? [this] [this operation-timeout-ms]
+  (healthy? [this] [this read-policy]
     "Returns `true` iff the cluster is reachable and can take reads and writes.
-    Uses __health-check set to avoid data collisions. `operation-timeout-ms` is
-    for total timeout of reads (default is 1s) including 2 retries so a small
-    over estimation is advised to avoid false negatives.")
+    Uses __health-check set to avoid data collisions. `read-policy` is a
+    `com.aerospike.client.policy.Policy` used for the health-check read.
+    Prefer the `[this read-policy]` arity and supply a pre-built policy, as the
+    zero-arity creates a new `Policy` object on every call.")
 
   (stop [this]
     "Gracefully stop a client, waiting until all async operations finish.
