@@ -114,7 +114,7 @@
                                 dbns
                                 client-events
                                 close-event-loops?
-                                health-policy]
+                                ^Policy health-policy]
   pt/AerospikeReadOps
   (get-single [this index set-name]
     (pt/get-single this index set-name {} [:all]))
