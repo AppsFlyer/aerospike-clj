@@ -434,7 +434,7 @@
         metrics/cluster-metrics->dotted))
 
   (healthy? [this]
-    (pt/healthy? this health-policy))
+    (pt/healthy? this 1000))
 
   (healthy? [this operation-timeout-ms]
     (let [health-policy (set! (.totalTimeout health-policy) operation-timeout-ms)
