@@ -31,7 +31,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `{\"totalTimeout\" 1000}` fallback. This makes health check behavior
   configurable per client without mutating any shared default policy object.
 
-
 ### [3.1.0] - 2023-08-22
 
 #### Added
