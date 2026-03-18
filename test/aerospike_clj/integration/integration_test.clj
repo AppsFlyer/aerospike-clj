@@ -56,7 +56,7 @@
         (is (no-password? ex))))))
 
 (deftest health
-  (is (true? (pt/healthy? *c* 10000))))
+  (is (true? (pt/healthy? *c*))))
 
 (defn random-key []
   (str (random-uuid)))

@@ -105,6 +105,19 @@ user=> (.commitLevel (.writePolicyDefault (.client ^SimpleAerospikeClient c)))
 #object[com.aerospike.client.policy.CommitLevel 0x2f1f3fef "COMMIT_MASTER"]
 ```
 
+Health checks are also configurable on initialization via `:health-policy`. The client
+creates a dedicated read policy for health checks from the base
+`readPolicyDefault` and applies any overrides from this map. If omitted, it defaults
+to `{"totalTimeout" 1000}`.
+```clojure
+user=> (def c (client/init-simple-aerospike-client
+               ["localhost"]
+               "test"
+               {"health-policy" {"totalTimeout" 2000
+                                "ReadModeSC"  "LINEARIZE"}}))
+#'user/c
+```
+
 Those `AerospikeClient` fields are `final` hence can only be set on client creation,
 but you can also have a few useful policies `def`ed somewhere and pass them later
 under the `:policy` key of the API calls.

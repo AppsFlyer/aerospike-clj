@@ -9,20 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-* **BREAKING**: `AerospikeAdminOps/healthy?` 2-arity now applies the timeout to
-  a dedicated read policy instead of mutating the client's shared
-  `readPolicyDefault`. 
-  
-  The is a breaking change because the previous implementation mutated the shared
-  `readPolicyDefault` instance on the underlying `AerospikeClient` in-place,
-  permanently overwriting the configured `totalTimeout` for all subsequent
-  operations that relied on the default policy. 
+* **BREAKING**: `AerospikeAdminOps/healthy?` now relies on the client's
+  initialized health policy (default total timeout: 1000ms) instead of accepting
+  a timeout override per call. This removes mutation of the shared
+  `readPolicyDefault` on the underlying `AerospikeClient`, which previously
+  could permanently overwrite the configured `totalTimeout`.
 
 * Fixed a health check regression: the write TTL now uses `max 1` when deriving
   TTL from `:totalTimeout`, so very small timeouts no longer produce a `0`
   TTL (which could skip retention and make checks flaky).
 
 ### Changed   
+
+* `AerospikeAdminOps/healthy?` protocol now exposes only the zero-arity
+  `healthy? [this]` contract. Timeout customization is configured at client
+  initialization via `:health-policy` instead of through the protocol call.
 
 * `init-simple-aerospike-client` now accepts `:health-policy` in its `conf`
   map as string-keyed read-policy overrides. The configured value is applied on

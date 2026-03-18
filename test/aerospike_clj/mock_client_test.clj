@@ -286,7 +286,7 @@
         (is (empty @res))))))
 
 (deftest healthy-test
-  (is (= (pt/healthy? client 1000) true)))
+  (is (= (pt/healthy? client) true)))
 
 (deftest get-cluster-stats-test
   (is (= [[]] (pt/get-cluster-stats client))))

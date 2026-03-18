@@ -434,21 +434,17 @@
         metrics/cluster-metrics->dotted))
 
   (healthy? [this]
-    (pt/healthy? this 1000))
-
-  (healthy? [this operation-timeout-ms]
-    (let [health-policy (set! (.totalTimeout health-policy) operation-timeout-ms)
-       k           (str "__health__" (rand-int Integer/MAX_VALUE))
-       v           (rand-int Integer/MAX_VALUE)
-       ttl         (max 1 (int (/ operation-timeout-ms 1000)))
-       set-name    "__health-check"]
-   (try
-     @(pt/put this k set-name v ttl)
-     (= v
-        @(pt/get-single this k set-name {:transcoder :payload
-                                         :policy     health-policy}))
-     (catch Exception _ex
-       false))))
+    (let [k        (str "__health__" (rand-int Integer/MAX_VALUE))
+          v        (rand-int Integer/MAX_VALUE)
+          ttl      (max 1 (int (/ (.totalTimeout health-policy) 1000)))
+          set-name "__health-check"]
+      (try
+        @(pt/put this k set-name v ttl)
+        (= v
+           @(pt/get-single this k set-name {:transcoder :payload
+                                            :policy     health-policy}))
+        (catch Exception _ex
+          false))))
 
   (stop [_this]
     (log/info "Stopping aerospike client for hosts" hosts)
