@@ -239,9 +239,9 @@
 
   (put-multiple [this indices set-names payloads expirations conf]
     (p/all
-     (map (fn [[index set-name payload expiration]]
-            (pt/put this index set-name payload expiration conf))
-          (map vector indices set-names payloads expirations))))
+      (map (fn [[index set-name payload expiration]]
+             (pt/put this index set-name payload expiration conf))
+           (map vector indices set-names payloads expirations))))
 
   pt/AerospikeUpdateOps
   (set-single [this index set-name data expiration]
