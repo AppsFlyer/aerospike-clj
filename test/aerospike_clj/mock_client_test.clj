@@ -5,7 +5,6 @@
             [aerospike-clj.protocols :as pt]
             [clojure.string])
   (:import [com.aerospike.client ResultCode AerospikeException]
-           [com.aerospike.client.policy Policy]
            [java.util.concurrent ExecutionException]
            [aerospike_clj.client SimpleAerospikeClient]))
 
@@ -287,7 +286,7 @@
         (is (empty @res))))))
 
 (deftest healthy-test
-  (is (= (pt/healthy? client (Policy.)) true)))
+  (is (= (pt/healthy? client 1000) true)))
 
 (deftest get-cluster-stats-test
   (is (= [[]] (pt/get-cluster-stats client))))

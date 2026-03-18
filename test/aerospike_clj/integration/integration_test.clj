@@ -56,9 +56,7 @@
         (is (no-password? ex))))))
 
 (deftest health
-  (let [p (doto (Policy.)
-            (-> .-totalTimeout (set! 10000)))]
-    (is (true? (pt/healthy? *c* p)))))
+  (is (true? (pt/healthy? *c* 10000))))
 
 (defn random-key []
   (str (random-uuid)))

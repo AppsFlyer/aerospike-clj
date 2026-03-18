@@ -7,27 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [4.0.0] - 2026-03-11
 
-### Changed
+### Fixed
 
-* **BREAKING**: `AerospikeAdminOps/healthy?` 2-arity now accepts a
-  `com.aerospike.client.policy.Policy` instead of an `operation-timeout-ms`
-  integer. The 1-arity default behavior is unchanged (totalTimeout of 1000ms),
-  but callers using the 2-arity must now pass a pre-built `Policy` object.
-
-  Before:
-  ```clojure
-  (pt/healthy? client 500)
-  ```
-  After:
-  ```clojure
-  (pt/healthy? client (doto (Policy.) (set! -totalTimeout 500)))
-  ```
-
-  **Rationale**: The previous implementation mutated the shared
+* **BREAKING**: `AerospikeAdminOps/healthy?` 2-arity now applies the timeout to
+  a dedicated read policy instead of mutating the client's shared
+  `readPolicyDefault`. 
+  
+  The is a breaking change because the previous implementation mutated the shared
   `readPolicyDefault` instance on the underlying `AerospikeClient` in-place,
   permanently overwriting the configured `totalTimeout` for all subsequent
-  operations that relied on the default policy. Passing an explicit `Policy`
-  eliminates this shared-state mutation entirely.
+  operations that relied on the default policy. 
+
+* Fixed a health check regression: the write TTL now uses `max 1` when deriving
+  TTL from `:totalTimeout`, so very small timeouts no longer produce a `0`
+  TTL (which could skip retention and make checks flaky).
+
+### Changed   
+
+* `init-simple-aerospike-client` now accepts `:health-policy` in its `conf`
+  map as string-keyed read-policy overrides. The configured value is applied on
+  top of the resolved client policy's `readPolicyDefault`, with a default
+  `{\"totalTimeout\" 1000}` fallback. This makes health check behavior
+  configurable per client without mutating any shared default policy object.
+
 
 ### [3.1.0] - 2023-08-22
 

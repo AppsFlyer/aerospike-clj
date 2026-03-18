@@ -113,7 +113,8 @@
                                 hosts
                                 dbns
                                 client-events
-                                close-event-loops?]
+                                close-event-loops?
+                                health-policy]
   pt/AerospikeReadOps
   (get-single [this index set-name]
     (pt/get-single this index set-name {} [:all]))
@@ -238,9 +239,9 @@
 
   (put-multiple [this indices set-names payloads expirations conf]
     (p/all
-      (map (fn [[index set-name payload expiration]]
-             (pt/put this index set-name payload expiration conf))
-           (map vector indices set-names payloads expirations))))
+     (map (fn [[index set-name payload expiration]]
+            (pt/put this index set-name payload expiration conf))
+          (map vector indices set-names payloads expirations))))
 
   pt/AerospikeUpdateOps
   (set-single [this index set-name data expiration]
@@ -433,22 +434,21 @@
         metrics/cluster-metrics->dotted))
 
   (healthy? [this]
-    (let [p (Policy. (.readPolicyDefault ^AerospikeClient client))]
-      (set! (.totalTimeout p) 1000)
-      (pt/healthy? this p)))
+    (pt/healthy? this health-policy))
 
-  (healthy? [this read-policy]
-    (let [k        (str "__health__" (rand-int Integer/MAX_VALUE))
-          v        (rand-int Integer/MAX_VALUE)
-          ttl      (max 1 (int (/ (.totalTimeout ^Policy read-policy) 1000)))
-          set-name "__health-check"]
-      (try
-        @(pt/put this k set-name v ttl)
-        (= v
-           @(pt/get-single this k set-name {:transcoder :payload
-                                            :policy     read-policy}))
-        (catch Exception _ex
-          false))))
+  (healthy? [this operation-timeout-ms]
+    (let [health-policy (set! (.totalTimeout health-policy) operation-timeout-ms)
+       k           (str "__health__" (rand-int Integer/MAX_VALUE))
+       v           (rand-int Integer/MAX_VALUE)
+       ttl         (max 1 (int (/ operation-timeout-ms 1000)))
+       set-name    "__health-check"]
+   (try
+     @(pt/put this k set-name v ttl)
+     (= v
+        @(pt/get-single this k set-name {:transcoder :payload
+                                         :policy     health-policy}))
+     (catch Exception _ex
+       false))))
 
   (stop [_this]
     (log/info "Stopping aerospike client for hosts" hosts)
@@ -477,6 +477,10 @@
 
   Client policy configuration keys (see policy/create-client-policy)
   - :client-policy - a ready ClientPolicy
+  - :health-policy - a map of read-policy field overrides (string keys, same
+    format as `policy/map->policy`) applied on top of the client-policy's
+    `readPolicyDefault` to create the health-check read policy.
+    Defaults to `{\"totalTimeout\" 1000}`.
   - \"username\"
   - :port - to specify a single port to use for all host names, only if ports aren't
   explicit in the host names set above in `:hosts`. In case that a port isn't explicitly
@@ -490,7 +494,10 @@
    (let [close-event-loops?  (nil? (:event-loops conf))
          event-loops         (or (:event-loops conf) (create-event-loops conf))
          completion-executor (:completion-executor conf p-exec/default-executor)
-         client-policy       (:client-policy conf (policy/create-client-policy event-loops conf))]
+         client-policy       (:client-policy conf (policy/create-client-policy event-loops conf))
+         health-policy       (policy/map->health-policy
+                               (.readPolicyDefault ^ClientPolicy client-policy)
+                               (merge {"totalTimeout" 1000} (:health-policy conf)))]
      (log/info (format "Starting aerospike client for hosts %s with username %s" hosts (get conf "username")))
      (->SimpleAerospikeClient (create-client hosts client-policy (:port conf 3000))
                               event-loops
@@ -498,4 +505,5 @@
                               hosts
                               aero-ns
                               (utils/vectorize (:client-events conf))
-                              close-event-loops?))))
+                              close-event-loops?
+                              health-policy))))
