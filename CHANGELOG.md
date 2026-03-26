@@ -23,9 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * `AerospikeAdminOps/healthy?` protocol now exposes only the zero-arity
   `healthy? [this]` contract. Timeout customization is configured at client
-  initialization via `:health-policy` instead of through the protocol call.
+  initialization via `:health-config` instead of through the protocol call.
 
-* `init-simple-aerospike-client` now accepts `:health-policy` in its `conf`
+* `init-simple-aerospike-client` now accepts `:health-config` in its `conf`
   map as string-keyed read-policy overrides. The configured value is applied on
   top of the resolved client policy's `readPolicyDefault`, with a default
   `{\"totalTimeout\" 1000}` fallback. This makes health check behavior

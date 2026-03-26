@@ -215,3 +215,10 @@
     (set-java cp conf "tlsPolicy")
     (set-java cp conf "useServicesAlternate")
     cp))
+
+(defn create-health-policy
+  "Create a health policy from a map."
+  ^Policy [client-policy conf]
+  (map->health-policy
+    (.readPolicyDefault ^ClientPolicy client-policy)
+    (merge {"totalTimeout" 1000} (:health-config conf))))

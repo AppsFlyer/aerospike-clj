@@ -157,7 +157,7 @@
     "Returns `true` iff the cluster is reachable and can take reads and writes.
     Uses the __health-check set to avoid data collisions.
     The check uses the client's configured health policy, which is derived at
-    initialization from `:health-policy` and defaults to a 1000ms `totalTimeout`.")
+    initialization from `:health-config` and defaults to a 1000ms `totalTimeout`.")
 
   (stop [this]
     "Gracefully stop a client, waiting until all async operations finish.
