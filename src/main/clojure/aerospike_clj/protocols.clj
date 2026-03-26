@@ -153,11 +153,11 @@
     The metric name is a dot separated string that should be convenient for
     reporting to statsd/graphite. All values are gauges.")
 
-  (healthy? [this] [this operation-timeout-ms]
+  (healthy? [this]
     "Returns `true` iff the cluster is reachable and can take reads and writes.
-    Uses __health-check set to avoid data collisions. `operation-timeout-ms` is
-    for total timeout of reads (default is 1s) including 2 retries so a small
-    over estimation is advised to avoid false negatives.")
+    Uses the __health-check set to avoid data collisions.
+    The check uses the client's configured health policy, which is derived at
+    initialization from `:health-policy` and defaults to a 1000ms `totalTimeout`.")
 
   (stop [this]
     "Gracefully stop a client, waiting until all async operations finish.
