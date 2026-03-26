@@ -21,7 +21,10 @@
 (defn- throw-invalid-state [msg conf]
   (throw (ex-info msg {:conf (dissoc conf "password")})))
 
-(defn- apply-policy-fields
+(defn apply-policy-fields
+  "Apply string-keyed policy field overrides to an existing `Policy` instance.
+  Returns the mutated policy. Useful for deriving a customized policy from a
+  copy constructor, e.g. `(apply-policy-fields (Policy. base) overrides)`."
   ^Policy [^Policy p conf]
   (set-java-enum p conf "ReadModeAP")
   (set-java-enum p conf "ReadModeSC")
@@ -39,12 +42,6 @@
   This function is slow due to possible reflection."
   ^Policy [conf]
   (apply-policy-fields (Policy.) (merge {"timeoutDelay" 3000} conf)))
-
-(defn map->health-policy
-  "Create a health-check read `Policy` by copying `base-policy` and applying
-  overrides from `conf`. Keys in `conf` use the same string format as `map->policy`."
-  ^Policy [^Policy base-policy conf]
-  (apply-policy-fields (Policy. base-policy) conf))
 
 (defn map->batch-write-policy
   "Create a `BatchWritePolicy` from a map. Enumeration names should start with capitalized letter.
@@ -215,10 +212,3 @@
     (set-java cp conf "tlsPolicy")
     (set-java cp conf "useServicesAlternate")
     cp))
-
-(defn create-health-policy
-  "Create a health policy from a map."
-  ^Policy [client-policy conf]
-  (map->health-policy
-    (.readPolicyDefault ^ClientPolicy client-policy)
-    (merge {"totalTimeout" 1000} (:health-config conf))))

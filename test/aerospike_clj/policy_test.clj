@@ -1,8 +1,7 @@
 (ns aerospike-clj.policy-test
   (:require [clojure.test :refer [deftest is]]
             [aerospike-clj.policy :as policy])
-  (:import (com.aerospike.client.async EventPolicy)
-           (com.aerospike.client.policy ReadModeAP ReadModeSC Replica)))
+  (:import (com.aerospike.client.async EventPolicy)))
 
 (defn- verify-event-policy-properties
   ([^Exception event-policy]
@@ -31,32 +30,3 @@
           Exception
           #"setting maxCommandsInProcess>0 and maxCommandsInQueue=0 creates an unbounded delay queue"
           (policy/map->event-policy conf)))))
-
-(deftest get-health-policy-with-overrides
-  (let [base-conf      {"ReadModeAP"          "ALL"
-                        "ReadModeSC"          "SESSION"
-                        "maxRetries"          5
-                        "Replica"             "RANDOM"
-                        "sendKey"             true
-                        "sleepBetweenRetries"  100
-                        "socketTimeout"       3000
-                        "timeoutDelay"        4000
-                        "totalTimeout"        2000}
-        base-policy    (policy/map->policy base-conf)
-        health-policy  (policy/map->health-policy
-                        base-policy
-                        {"totalTimeout" 10000
-                         "sendKey"      false})]
-    (is (= 2000 (.totalTimeout base-policy)))
-    (is (= true (.sendKey base-policy)))
-    (is (= 5 (.maxRetries base-policy)))
-    (is (= 10000 (.totalTimeout health-policy)))
-    (is (= false (.sendKey health-policy)))
-    (is (= 5 (.maxRetries health-policy)))
-    (is (= ReadModeAP/ALL (.readModeAP health-policy)))
-    (is (= ReadModeSC/SESSION (.readModeSC health-policy)))
-    (is (= Replica/RANDOM (.replica health-policy)))
-    (is (= 100 (.sleepBetweenRetries health-policy)))
-    (is (= 3000 (.socketTimeout health-policy)))
-    (is (= 4000 (.timeoutDelay health-policy)))
-    (is (= 5 (.maxRetries health-policy)))))
