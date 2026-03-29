@@ -15,6 +15,7 @@
                                       :sign-releases false}]]
   :dependencies [[org.clojure/tools.logging "1.2.4"]
                  [com.aerospike/aerospike-client "6.1.10"]
+                 [io.netty/netty-transport "4.1.89.Final"]
                  [funcool/promesa "8.0.450"]]
   :profiles {:dev  {:plugins        [[lein-eftest "0.5.9"]]
                     :dependencies   [[org.clojure/clojure "1.11.1"]
