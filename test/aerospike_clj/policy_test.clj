@@ -2,7 +2,7 @@
   (:require [clojure.test :refer [deftest is testing]]
             [aerospike-clj.policy :as policy]
             [aerospike-clj.client :as client])
-  (:import (com.aerospike.client.async EventPolicy)
+  (:import (com.aerospike.client.async EventLoops EventPolicy)
            (com.aerospike.client.policy ClientPolicy Policy ReadModeAP ReadModeSC Replica)
            (aerospike_clj.client SimpleAerospikeClient)))
 
@@ -23,7 +23,7 @@
     (verify-event-policy-properties event-policy)))
 
 (deftest get-valid-event-policy-with-max-commands-process-and-queue
-  (let [conf {"maxCommandsInProcess" 100 "maxCommandsInQueue" 1}
+  (let [conf         {"maxCommandsInProcess" 100 "maxCommandsInQueue" 1}
         event-policy (policy/map->event-policy conf)]
     (verify-event-policy-properties event-policy conf)))
 
@@ -59,7 +59,7 @@
   (let [defaults (Policy.)
         p        (policy/apply-policy-fields! (Policy.) {"maxRetries"   nil
                                                          "totalTimeout" nil
-                                                         "ReadModeAP"  nil})]
+                                                         "ReadModeAP"   nil})]
     (is (= (.maxRetries defaults) (.maxRetries p)))
     (is (= (.totalTimeout defaults) (.totalTimeout p)))
     (is (= (.readModeAP defaults) (.readModeAP p)))
@@ -77,12 +77,12 @@
     (is (identical? copy p) "returns the same mutated instance")))
 
 (deftest health-policy-custom-flows-to-client
-  (let [fake-el     (reify com.aerospike.client.async.EventLoops (close [_]))
+  (let [fake-el     (reify EventLoops (close [_]))
         stub-create (fn [_ _ _] nil)]
     (testing "custom :health-policy is stored on SimpleAerospikeClient"
       (let [hp (policy/apply-policy-fields! (Policy.) {"totalTimeout" 5000})
             c  (with-redefs [client/create-event-loops (constantly fake-el)
-                             #'aerospike-clj.client/create-client stub-create]
+                             client/create-client      stub-create]
                  (client/init-simple-aerospike-client
                    ["localhost"]
                    "test"
@@ -99,7 +99,7 @@
             cp          (doto (ClientPolicy.)
                           (-> .-readPolicyDefault (set! read-policy)))
             c           (with-redefs [client/create-event-loops (constantly fake-el)
-                                      #'aerospike-clj.client/create-client stub-create]
+                                      client/create-client      stub-create]
                           (client/init-simple-aerospike-client
                             ["localhost"]
                             "test"
