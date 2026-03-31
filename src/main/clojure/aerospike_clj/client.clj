@@ -18,9 +18,7 @@
                                     AsyncRecordListener AsyncRecordSequenceListener AsyncWriteListener)
            (com.aerospike.client BatchRecord Host Key)
            (com.aerospike.client AerospikeClient BatchRead Bin Key Operation)
-           (com.aerospike.client.async EventLoop EventLoops NettyEventLoops NioEventLoops)
-           (io.netty.channel EventLoopGroup)
-           (io.netty.channel.nio NioEventLoopGroup)
+           (com.aerospike.client.async EventLoop EventLoops NioEventLoops)
            (com.aerospike.client.cluster Node)
            (com.aerospike.client.listener BatchOperateListListener)
            (com.aerospike.client.policy BatchPolicy ClientPolicy InfoPolicy
@@ -53,31 +51,12 @@
         hosts-arr (Host/parseHosts hosts-str default-port)]
     (AerospikeClient. ^ClientPolicy client-policy ^"[Lcom.aerospike.client.Host;" hosts-arr)))
 
-(defn create-nio-event-loops
-  "Called internally to create NIO event loops for the client.
+(defn create-event-loops
+  "Called internally to create the event loops for the client.
   Can also be used to share event loops between several clients."
   [conf]
   (let [elp (policy/map->event-policy conf)]
     (NioEventLoops. elp 1 true "NioEventLoops")))
-
-(defn- create-netty-event-loops [conf]
-  (let [elp   (policy/map->event-policy conf)
-        group (NioEventLoopGroup. (int 1))]
-    (NettyEventLoops. elp ^EventLoopGroup group)))
-
-(defn create-event-loops
-  "Create event loops for the client based on the :event-loop-type key in conf.
-  Supported types:
-    :NioEventLoops   - Aerospike's built-in NIO event loops (default)
-    :NettyEventLoops - Netty-based event loops
-  Can also be used to share event loops between several clients."
-  [conf]
-  (case (:event-loop-type conf :NioEventLoops)
-    :NioEventLoops   (create-nio-event-loops conf)
-    :NettyEventLoops (create-netty-event-loops conf)
-    (throw (ex-info (str "Unsupported :event-loop-type " (:event-loop-type conf)
-                         ". Supported types: :NioEventLoops, :NettyEventLoops")
-                    {:event-loop-type (:event-loop-type conf)}))))
 
 (defn- client-events-reducer [op-name index op-start-time]
   (fn [op-future client-events]
@@ -487,13 +466,10 @@
   Optional `conf` map _can_ have:
   - :event-loops - a client compatible EventLoops instance.
     If no EventLoops instance is provided,
-    a single-threaded one is created automatically based on :event-loop-type.
+    a single-threaded one of type NioEventLoops is created automatically.
     The EventLoops instance for this client will be closed
     during `stop` iff it was not provided externally.
     In this case it's a responsibility of the owner to close it properly.
-  - :event-loop-type - :NioEventLoops (default) or :NettyEventLoops.
-    Controls which EventLoops implementation is created when :event-loops is not
-    provided. :NettyEventLoops requires Netty on the classpath.
 
   Client policy configuration keys (see policy/create-client-policy)
   - :client-policy - a ready ClientPolicy

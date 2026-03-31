@@ -5,16 +5,9 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [4.0.0] - 2026-03-11
+## [4.0.0] - 2026-03-31
 
 ### Added
-
-* `init-simple-aerospike-client` now accepts `:event-loop-type` in its `conf`
-  map — `:NioEventLoops` (default) or `:NettyEventLoops`. This controls which
-  `EventLoops` implementation is created when no external `:event-loops`
-  instance is provided. The default is `:NioEventLoops` for backward
-  compatibility. Selecting `:NettyEventLoops` creates a Netty-backed event
-  loop using `NettyEventLoops` with a single-threaded `NioEventLoopGroup`.
 
 * `init-simple-aerospike-client` now accepts `:health-policy` in its `conf`
   map — a `^Policy` object used as the read policy for health checks. When
@@ -23,9 +16,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   any existing one (e.g. via the `Policy` copy constructor). This makes
   health check behavior configurable per client without mutating any shared
   default policy object.
-
-* Added `io.netty/netty-transport` 4.1.89.Final as a dependency (aligned with
-  the version used by `com.aerospike/aerospike-client` 6.1.10).
 
 ### Fixed
 
@@ -44,10 +34,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * `AerospikeAdminOps/healthy?` protocol now exposes only the zero-arity
   `healthy? [this]` contract. Timeout customization is configured at client
   initialization via `:health-policy` instead of through the protocol call.
-
-* The function function `create-event-loops` now dispatches event loop creation
-  based on `:event-loop-type`. The previous `create-event-loops` has been renamed to
-  `create-nio-event-loops`, and is still available for direct use. 
 
 ### [3.1.0] - 2023-08-22
 
