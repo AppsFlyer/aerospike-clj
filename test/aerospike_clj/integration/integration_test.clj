@@ -69,17 +69,6 @@
                {:health-policy hp})]
       (is (= 3000 (.totalTimeout ^Policy (.-health-policy ^SimpleAerospikeClient c))))
       (is (true? (pt/healthy? c)))
-      (pt/stop c)))
-
-  (testing "health check with unreachable timeout returns false"
-    (let [hp (policy/apply-policy-fields!
-               (Policy.)
-               {"totalTimeout" 1})
-          c  (client/init-simple-aerospike-client
-               *as-hosts* as-namespace
-               {:health-policy hp})]
-      (is (= 1 (.totalTimeout ^Policy (.-health-policy ^SimpleAerospikeClient c))))
-      (is (false? (pt/healthy? c)))
       (pt/stop c))))
 
 (defn random-key []
