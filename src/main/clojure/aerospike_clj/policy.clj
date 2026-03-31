@@ -21,10 +21,10 @@
 (defn- throw-invalid-state [msg conf]
   (throw (ex-info msg {:conf (dissoc conf "password")})))
 
-(defn apply-policy-fields
+(defn apply-policy-fields!
   "Apply string-keyed policy field overrides to an existing `Policy` instance.
   Returns the mutated policy. Useful for deriving a customized policy from a
-  copy constructor, e.g. `(apply-policy-fields (Policy. base) overrides)`."
+  copy constructor, e.g. `(apply-policy-fields! (Policy. base) overrides)`."
   ^Policy [^Policy p conf]
   (set-java-enum p conf "ReadModeAP")
   (set-java-enum p conf "ReadModeSC")
@@ -41,7 +41,7 @@
   "Create a (read) `Policy` from a map. Enumeration names should start with capitalized letter.
   This function is slow due to possible reflection."
   ^Policy [conf]
-  (apply-policy-fields (Policy.) (merge {"timeoutDelay" 3000} conf)))
+  (apply-policy-fields! (Policy.) (merge {"timeoutDelay" 3000} conf)))
 
 (defn map->batch-write-policy
   "Create a `BatchWritePolicy` from a map. Enumeration names should start with capitalized letter.

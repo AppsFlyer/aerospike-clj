@@ -474,7 +474,7 @@
   Client policy configuration keys (see policy/create-client-policy)
   - :client-policy - a ready ClientPolicy
   - :health-policy - a `^Policy` object used as the read policy for health
-    checks. When omitted, the client-policy's `readPolicyDefault` is used (shared instance).
+    checks. When omitted, a defensive copy of the client-policy's `readPolicyDefault` is used.
   - \"username\"
   - :port - to specify a single port to use for all host names, only if ports aren't
   explicit in the host names set above in `:hosts`. In case that a port isn't explicitly
@@ -489,7 +489,7 @@
          event-loops         (or (:event-loops conf) (create-event-loops conf))
          completion-executor (:completion-executor conf p-exec/default-executor)
          client-policy       (:client-policy conf (policy/create-client-policy event-loops conf))
-         health-policy       (:health-policy conf (.readPolicyDefault ^ClientPolicy client-policy))]
+         health-policy       (:health-policy conf (Policy. (.readPolicyDefault ^ClientPolicy client-policy)))]
      (log/info (format "Starting aerospike client for hosts %s with username %s" hosts (get conf "username")))
      (->SimpleAerospikeClient (create-client hosts client-policy (:port conf 3000))
                               event-loops

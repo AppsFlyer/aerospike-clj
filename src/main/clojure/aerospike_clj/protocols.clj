@@ -157,7 +157,8 @@
     "Returns `true` iff the cluster is reachable and can take reads and writes.
     Uses the __health-check set to avoid data collisions.
     The check uses the client's configured `:health-policy` (a `^Policy` object),
-    which defaults to the client-policy when not supplied at initialization.")
+    which defaults to a copy of the client-policy's `readPolicyDefault` when not
+    supplied at initialization.")
 
   (stop [this]
     "Gracefully stop a client, waiting until all async operations finish.

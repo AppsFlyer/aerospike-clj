@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * `init-simple-aerospike-client` now accepts `:health-policy` in its `conf`
   map — a `^Policy` object used as the read policy for health checks. When
   omitted, the client-policy's `readPolicyDefault` is used as-is.
-  Use `policy/apply-policy-fields` to derive a customized policy from
+  Use `policy/apply-policy-fields!` to derive a customized policy from
   any existing one (e.g. via the `Policy` copy constructor). This makes
   health check behavior configurable per client without mutating any shared
   default policy object.
@@ -250,6 +250,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * License changed to Apache 2.
 
 [A complete list of all java client related changes](https://www.aerospike.com/download/client/java/notes.html)
+
+[4.0.0]: https://github.com/AppsFlyer/aerospike-clj/pull/74/
 
 [3.1.0]: https://github.com/AppsFlyer/aerospike-clj/pull/69
 

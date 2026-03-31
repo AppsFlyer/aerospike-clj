@@ -109,26 +109,20 @@ Health checks are also configurable on initialization via `:health-policy`. Pass
 `^Policy` object that will be used as the read policy for health checks. If omitted,
 the client-policy's `readPolicyDefault` is used as-is.
 
-You can use `policy/apply-policy-fields` together with the `Policy` copy constructor
-to derive a health-check policy from the client's default read policy:
+You can use `policy/apply-policy-fields!` together with the `Policy` copy constructor
+to derive a health-check policy from any base policy:
 ```clojure
 user=> (require '[aerospike-clj.policy :as policy])
 nil
-user=> (import '[com.aerospike.client.policy Policy ClientPolicy])
+user=> (import '[com.aerospike.client.policy Policy])
 com.aerospike.client.policy.Policy
-user=> ;; build a client policy with a 5-second read timeout
-user=> (def cp (policy/create-client-policy nil {"totalTimeout" 300
-                                                 "socketTimeout" 50}))
-#'user/cp
-user=> ;; derive a health policy: copy the readPolicyDefault, then override fields
-user=> (def hp (policy/apply-policy-fields
-                 (Policy. (.readPolicyDefault ^ClientPolicy cp))
+user=> ;; create a base read policy, then derive a health policy with a different timeout
+user=> (def hp (policy/apply-policy-fields!
+                 (Policy.)
                  {"totalTimeout" 1000}))
 #'user/hp
 user=> (.totalTimeout hp)
 1000
-user=> (.totalTimeout (.readPolicyDefault ^ClientPolicy cp))
-300
 user=> ;; pass the derived health policy at client init
 user=> (def c (client/init-simple-aerospike-client
                ["localhost"]
