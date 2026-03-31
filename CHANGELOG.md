@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.0] - 2026-03-31
+
+### Added
+
+* `init-simple-aerospike-client` now accepts `:health-policy` in its `conf`
+  map — a `^Policy` object used as the read policy for health checks. When
+  omitted, the client-policy's `readPolicyDefault` is used as-is.
+  Use `policy/apply-policy-fields!` to derive a customized policy from
+  any existing one (e.g. via the `Policy` copy constructor). This makes
+  health check behavior configurable per client without mutating any shared
+  default policy object.
+
+### Fixed
+
+* **BREAKING**: `AerospikeAdminOps/healthy?` now relies on the client's
+  initialized health policy (defaults to the client-policy) instead of accepting
+  a timeout override per call. This removes mutation of the shared
+  `readPolicyDefault` on the underlying `AerospikeClient`, which previously
+  could permanently overwrite the configured `totalTimeout`.
+
+* Fixed a health check regression: the write TTL now uses `max 1` when deriving
+  TTL from `:totalTimeout`, so very small timeouts no longer produce a `0`
+  TTL (which could skip retention and make checks flaky).
+
+### Changed
+
+* `AerospikeAdminOps/healthy?` protocol now exposes only the zero-arity
+  `healthy? [this]` contract. Timeout customization is configured at client
+  initialization via `:health-policy` instead of through the protocol call.
+
 ### [3.1.0] - 2023-08-22
 
 #### Added
@@ -220,6 +250,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * License changed to Apache 2.
 
 [A complete list of all java client related changes](https://www.aerospike.com/download/client/java/notes.html)
+
+[4.0.0]: https://github.com/AppsFlyer/aerospike-clj/pull/74/
 
 [3.1.0]: https://github.com/AppsFlyer/aerospike-clj/pull/69
 

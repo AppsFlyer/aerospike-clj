@@ -254,8 +254,6 @@
   pt/AerospikeAdminOps
   (healthy? [_] true)
 
-  (healthy? [_ _] true)
-
   (get-cluster-stats [_] [[]])
 
   (stop [_]

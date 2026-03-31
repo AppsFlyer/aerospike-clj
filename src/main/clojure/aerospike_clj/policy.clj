@@ -21,22 +21,27 @@
 (defn- throw-invalid-state [msg conf]
   (throw (ex-info msg {:conf (dissoc conf "password")})))
 
+(defn apply-policy-fields!
+  "Apply string-keyed policy field overrides to an existing `Policy` instance.
+  Returns the mutated policy. Useful for deriving a customized policy from a
+  copy constructor, e.g. `(apply-policy-fields! (Policy. base) overrides)`."
+  ^Policy [^Policy p conf]
+  (set-java-enum p conf "ReadModeAP")
+  (set-java-enum p conf "ReadModeSC")
+  (set-java p conf "maxRetries")
+  (set-java-enum p conf "Replica")
+  (set-java p conf "sendKey")
+  (set-java p conf "sleepBetweenRetries")
+  (set-java p conf "socketTimeout")
+  (set-java p conf "timeoutDelay")
+  (set-java p conf "totalTimeout")
+  p)
+
 (defn map->policy
   "Create a (read) `Policy` from a map. Enumeration names should start with capitalized letter.
   This function is slow due to possible reflection."
   ^Policy [conf]
-  (let [p    (Policy.)
-        conf (merge {"timeoutDelay" 3000} conf)]
-    (set-java-enum p conf "ReadModeAP")
-    (set-java-enum p conf "ReadModeSC")
-    (set-java p conf "maxRetries")
-    (set-java-enum p conf "Replica")
-    (set-java p conf "sendKey")
-    (set-java p conf "sleepBetweenRetries")
-    (set-java p conf "socketTimeout")
-    (set-java p conf "timeoutDelay")
-    (set-java p conf "totalTimeout")
-    p))
+  (apply-policy-fields! (Policy.) (merge {"timeoutDelay" 3000} conf)))
 
 (defn map->batch-write-policy
   "Create a `BatchWritePolicy` from a map. Enumeration names should start with capitalized letter.

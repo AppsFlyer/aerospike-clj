@@ -56,7 +56,20 @@
         (is (no-password? ex))))))
 
 (deftest health
-  (is (true? (pt/healthy? *c* 10))))
+  (is (true? (pt/healthy? *c*))))
+
+(deftest health-with-custom-health-policy
+  (testing "health check succeeds with a custom health-policy"
+    (let [hp (policy/apply-policy-fields!
+               (Policy. (.getReadPolicyDefault
+                          ^AerospikeClient (.-client ^SimpleAerospikeClient *c*)))
+               {"totalTimeout" 3000})
+          c  (client/init-simple-aerospike-client
+               *as-hosts* as-namespace
+               {:health-policy hp})]
+      (is (= 3000 (.totalTimeout ^Policy (.-health-policy ^SimpleAerospikeClient c))))
+      (is (true? (pt/healthy? c)))
+      (pt/stop c))))
 
 (defn random-key []
   (str (random-uuid)))

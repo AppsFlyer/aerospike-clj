@@ -113,7 +113,8 @@
                                 hosts
                                 dbns
                                 client-events
-                                close-event-loops?]
+                                close-event-loops?
+                                ^Policy health-policy]
   pt/AerospikeReadOps
   (get-single [this index set-name]
     (pt/get-single this index set-name {} [:all]))
@@ -433,21 +434,15 @@
         metrics/cluster-metrics->dotted))
 
   (healthy? [this]
-    (pt/healthy? this 1000))
-
-  (healthy? [this operation-timeout-ms]
-    (let [read-policy (let [p ^Policy (.readPolicyDefault ^AerospikeClient client)]
-                        (set! (.totalTimeout p) operation-timeout-ms)
-                        p)
-          k           (str "__health__" (rand-int Integer/MAX_VALUE))
-          v           (rand-int Integer/MAX_VALUE)
-          ttl         (min 1 (int (/ operation-timeout-ms 1000)))
-          set-name    "__health-check"]
+    (let [k        (str "__health__" (rand-int Integer/MAX_VALUE))
+          v        (rand-int Integer/MAX_VALUE)
+          ttl      (max 1 (int (/ (.totalTimeout health-policy) 1000)))
+          set-name "__health-check"]
       (try
         @(pt/put this k set-name v ttl)
         (= v
            @(pt/get-single this k set-name {:transcoder :payload
-                                            :policy     read-policy}))
+                                            :policy     health-policy}))
         (catch Exception _ex
           false))))
 
@@ -478,6 +473,8 @@
 
   Client policy configuration keys (see policy/create-client-policy)
   - :client-policy - a ready ClientPolicy
+  - :health-policy - a `^Policy` object used as the read policy for health
+    checks. When omitted, a defensive copy of the client-policy's `readPolicyDefault` is used.
   - \"username\"
   - :port - to specify a single port to use for all host names, only if ports aren't
   explicit in the host names set above in `:hosts`. In case that a port isn't explicitly
@@ -491,7 +488,8 @@
    (let [close-event-loops?  (nil? (:event-loops conf))
          event-loops         (or (:event-loops conf) (create-event-loops conf))
          completion-executor (:completion-executor conf p-exec/default-executor)
-         client-policy       (:client-policy conf (policy/create-client-policy event-loops conf))]
+         client-policy       (:client-policy conf (policy/create-client-policy event-loops conf))
+         health-policy       (:health-policy conf (Policy. (.readPolicyDefault ^ClientPolicy client-policy)))]
      (log/info (format "Starting aerospike client for hosts %s with username %s" hosts (get conf "username")))
      (->SimpleAerospikeClient (create-client hosts client-policy (:port conf 3000))
                               event-loops
@@ -499,4 +497,5 @@
                               hosts
                               aero-ns
                               (utils/vectorize (:client-events conf))
-                              close-event-loops?))))
+                              close-event-loops?
+                              health-policy))))
