@@ -24,7 +24,7 @@
     [this batch-reads]
     [this batch-reads conf]
     "Get a batch of records from the cluster asynchronously. `batch-reads` is a collection of maps
-    of the form `{:index \"foo\" :set \"someset\" :bins [...]}`. the `:bins` key can have required
+    of the form `{:index \"foo\" :set \"someset\" :bins [...]}`. The `:bins` key can have required
     bins for the batched keys or missing/[:all] to get all the bins (see `_get`). The result is a
     vector of `AerospikeRecord` in the same order of keys. Missing keys result in `nil` in corresponding
     positions.")
@@ -42,9 +42,9 @@
     [this index set-name data expiration]
     [this index set-name data expiration conf]
     "Writes `data` into a record with the key `index`, with the TTL of `expiration` seconds.
-    `index` should be string. Pass a function in `(:transcoder conf)` to modify `data` before it
+    `index` should be a string. Pass a function in `(:transcoder conf)` to modify `data` before it
     is sent to the DB.
-    Pass a `WritePolicy` in `(:policy conf)` to uses the non-default policy.
+    Pass a `WritePolicy` in `(:policy conf)` to use the non-default policy.
     When a Clojure map is provided for the `data` argument, a multiple bin record will be created.
     Each key-value pair in the map will be treated as a bin-name, bin-value pair. Bin-names must be
     strings. Bin-values can be any nested data structure.")
@@ -89,7 +89,7 @@
   (touch
     [this index set-name expiration]
     [this index set-name expiration conf]
-    "Updates the TTL of the record stored under at `index` to `expiration` seconds from now.
+    "Updates the TTL of the record stored under `index` to `expiration` seconds from now.
     Expects records to exist."))
 
 (defprotocol AerospikeDeleteOps
@@ -167,14 +167,14 @@
   "Continuation functions that are registered when an async DB operation is called.
   The value returned from those function will be the value of the returned future from the async operation."
   (on-success [this op-name op-result index op-start-time]
-    "A continuation function. Registered on the operation future and called when operations succeeds.")
+    "A continuation function. Registered on the operation future and called when the operation succeeds.")
   (on-failure [this op-name op-ex index op-start-time]
-    "A continuation function. Registered on the operation future and called when operations fails."))
+    "A continuation function. Registered on the operation future and called when the operation fails."))
 
 (defprotocol UserKey
   "Use `create-key` directly to pass a pre-made custom key to the public API.
   When passing a simple String/Integer/Long/ByteArray the key will be created
-  automatically for you. If you pass a ready made key, `as-namespace` and
+  automatically for you. If you pass a ready-made key, `as-namespace` and
   `set-name` are ignored in API calls."
   (create-key [this as-namespace set-name]))
 
