@@ -236,6 +236,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 [A complete list of all java client related changes](https://www.aerospike.com/download/client/java/notes.html)
 
+[4.0.0]: https://github.com/AppsFlyer/aerospike-clj/pull/76
+
 [3.1.0]: https://github.com/AppsFlyer/aerospike-clj/pull/69
 
 [3.0.0]: https://github.com/AppsFlyer/aerospike-clj/pull/62
