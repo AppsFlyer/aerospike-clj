@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.0] - 2026-10-07
+
+### Changed
+
+* **Breaking:** use `com.aerospike/aerospike-client-jdk8` 10.4.0 instead of `com.aerospike/aerospike-client` 6.1.10.
+  Still runs on JDK 8 and is compatible with Aerospike server 6.4.
+* **Breaking:** top-level `true`/`false` bin values are stored as native Aerospike booleans instead of Java-serialized
+  `:true`/`:false` keywords. Bins written that way by 3.x read back as a raw `byte[]`.
+* **Breaking:** a top-level `nil` bin value removes the bin instead of storing a Java-serialized `:nil` keyword.
+* Run integration tests against Aerospike server `ee-6.4.0.7`.
+
+### Removed
+
+* `aerospike-clj.utils/sanitize-bin-value` and `aerospike-clj.utils/desanitize-bin-value`.
+
 ### [3.1.0] - 2023-08-22
 
 #### Added
