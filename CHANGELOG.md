@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-* **Breaking:** use `com.aerospike/aerospike-client-jdk8` 10.4.0 instead of `com.aerospike/aerospike-client` 6.1.10.
+* **Breaking:** use `com.aerospike/aerospike-client-jdk8` 10.5.0 instead of `com.aerospike/aerospike-client` 6.1.10.
   Still runs on JDK 8 and is compatible with Aerospike server 6.4.
 * **Breaking:** top-level `true`/`false` bin values are stored as native Aerospike booleans instead of Java-serialized
   `:true`/`:false` keywords. Bins written that way by 3.x read back as a raw `byte[]`.
