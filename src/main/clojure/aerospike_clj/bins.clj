@@ -1,5 +1,4 @@
 (ns aerospike-clj.bins
-  (:require [aerospike-clj.utils :as utils])
   (:import (clojure.lang IPersistentMap)
            (com.aerospike.client Bin)))
 
@@ -10,7 +9,11 @@
 (defn- create-bin ^Bin [^String bin-name bin-value]
   (when (< MAX_BIN_NAME_LENGTH (.length bin-name))
     (throw (Exception. (format "%s is %s characters. Bin names have to be <= %d characters..." bin-name (.length bin-name) MAX_BIN_NAME_LENGTH))))
-  (Bin. bin-name bin-value))
+  (if (nil? bin-value)
+    ;; Aerospike bins can't hold a null value; writing nil instead removes the
+    ;; bin, so on read the key is simply absent (which reads back as nil).
+    (Bin/asNull bin-name)
+    (Bin. bin-name bin-value)))
 
 (defn set-bin-as-null ^Bin [^String bin-name]
   (when (< MAX_BIN_NAME_LENGTH (.length bin-name))
@@ -28,7 +31,7 @@
               key-entry (key entry)]
           (when-not (string? key-entry)
             (throw (Exception. (format "Aerospike only accepts string values as bin names. Please ensure all keys in the map are strings."))))
-          (aset res i (create-bin key-entry (utils/sanitize-bin-value (val entry))))
+          (aset res i (create-bin key-entry (val entry)))
           (recur (inc i)))))
     res))
 
@@ -39,4 +42,4 @@
   (if (map? data)
     (map->multiple-bins data)
     (doto ^"[Lcom.aerospike.client.Bin;" (make-array Bin 1)
-      (aset 0 (Bin. "" (utils/sanitize-bin-value data))))))
+      (aset 0 (create-bin "" data)))))
