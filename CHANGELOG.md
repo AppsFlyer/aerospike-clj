@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **Breaking:** top-level `true`/`false` bin values are stored as native Aerospike booleans instead of Java-serialized
   `:true`/`:false` keywords. Bins written that way by 3.x read back as a raw `byte[]`.
 * **Breaking:** a top-level `nil` bin value removes the bin instead of storing a Java-serialized `:nil` keyword.
+  REPLACE writes (`put`, `put-multiple`, `update`, `replace-only`) leave `nil` bins out of the write, because the
+  server rejects bin deletes there, and throw `IllegalArgumentException` if every bin is `nil`.
 * Run integration tests against Aerospike server `ee-6.4.0.7`.
 
 ### Removed

@@ -94,9 +94,14 @@
       (BatchRead. k true)
       (BatchRead. k ^"[Ljava.lang.String;" (utils/v->array String (:bins batch-read-map))))))
 
+(defn- replace-write? [^WritePolicy policy]
+  (let [action (.recordExistsAction policy)]
+    (or (= RecordExistsAction/REPLACE action)
+        (= RecordExistsAction/REPLACE_ONLY action))))
+
 ;; put
 (defn- put* [^AerospikeClient client ^EventLoops event-loops dbns client-events index data policy set-name conf]
-  (let [bins       (bins/data->bins data)
+  (let [bins       (bins/data->bins (if (replace-write? policy) (bins/remove-nil-bins data) data))
         op-future  (p/deferred)
         start-time (System/nanoTime)]
     (.put client

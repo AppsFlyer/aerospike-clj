@@ -230,6 +230,26 @@
         (is (= v (apply dissoc data bin-keys)))
         (is (= (keys v) ["qux"]))))))
 
+(deftest nil-bins-in-replace-writes
+  (let [data {"a" 1 "b" "abc" "c" [1 2 3]}]
+    (testing "nil bins are dropped, and the record is replaced"
+      (let [k (random-key)]
+        (is (true? @(pt/create *c* k _set data TTL)))
+        (is (true? @(pt/put *c* k _set {"a" 1 "b" nil} TTL)))
+        (is (= {"a" 1} @(pt/get-single-no-meta *c* k _set)))
+        (is (true? @(pt/replace-only *c* k _set {"a" 2 "c" nil} TTL)))
+        (is (= {"a" 2} @(pt/get-single-no-meta *c* k _set)))
+        (is (true? @(pt/update *c* k _set {"b" "x" "c" nil} 3 TTL)))
+        (is (= {"b" "x"} @(pt/get-single-no-meta *c* k _set)))))
+    (testing "a write with only nil bins throws"
+      (is (thrown? IllegalArgumentException @(pt/put *c* (random-key) _set {"a" nil} TTL)))
+      (is (thrown? IllegalArgumentException @(pt/put *c* (random-key) _set nil TTL))))
+    (testing "nil still deletes the bin in an UPDATE write"
+      (let [k (random-key)]
+        (is (true? @(pt/create *c* k _set data TTL)))
+        (is (true? @(pt/set-single *c* k _set {"b" nil} TTL)))
+        (is (= {"a" 1 "c" [1 2 3]} @(pt/get-single-no-meta *c* k _set)))))))
+
 (deftest update-test
   (let [k (random-key)]
     (is (true? @(pt/create *c* k _set 16 TTL)))

@@ -35,6 +35,23 @@
           (recur (inc i)))))
     res))
 
+(defn remove-nil-bins
+  "Removes top-level `nil` bins from `data` for a REPLACE write. The server rejects bin deletes
+  in a REPLACE write, and bins that aren't written are removed anyway.
+  Throws if no bins would be left to write."
+  [data]
+  (cond
+    (nil? data)
+    (throw (IllegalArgumentException. "A REPLACE write needs at least one non-nil bin value"))
+
+    (map? data)
+    (let [res (reduce-kv (fn [m k v] (if (nil? v) (dissoc m k) m)) data data)]
+      (if (and (empty? res) (seq data))
+        (throw (IllegalArgumentException. "A REPLACE write needs at least one non-nil bin value"))
+        res))
+
+    :else data))
+
 (defn data->bins
   "Function to identify whether `data` will be stored as a single or multiple bin record.
   Only Clojure maps will default to multiple bins. Nested data structures are supported."
