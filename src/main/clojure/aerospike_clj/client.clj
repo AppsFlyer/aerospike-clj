@@ -97,10 +97,7 @@
 (defn- write-bins
   "`data` as bins for a write with `policy`; a `nil` policy means the client's default write policy."
   ^"[Lcom.aerospike.client.Bin;" [^AerospikeClient client data ^WritePolicy policy]
-  (let [action   (.recordExistsAction (or policy (.getWritePolicyDefault client)))
-        replace? (or (= RecordExistsAction/REPLACE action)
-                     (= RecordExistsAction/REPLACE_ONLY action))]
-    (bins/data->bins data replace? (or replace? (= RecordExistsAction/CREATE_ONLY action)))))
+  (bins/data->write-bins data (.recordExistsAction (or policy (.getWritePolicyDefault client)))))
 
 ;; put
 (defn- send-put [^AerospikeClient client ^EventLoops event-loops dbns client-events index bins policy set-name conf start-time]
@@ -116,7 +113,7 @@
 (defn- put* [^AerospikeClient client ^EventLoops event-loops dbns client-events index data policy set-name conf]
   (let [start-time (System/nanoTime)
         bins       (try
-                     (write-bins client data policy)
+                     (write-bins client ((:transcoder conf identity) data) policy)
                      (catch Exception e
                        e))]
     (if (instance? Exception bins)
@@ -230,7 +227,7 @@
           dbns
           client-events
           index
-          ((:transcoder conf identity) data)
+          data
           (:policy conf (policy/write-policy client expiration))
           set-name
           conf))
@@ -244,7 +241,7 @@
           dbns
           client-events
           index
-          ((:transcoder conf identity) data)
+          data
           (policy/create-only-policy client expiration)
           set-name
           conf))
@@ -253,18 +250,20 @@
     (pt/put-multiple this indices set-names payloads expirations {}))
 
   (put-multiple [_this indices set-names payloads expirations conf]
-    ;; Build every record's bins before sending any, so an invalid payload doesn't leave a partial write.
+    ;; Bins are built for every payload before any is sent. Nested values are only packed when their own record
+    ;; is sent, so a nested unsupported value fails that record after the earlier ones were sent.
     (let [start-time (System/nanoTime)
           transcoder (:transcoder conf identity)
-          writes     (try
-                       (mapv (fn [index set-name payload expiration]
-                               (let [policy (:policy conf (policy/write-policy client expiration))]
-                                 [index set-name policy (write-bins client (transcoder payload) policy)]))
-                             indices set-names payloads expirations)
-                       (catch Exception e
-                         e))]
-      (if (instance? Exception writes)
-        (register-events (p/rejected writes) client-events :write nil start-time conf)
+          writes     (reduce (fn [writes [index set-name payload expiration]]
+                               (try
+                                 (let [policy (:policy conf (policy/write-policy client expiration))]
+                                   (conj writes [index set-name policy (write-bins client (transcoder payload) policy)]))
+                                 (catch Exception e
+                                   (reduced {:index index :error e}))))
+                             []
+                             (map vector indices set-names payloads expirations))]
+      (if (map? writes)
+        (register-events (p/rejected (:error writes)) client-events :write (:index writes) start-time conf)
         (p/all
           (map (fn [[index set-name policy bins]]
                  (send-put client el dbns client-events index bins policy set-name conf (System/nanoTime)))
@@ -280,7 +279,7 @@
           dbns
           client-events
           index
-          ((:transcoder conf identity) data)
+          data
           (policy/set-policy client expiration)
           set-name
           conf))
@@ -294,7 +293,7 @@
           dbns
           client-events
           index
-          ((:transcoder conf identity) data)
+          data
           (policy/replace-only-policy client expiration)
           set-name
           conf))
@@ -308,7 +307,7 @@
           dbns
           client-events
           index
-          ((:transcoder conf identity) new-record)
+          new-record
           (policy/update-policy client generation new-expiration)
           set-name
           conf))
@@ -322,7 +321,7 @@
           dbns
           client-events
           index
-          ((:transcoder conf identity) new-data)
+          new-data
           (policy/update-only-policy client new-expiration)
           set-name
           conf))

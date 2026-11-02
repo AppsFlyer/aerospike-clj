@@ -1,10 +1,12 @@
 (ns aerospike-clj.mock-client
   (:refer-clojure :exclude [update])
   (:require [promesa.core :as p]
+            [aerospike-clj.bins :as bins]
             [aerospike-clj.client :as client]
             [aerospike-clj.protocols :as pt]
             [aerospike-clj.utils])
   (:import (com.aerospike.client AerospikeException ResultCode)
+           (com.aerospike.client.policy RecordExistsAction WritePolicy)
            (java.time Clock Instant ZoneOffset)))
 
 (def ^:private DEFAULT_SET "__DEFAULT__")
@@ -51,6 +53,36 @@
     (p/resolved true)
     (catch AerospikeException ex
       (p/rejected ex))))
+
+(defn- invalid-write
+  "Returns the exception the real client would reject this write with, or nil if `data` is valid.
+  Only top-level values are checked, not values nested in lists or maps."
+  [data action]
+  (try
+    (bins/data->write-bins data action)
+    nil
+    (catch Exception e
+      e)))
+
+(defn- put-action [conf]
+  (if-let [^WritePolicy policy (:policy conf)]
+    (.recordExistsAction policy)
+    RecordExistsAction/REPLACE))
+
+(defn- update* [state k set-name new-record expected-generation new-expiration conf]
+  (let [swap-fn (fn [current-state]
+                  (let [current-generation (get-generation current-state set-name k)]
+                    (when-not (= current-generation expected-generation)
+                      (throw (AerospikeException.
+                               (ResultCode/GENERATION_ERROR)
+                               (str "Record 'generation' count does not match expected value: '"
+                                    expected-generation "'"))))
+
+                    (let [transcoder (get-transcoder conf)
+                          new-record (create-record
+                                       (transcoder new-record) new-expiration (inc current-generation))]
+                      (set-record current-state new-record set-name k))))]
+    (do-swap state swap-fn)))
 
 (defn- filter-bins [bins record]
   (clojure.core/update record :payload #(select-keys % bins)))
@@ -103,47 +135,56 @@
 
   (put [_ k set-name data expiration conf]
     (let [transcoder (get-transcoder conf)
-          new-record (create-record (transcoder data) expiration)
-          swap-fn    (fn [current-state] (set-record current-state new-record set-name k))]
-      (do-swap state swap-fn)))
+          payload    (transcoder data)]
+      (if-let [e (invalid-write payload (put-action conf))]
+        (p/rejected e)
+        (let [new-record (create-record payload expiration)
+              swap-fn    (fn [current-state] (set-record current-state new-record set-name k))]
+          (do-swap state swap-fn)))))
 
   (create [this k set-name data expiration]
     (pt/create this k set-name data expiration {}))
 
   (create [_ k set-name data expiration conf]
-    (let [swap-fn (fn [current-state]
+    (let [payload ((get-transcoder conf) data)
+          swap-fn (fn [current-state]
                     (when (some? (get-record current-state set-name k))
                       (throw (AerospikeException.
                                (ResultCode/KEY_EXISTS_ERROR)
                                (str "Call to `create` on existing key '" k "'"))))
 
-                    (let [transcoder (get-transcoder conf)
-                          new-record (create-record (transcoder data) expiration)]
-                      (set-record current-state new-record set-name k)))]
-      (do-swap state swap-fn)))
+                    (set-record current-state (create-record payload expiration) set-name k))]
+      (if-let [e (invalid-write payload RecordExistsAction/CREATE_ONLY)]
+        (p/rejected e)
+        (do-swap state swap-fn))))
 
   (put-multiple [this indices set-names payloads expiration-seq]
     (pt/put-multiple this indices set-names payloads expiration-seq {}))
 
   (put-multiple [this indices set-names payloads expiration-seq conf]
-    (p/resolved
-      (mapv (fn [k set-name payload expiration]
-              @(pt/put this k set-name payload expiration conf))
-            indices set-names payloads expiration-seq)))
+    (let [transcoder (get-transcoder conf)]
+      (if-let [e (some #(invalid-write (transcoder %) (put-action conf)) payloads)]
+        (p/rejected e)
+        (p/resolved
+          (mapv (fn [k set-name payload expiration]
+                  @(pt/put this k set-name payload expiration conf))
+                indices set-names payloads expiration-seq)))))
 
   pt/AerospikeUpdateOps
   (set-single [this k set-name data expiration]
     (pt/set-single this k set-name data expiration {}))
 
-  (set-single [this k set-name data expiration conf]
-    (let [generation (get-generation @state set-name k)]
-      (pt/update this k set-name data generation expiration conf)))
+  (set-single [_ k set-name data expiration conf]
+    (if-let [e (invalid-write ((get-transcoder conf) data) RecordExistsAction/UPDATE)]
+      (p/rejected e)
+      (update* state k set-name data (get-generation @state set-name k) expiration conf)))
 
   (add-bins [this k set-name new-data new-expiration]
     (pt/add-bins this k set-name new-data new-expiration {}))
 
   (add-bins [_ k set-name new-data new-expiration conf]
     (let [transcoder (get-transcoder conf)
+          error      (invalid-write (transcoder new-data) RecordExistsAction/UPDATE_ONLY)
           swap-fn    (fn [current-state]
                        (if-let [old-data (:payload (get-record current-state set-name k))]
                          (let [merged-data (merge old-data new-data)
@@ -154,38 +195,31 @@
                          (throw (AerospikeException.
                                   (ResultCode/KEY_NOT_FOUND_ERROR)
                                   (str "Call to `add-bins` on non-existing key '" k "'")))))]
-      (do-swap state swap-fn)))
+      (if error
+        (p/rejected error)
+        (do-swap state swap-fn))))
   (replace-only [this k set-name data expiration]
     (pt/replace-only this k set-name data expiration {}))
 
   (replace-only [_ k set-name data expiration conf]
-    (let [swap-fn (fn [current-state]
+    (let [payload ((get-transcoder conf) data)
+          swap-fn (fn [current-state]
                     (if (some? (get-record current-state set-name k))
-                      (let [transcoder (get-transcoder conf)
-                            new-record (create-record (transcoder data) expiration)]
-                        (set-record current-state new-record set-name k))
+                      (set-record current-state (create-record payload expiration) set-name k)
                       (throw (AerospikeException.
                                ResultCode/KEY_NOT_FOUND_ERROR
                                (str "Call to `replace-only` on non-existing key '" k "'")))))]
-      (do-swap state swap-fn)))
+      (if-let [e (invalid-write payload RecordExistsAction/REPLACE_ONLY)]
+        (p/rejected e)
+        (do-swap state swap-fn))))
 
   (update [this k set-name new-record generation new-expiration]
     (pt/update this k set-name new-record generation new-expiration {}))
 
   (update [_ k set-name new-record expected-generation new-expiration conf]
-    (let [swap-fn (fn [current-state]
-                    (let [current-generation (get-generation current-state set-name k)]
-                      (when-not (= current-generation expected-generation)
-                        (throw (AerospikeException.
-                                 (ResultCode/GENERATION_ERROR)
-                                 (str "Record 'generation' count does not match expected value: '"
-                                      expected-generation "'"))))
-
-                      (let [transcoder (get-transcoder conf)
-                            new-record (create-record
-                                         (transcoder new-record) new-expiration (inc current-generation))]
-                        (set-record current-state new-record set-name k))))]
-      (do-swap state swap-fn)))
+    (if-let [e (invalid-write ((get-transcoder conf) new-record) RecordExistsAction/REPLACE)]
+      (p/rejected e)
+      (update* state k set-name new-record expected-generation new-expiration conf)))
 
   (touch [_ k set-name expiration]
     (let [swap-fn (fn [current-state]

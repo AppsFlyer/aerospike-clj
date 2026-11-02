@@ -265,23 +265,40 @@
       (let [failures (atom [])
             events   (reify pt/ClientEvents
                        (on-success [_ _ op-result _ _] op-result)
-                       (on-failure [_ op-name op-ex _ _]
-                         (swap! failures conj op-name)
-                         (p/rejected op-ex)))]
-        (is (thrown? ExecutionException @(pt/put *c* (random-key) _set {"a" nil} TTL {:client-events [events]})))
-        (is (= [:write] @failures))))
+                       (on-failure [_ op-name op-ex index _]
+                         (swap! failures conj [op-name index])
+                         (p/rejected op-ex)))
+            k1       (random-key)
+            k2       (random-key)]
+        (is (thrown? ExecutionException @(pt/put *c* k1 _set {"a" nil} TTL {:client-events [events]})))
+        (is (thrown? ExecutionException @(pt/put-multiple *c* [k1 k2] [_set _set] [{"a" 1} {"a" nil}] [TTL TTL]
+                                                          {:client-events [events]})))
+        (is (= [[:write k1] [:write k2]] @failures))))
+    (testing "a throwing transcoder is returned as a rejected promise"
+      (is (thrown-with-msg? ExecutionException #"boom"
+                            @(pt/put *c* (random-key) _set 1 TTL {:transcoder (fn [_] (throw (Exception. "boom")))}))))
     (testing "put-multiple sends nothing if any payload is invalid"
       (let [k1 (random-key)
             k2 (random-key)]
         (is (thrown-with-msg? ExecutionException #"non-nil bin value"
                               @(pt/put-multiple *c* [k1 k2] [_set _set] [{"a" 1} {"a" nil}] [TTL TTL])))
-        (is (nil? @(pt/get-single-no-meta *c* k1 _set)))))))
+        (is (nil? @(pt/get-single-no-meta *c* k1 _set)))))
+    (testing "put-multiple rejects a nested unsupported value only when its record is sent"
+      (is (thrown-with-msg? ExecutionException #"Serialize error"
+                            @(pt/put-multiple *c* [(random-key) (random-key)] [_set _set] [{"a" 1} {"a" [:x]}] [TTL TTL]))))))
 
 (deftest nil-write-policy
   (testing "a nil policy uses the client's default write policy"
     (let [k (random-key)]
       (is (true? @(pt/put *c* k _set {"a" 1 "b" nil} TTL {:policy nil})))
-      (is (= {"a" 1} @(pt/get-single-no-meta *c* k _set))))))
+      (is (= {"a" 1} @(pt/get-single-no-meta *c* k _set)))))
+  (testing "the default policy's RecordExistsAction decides the nil rules"
+    (let [c (client/init-simple-aerospike-client *as-hosts* as-namespace {"RecordExistsAction" "REPLACE"})]
+      (try
+        (is (thrown-with-msg? ExecutionException #"non-nil bin value"
+                              @(pt/put c (random-key) _set {"a" nil} TTL {:policy nil})))
+        (finally
+          (pt/stop c))))))
 
 (deftest unsupported-bin-values
   (is (thrown-with-msg? ExecutionException #"Unsupported type: clojure.lang.Keyword"

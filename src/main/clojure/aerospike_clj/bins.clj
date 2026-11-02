@@ -1,6 +1,7 @@
 (ns aerospike-clj.bins
   (:import (clojure.lang IPersistentMap)
            (com.aerospike.client Bin Value)
+           (com.aerospike.client.policy RecordExistsAction)
            (java.util ArrayList)))
 
 (set! *warn-on-reflection* true)
@@ -57,3 +58,10 @@
      :else
      (doto ^"[Lcom.aerospike.client.Bin;" (make-array Bin 1)
        (aset 0 (create-bin "" data))))))
+
+(defn data->write-bins
+  "`data` as bins for a write whose `RecordExistsAction` is `action`, with the `nil` rules of `data->bins`."
+  ^"[Lcom.aerospike.client.Bin;" [data ^RecordExistsAction action]
+  (let [replace? (or (= RecordExistsAction/REPLACE action)
+                     (= RecordExistsAction/REPLACE_ONLY action))]
+    (data->bins data replace? (or replace? (= RecordExistsAction/CREATE_ONLY action)))))

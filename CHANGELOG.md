@@ -12,9 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **Breaking:** use `com.aerospike/aerospike-client-jdk8` 10.5.0 instead of `com.aerospike/aerospike-client` 6.1.10.
   Still runs on JDK 8 and is compatible with Aerospike server 6.4.
 * **Breaking:** client 10.x has no Java serialization, so only values the client stores natively can be written:
-  `nil`, booleans, numbers that fit a `long` or `double`, strings, `byte[]`, and lists and maps of these.
-  Keywords, symbols, sets, `BigInt`, `Ratio` and other types, at any depth, are rejected with
-  `Unsupported type` or `Serialize error`.
+  `nil`, booleans, numbers that fit a `long` or `double`, strings, `byte[]`, a few Java types (`UUID`, `Character`,
+  `Enum`, `ByteBuffer`), and lists and maps of these. Keywords, symbols, sets, `BigInt`, `Ratio` and other types are
+  rejected: top-level values with `Unsupported type`, and nested values with `Serialize error` when their record is
+  sent.
 * **Breaking:** every value 3.x stored with Java serialization, top-level or nested, reads back as the raw serialized
   `byte[]`, with no error.
 * **Breaking:** top-level `true`/`false` bin values are stored as native Aerospike booleans instead of Java-serialized
@@ -26,10 +27,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   * UPDATE writes (`set-single`, `add-bins`) remove `nil` bins. If that leaves the record with no bins, the server
     deletes the record.
   * `nil` data (a record written as `nil`) is rejected for every write. Use `delete` instead.
-* Invalid write data (bin names, `nil` bins, unsupported values) is returned as a rejected promise and reported to
-  `client-events` `on-failure`, instead of being thrown synchronously. `put-multiple` checks every payload before
-  sending any of them.
+* Invalid write data (bin names, `nil` bins, unsupported values, transcoder exceptions) is returned as a rejected
+  promise and reported to `client-events` `on-failure`, instead of being thrown synchronously.
+  * `put-multiple` checks every payload's `nil` data, `nil` bins, bin names and top-level values before sending any of
+    them, and reports the first invalid payload with its index. A nested unsupported value fails only its own record,
+    after the earlier records were sent.
+* `aerospike-clj.mock-client` rejects the same write data as the real client, except nested unsupported values.
 * Run integration tests against Aerospike server `ee-6.4.0.7`.
+
+### Added
+
+* `aerospike-clj.bins/data->write-bins`, which builds the bins for a write with a given `RecordExistsAction`.
 
 ### Removed
 

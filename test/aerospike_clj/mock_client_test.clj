@@ -358,3 +358,21 @@
                       :ttl     378777600}
             actual   @(pt/get-single client the-key the-set)]
         (is (= expected actual))))))
+
+(deftest invalid-write-data-test
+  (testing "writes the real client rejects are rejected, and nothing is stored"
+    (doseq [write [#(pt/put client "foo" nil {"a" :x} 30)
+                   #(pt/put client "foo" nil nil 30)
+                   #(pt/put client "foo" nil {"a" nil} 30)
+                   #(pt/put client "foo" nil {:a 1} 30)
+                   #(pt/create client "foo" nil {"a" nil} 30)
+                   #(pt/set-single client "foo" nil #{1} 30)
+                   #(pt/replace-only client "foo" nil 1N 30)
+                   #(pt/put-multiple client ["foo" "bar"] [nil nil] [1 {"a" nil}] [30 30])]]
+      (is (thrown? ExecutionException @(write))))
+    (is (nil? @(pt/get-single client "foo" nil))))
+
+  (testing "nil bins are accepted where the real client accepts them"
+    (is (true? @(pt/put client "foo" nil {"a" 1 "b" nil} 30)))
+    (is (true? @(pt/set-single client "foo" nil {"b" nil} 30)))
+    (is (true? @(pt/add-bins client "foo" nil {"c" nil} 30)))))
