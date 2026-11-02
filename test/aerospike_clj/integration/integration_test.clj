@@ -9,6 +9,7 @@
             [aerospike-clj.policy :as policy]
             [aerospike-clj.key :as as-key]
             [aerospike-clj.utils :as utils]
+            [promesa.core :as p]
             [spy.core :as spy])
   (:import (com.aerospike.client Value AerospikeClient BatchWrite Operation Bin)
            (com.aerospike.client.cdt ListOperation ListPolicy ListOrder ListWriteFlags ListReturnType
@@ -241,14 +242,50 @@
         (is (= {"a" 2} @(pt/get-single-no-meta *c* k _set)))
         (is (true? @(pt/update *c* k _set {"b" "x" "c" nil} 3 TTL)))
         (is (= {"b" "x"} @(pt/get-single-no-meta *c* k _set)))))
-    (testing "a write with only nil bins throws"
-      (is (thrown? IllegalArgumentException @(pt/put *c* (random-key) _set {"a" nil} TTL)))
-      (is (thrown? IllegalArgumentException @(pt/put *c* (random-key) _set nil TTL))))
+    (testing "a REPLACE or CREATE_ONLY write with only nil bins is rejected"
+      (is (thrown-with-msg? ExecutionException #"non-nil bin value" @(pt/put *c* (random-key) _set {"a" nil} TTL)))
+      (is (thrown-with-msg? ExecutionException #"non-nil bin value" @(pt/create *c* (random-key) _set {"a" nil} TTL))))
+    (testing "nil data is rejected for every write"
+      (let [k (random-key)]
+        (is (true? @(pt/create *c* k _set 1 TTL)))
+        (doseq [write [#(pt/put *c* k _set nil TTL)
+                       #(pt/create *c* (random-key) _set nil TTL)
+                       #(pt/set-single *c* k _set nil TTL)]]
+          (is (thrown-with-msg? ExecutionException #"can't be written as nil" @(write))))
+        (is (= 1 @(pt/get-single-no-meta *c* k _set)))))
     (testing "nil still deletes the bin in an UPDATE write"
       (let [k (random-key)]
         (is (true? @(pt/create *c* k _set data TTL)))
         (is (true? @(pt/set-single *c* k _set {"b" nil} TTL)))
-        (is (= {"a" 1 "c" [1 2 3]} @(pt/get-single-no-meta *c* k _set)))))))
+        (is (= {"a" 1 "c" [1 2 3]} @(pt/get-single-no-meta *c* k _set)))))
+    (testing "invalid bin names are rejected even when their value is nil"
+      (is (thrown-with-msg? ExecutionException #"string values as bin names" @(pt/put *c* (random-key) _set {:a nil "b" 1} TTL)))
+      (is (thrown-with-msg? ExecutionException #"17 characters" @(pt/put *c* (random-key) _set {"abcdefghijklmnopq" nil "b" 1} TTL))))
+    (testing "invalid data is reported to client-events"
+      (let [failures (atom [])
+            events   (reify pt/ClientEvents
+                       (on-success [_ _ op-result _ _] op-result)
+                       (on-failure [_ op-name op-ex _ _]
+                         (swap! failures conj op-name)
+                         (p/rejected op-ex)))]
+        (is (thrown? ExecutionException @(pt/put *c* (random-key) _set {"a" nil} TTL {:client-events [events]})))
+        (is (= [:write] @failures))))
+    (testing "put-multiple sends nothing if any payload is invalid"
+      (let [k1 (random-key)
+            k2 (random-key)]
+        (is (thrown-with-msg? ExecutionException #"non-nil bin value"
+                              @(pt/put-multiple *c* [k1 k2] [_set _set] [{"a" 1} {"a" nil}] [TTL TTL])))
+        (is (nil? @(pt/get-single-no-meta *c* k1 _set)))))))
+
+(deftest nil-write-policy
+  (testing "a nil policy uses the client's default write policy"
+    (let [k (random-key)]
+      (is (true? @(pt/put *c* k _set {"a" 1 "b" nil} TTL {:policy nil})))
+      (is (= {"a" 1} @(pt/get-single-no-meta *c* k _set))))))
+
+(deftest unsupported-bin-values
+  (is (thrown-with-msg? ExecutionException #"Unsupported type: clojure.lang.Keyword"
+                        @(pt/put *c* (random-key) _set {"a" :foo} TTL))))
 
 (deftest update-test
   (let [k (random-key)]

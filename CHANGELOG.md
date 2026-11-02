@@ -11,11 +11,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * **Breaking:** use `com.aerospike/aerospike-client-jdk8` 10.5.0 instead of `com.aerospike/aerospike-client` 6.1.10.
   Still runs on JDK 8 and is compatible with Aerospike server 6.4.
+* **Breaking:** client 10.x has no Java serialization, so only values the client stores natively can be written:
+  `nil`, booleans, numbers that fit a `long` or `double`, strings, `byte[]`, and lists and maps of these.
+  Keywords, symbols, sets, `BigInt`, `Ratio` and other types, at any depth, are rejected with
+  `Unsupported type` or `Serialize error`.
+* **Breaking:** every value 3.x stored with Java serialization, top-level or nested, reads back as the raw serialized
+  `byte[]`, with no error.
 * **Breaking:** top-level `true`/`false` bin values are stored as native Aerospike booleans instead of Java-serialized
-  `:true`/`:false` keywords. Bins written that way by 3.x read back as a raw `byte[]`.
+  `:true`/`:false` keywords.
 * **Breaking:** a top-level `nil` bin value removes the bin instead of storing a Java-serialized `:nil` keyword.
-  REPLACE writes (`put`, `put-multiple`, `update`, `replace-only`) leave `nil` bins out of the write, because the
-  server rejects bin deletes there, and throw `IllegalArgumentException` if every bin is `nil`.
+  * REPLACE writes (`put`, `put-multiple`, `update`, `replace-only`) leave `nil` bins out of the write, because the
+    server rejects bin deletes there.
+  * REPLACE and CREATE_ONLY (`create`) writes whose bins are all `nil` are rejected with `IllegalArgumentException`.
+  * UPDATE writes (`set-single`, `add-bins`) remove `nil` bins. If that leaves the record with no bins, the server
+    deletes the record.
+  * `nil` data (a record written as `nil`) is rejected for every write. Use `delete` instead.
+* Invalid write data (bin names, `nil` bins, unsupported values) is returned as a rejected promise and reported to
+  `client-events` `on-failure`, instead of being thrown synchronously. `put-multiple` checks every payload before
+  sending any of them.
 * Run integration tests against Aerospike server `ee-6.4.0.7`.
 
 ### Removed
