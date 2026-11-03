@@ -231,14 +231,27 @@
     (pt/create client "person" nil {"fname" "John" "lname" "Baker" "prefix" "Mr." "age" 74} 30)
     (pt/delete-bins client "person" nil ["prefix" "age"] 60)
 
-    (let [expected {:payload {"fname" "John" "lname" "Baker"} :ttl 378691260 :gen 1}
+    (let [expected {:payload {"fname" "John" "lname" "Baker"} :ttl 378691260 :gen 2}
           actual   (pt/get-single client "person" nil)]
       (is (= @actual expected)))
 
     (pt/delete-bins client "person" nil ["prefix" "age"] 10)
-    (let [expected {:payload {"fname" "John" "lname" "Baker"} :ttl 378691210 :gen 1}
+    (let [expected {:payload {"fname" "John" "lname" "Baker"} :ttl 378691210 :gen 3}
           actual   (pt/get-single client "person" nil)]
       (is (= @actual expected))))
+
+  (testing "deleting every bin deletes the record"
+    (pt/create client "person2" nil {"fname" "John"} 30)
+    @(pt/delete-bins client "person2" nil ["fname"] 60)
+    (is (nil? @(pt/get-single client "person2" nil))))
+
+  (testing "bin names the real client rejects are rejected, and the record is unchanged"
+    (pt/create client "person3" nil {"fname" "John"} 30)
+    (doseq [delete [#(pt/delete-bins client "person3" nil [:fname] 60)
+                    #(pt/delete-bins client "person3" nil ["abcdefghijklmno"] 60)
+                    #(pt/delete-bins client "person3" nil ["fname"] 60 {:transcoder (fn [_] (throw (Exception. "boom")))})]]
+      (is (thrown? ExecutionException @(delete))))
+    (is (= {"fname" "John"} (:payload @(pt/get-single client "person3" nil)))))
 
   (testing "it should throw an exception if key doesn't exist"
     (try
@@ -413,4 +426,10 @@
     (is (= {"b" 2} @(pt/get-single-no-meta client "foo" nil)))
     (is (true? @(pt/set-single client "foo" nil {"b" nil} 30)))
     (is (nil? @(pt/get-single client "foo" nil)))
-    (is (thrown? ExecutionException @(pt/set-single client "missing" nil {"a" nil} 30)))))
+    (is (thrown? ExecutionException @(pt/set-single client "missing" nil {"a" nil} 30))))
+
+  (testing "removing bins advances the generation, so a write with the old generation fails"
+    @(pt/put client "gen" nil {"a" 1 "b" 2} 30)
+    (is (true? @(pt/set-single client "gen" nil {"b" nil} 30)))
+    (is (= 2 (:gen @(pt/get-single client "gen" nil))))
+    (is (thrown? ExecutionException @(pt/update client "gen" nil {"a" 1 "b" 2} 1 30)))))

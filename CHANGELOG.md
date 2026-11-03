@@ -36,7 +36,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     and the other records are still written.
 * `aerospike-clj.mock-client` rejects the same write data as the real client, except nested unsupported values, as a
   rejected promise. It stores records without `nil` bins, and an UPDATE write (`set-single`, `add-bins`, or `put` with
-  a `nil` policy) whose bins are all `nil` removes those bins, and the record when none are left.
+  a `nil` policy) whose bins are all `nil` removes those bins, and the record when none are left. `delete-bins` also
+  deletes the record when no bins are left. Removing bins, including with `delete-bins`, advances the generation, as
+  the server does.
 * Run integration tests against Aerospike server `ee-6.4.0.7`.
 
 ### Added

@@ -86,7 +86,8 @@
     RecordExistsAction/REPLACE))
 
 (defn- remove-bins
-  "An UPDATE write whose bins are all `nil` removes those bins, and the record when none are left."
+  "Removes `bin-names` from the record and advances its generation, as the server does for any write.
+  Deletes the record when no bins are left."
   [state set-name k bin-names expiration]
   (do-swap state (fn [current-state]
                    (let [record (get-record current-state set-name k)]
@@ -98,7 +99,7 @@
                        (if (empty? payload)
                          (delete-record current-state set-name k)
                          (set-record current-state
-                                     (assoc record :payload payload :ttl (expiration->ttl expiration))
+                                     (assoc record :payload payload :ttl (expiration->ttl expiration) :gen (inc (:gen record)))
                                      set-name
                                      k)))))))
 
@@ -314,17 +315,16 @@
   (delete-bins [this k set-name bin-names new-expiration]
     (pt/delete-bins this k set-name bin-names new-expiration {}))
 
-  (delete-bins [_ k set-name bin-names new-expiration _]
-    (let [swap-fn (fn [current-state]
-                    (if-let [old-data (:payload (get-record current-state set-name k))]
-                      (let [merged-data (apply dissoc old-data bin-names)
-                            generation  (get-generation current-state set-name k)
-                            new-record  (create-record merged-data new-expiration generation)]
-                        (set-record current-state new-record set-name k))
-                      (throw (AerospikeException.
-                               (ResultCode/KEY_NOT_FOUND_ERROR)
-                               (str "Call to `delete-bins` on non-existing key '" k "'")))))]
-      (do-swap state swap-fn)))
+  (delete-bins [_ k set-name bin-names new-expiration conf]
+    (let [bin-names (try
+                      (let [bin-names ((get-transcoder conf) bin-names)]
+                        (run! bins/set-bin-as-null bin-names)
+                        bin-names)
+                      (catch Exception e
+                        e))]
+      (if (instance? Exception bin-names)
+        (p/rejected bin-names)
+        (remove-bins state set-name k bin-names new-expiration))))
 
   pt/AerospikeAdminOps
   (healthy? [_] true)
