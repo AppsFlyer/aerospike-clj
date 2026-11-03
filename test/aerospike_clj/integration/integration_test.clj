@@ -276,7 +276,12 @@
         (is (= [[:write k1] [:write k2]] @failures))))
     (testing "a throwing transcoder is returned as a rejected promise"
       (is (thrown-with-msg? ExecutionException #"boom"
-                            @(pt/put *c* (random-key) _set 1 TTL {:transcoder (fn [_] (throw (Exception. "boom")))}))))
+                            @(pt/put *c* (random-key) _set 1 TTL {:transcoder (fn [_] (throw (Exception. "boom")))})))
+      (is (thrown-with-msg? ExecutionException #"boom"
+                            @(pt/delete-bins *c* (random-key) _set ["a"] TTL {:transcoder (fn [_] (throw (Exception. "boom")))}))))
+    (testing "delete-bins returns an invalid bin name as a rejected promise"
+      (is (thrown-with-msg? ExecutionException #"15 characters"
+                            @(pt/delete-bins *c* (random-key) _set ["abcdefghijklmno"] TTL))))
     (testing "put-multiple sends nothing if any payload is invalid"
       (let [k1 (random-key)
             k2 (random-key)]
@@ -291,6 +296,11 @@
   (testing "a nil policy uses the client's default write policy"
     (let [k (random-key)]
       (is (true? @(pt/put *c* k _set {"a" 1 "b" nil} TTL {:policy nil})))
+      (is (= {"a" 1} @(pt/get-single-no-meta *c* k _set)))))
+  (testing "a nil policy on the default client is UPDATE, so a nil bin removes only that bin"
+    (let [k (random-key)]
+      (is (true? @(pt/put *c* k _set {"a" 1 "b" 2} TTL)))
+      (is (true? @(pt/put *c* k _set {"b" nil} TTL {:policy nil})))
       (is (= {"a" 1} @(pt/get-single-no-meta *c* k _set)))))
   (testing "the default policy's RecordExistsAction decides the nil rules"
     (let [c (client/init-simple-aerospike-client *as-hosts* as-namespace {"RecordExistsAction" "REPLACE"})]
