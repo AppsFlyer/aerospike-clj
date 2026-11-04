@@ -94,18 +94,31 @@
       (BatchRead. k true)
       (BatchRead. k ^"[Ljava.lang.String;" (utils/v->array String (:bins batch-read-map))))))
 
+(defn- write-bins
+  "`data` as bins for a write with `policy`; a `nil` policy means the client's default write policy."
+  ^"[Lcom.aerospike.client.Bin;" [^AerospikeClient client data ^WritePolicy policy]
+  (bins/data->write-bins data (.recordExistsAction (or policy (.getWritePolicyDefault client)))))
+
 ;; put
-(defn- put* [^AerospikeClient client ^EventLoops event-loops dbns client-events index data policy set-name conf]
-  (let [bins       (bins/data->bins data)
-        op-future  (p/deferred)
-        start-time (System/nanoTime)]
+(defn- send-put [^AerospikeClient client ^EventLoops event-loops dbns client-events index bins policy set-name conf start-time]
+  (let [op-future (p/deferred)]
     (.put client
           ^EventLoop (.next ^EventLoops event-loops)
           (AsyncWriteListener. op-future)
           ^WritePolicy policy
           ^Key (pt/create-key index dbns set-name)
-          bins)
+          ^"[Lcom.aerospike.client.Bin;" bins)
     (register-events op-future client-events :write index start-time conf)))
+
+(defn- put* [^AerospikeClient client ^EventLoops event-loops dbns client-events index data policy set-name conf]
+  (let [start-time (System/nanoTime)
+        bins       (try
+                     (write-bins client ((:transcoder conf identity) data) policy)
+                     (catch Exception e
+                       e))]
+    (if (instance? Exception bins)
+      (register-events (p/rejected bins) client-events :write index start-time conf)
+      (send-put client event-loops dbns client-events index bins policy set-name conf start-time))))
 
 (deftype SimpleAerospikeClient [client
                                 el
@@ -214,7 +227,7 @@
           dbns
           client-events
           index
-          ((:transcoder conf identity) data)
+          data
           (:policy conf (policy/write-policy client expiration))
           set-name
           conf))
@@ -228,7 +241,7 @@
           dbns
           client-events
           index
-          ((:transcoder conf identity) data)
+          data
           (policy/create-only-policy client expiration)
           set-name
           conf))
@@ -236,11 +249,25 @@
   (put-multiple [this indices set-names payloads expirations]
     (pt/put-multiple this indices set-names payloads expirations {}))
 
-  (put-multiple [this indices set-names payloads expirations conf]
-    (p/all
-      (map (fn [[index set-name payload expiration]]
-             (pt/put this index set-name payload expiration conf))
-           (map vector indices set-names payloads expirations))))
+  (put-multiple [_this indices set-names payloads expirations conf]
+    ;; Bins are built for every payload before any is sent. Nested values are only packed when their own record
+    ;; is sent, so a nested unsupported value fails only that record, and the other records are still written.
+    (let [start-time (System/nanoTime)
+          transcoder (:transcoder conf identity)
+          writes     (reduce (fn [writes [index set-name payload expiration]]
+                               (try
+                                 (let [policy (:policy conf (policy/write-policy client expiration))]
+                                   (conj writes [index set-name policy (write-bins client (transcoder payload) policy)]))
+                                 (catch Exception e
+                                   (reduced {:index index :error e}))))
+                             []
+                             (map vector indices set-names payloads expirations))]
+      (if (map? writes)
+        (register-events (p/rejected (:error writes)) client-events :write (:index writes) start-time conf)
+        (p/all
+          (map (fn [[index set-name policy bins]]
+                 (send-put client el dbns client-events index bins policy set-name conf (System/nanoTime)))
+               writes)))))
 
   pt/AerospikeUpdateOps
   (set-single [this index set-name data expiration]
@@ -252,7 +279,7 @@
           dbns
           client-events
           index
-          ((:transcoder conf identity) data)
+          data
           (policy/set-policy client expiration)
           set-name
           conf))
@@ -266,7 +293,7 @@
           dbns
           client-events
           index
-          ((:transcoder conf identity) data)
+          data
           (policy/replace-only-policy client expiration)
           set-name
           conf))
@@ -280,7 +307,7 @@
           dbns
           client-events
           index
-          ((:transcoder conf identity) new-record)
+          new-record
           (policy/update-policy client generation new-expiration)
           set-name
           conf))
@@ -294,7 +321,7 @@
           dbns
           client-events
           index
-          ((:transcoder conf identity) new-data)
+          new-data
           (policy/update-only-policy client new-expiration)
           set-name
           conf))
@@ -334,19 +361,23 @@
     (pt/delete-bins this index set-name bin-names new-expiration {}))
 
   (delete-bins [_this index set-name bin-names new-expiration conf]
-    (let [bin-names  ((:transcoder conf identity) bin-names)
-          policy     (policy/update-only-policy client new-expiration)
-          op-future  (p/deferred)
-          start-time (System/nanoTime)]
-      (.put ^AerospikeClient client
-            ^EventLoop (.next ^EventLoops el)
-            (AsyncWriteListener. op-future)
-            ^WritePolicy policy
-            ^Key (pt/create-key index dbns set-name)
-            ^"[Lcom.aerospike.client.Bin;" (utils/v->array Bin bins/set-bin-as-null bin-names))
-      (-> op-future
-          (p/then' identity completion-executor)
-          (register-events client-events :write index start-time conf))))
+    (let [start-time (System/nanoTime)
+          bins       (try
+                       (utils/v->array Bin bins/set-bin-as-null ((:transcoder conf identity) bin-names))
+                       (catch Exception e
+                         e))]
+      (if (instance? Exception bins)
+        (register-events (p/rejected bins) client-events :write index start-time conf)
+        (let [op-future (p/deferred)]
+          (.put ^AerospikeClient client
+                ^EventLoop (.next ^EventLoops el)
+                (AsyncWriteListener. op-future)
+                ^WritePolicy (policy/update-only-policy client new-expiration)
+                ^Key (pt/create-key index dbns set-name)
+                ^"[Lcom.aerospike.client.Bin;" bins)
+          (-> op-future
+              (p/then' identity completion-executor)
+              (register-events client-events :write index start-time conf))))))
 
   pt/AerospikeSingleIndexBatchOps
   (operate [this index set-name expiration operations]

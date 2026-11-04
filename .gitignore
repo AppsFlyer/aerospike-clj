@@ -7,3 +7,4 @@ target
 .lsp
 /.clj-kondo/.cache
 .java-version
+.lein-repl-history

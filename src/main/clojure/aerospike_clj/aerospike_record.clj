@@ -1,5 +1,4 @@
 (ns aerospike-clj.aerospike-record
-  (:require [aerospike-clj.utils :as utils])
   (:import (com.aerospike.client Record)
            (java.util Map)))
 
@@ -18,12 +17,9 @@
              payload (when (some? bins)
                        (if (single-bin? bins)
                          ;; single bin record
-                         (utils/desanitize-bin-value (.get bins ""))
+                         (.get bins "")
                          ;; multiple-bin record
-                         (reduce-kv (fn [m k v]
-                                      (assoc m k (utils/desanitize-bin-value v)))
-                                    {}
-                                    bins)))]
+                         (into {} bins)))]
          (->AerospikeRecord
            payload
            ^Integer (.generation ^Record record)

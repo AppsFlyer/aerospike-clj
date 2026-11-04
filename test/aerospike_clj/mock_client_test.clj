@@ -231,14 +231,27 @@
     (pt/create client "person" nil {"fname" "John" "lname" "Baker" "prefix" "Mr." "age" 74} 30)
     (pt/delete-bins client "person" nil ["prefix" "age"] 60)
 
-    (let [expected {:payload {"fname" "John" "lname" "Baker"} :ttl 378691260 :gen 1}
+    (let [expected {:payload {"fname" "John" "lname" "Baker"} :ttl 378691260 :gen 2}
           actual   (pt/get-single client "person" nil)]
       (is (= @actual expected)))
 
     (pt/delete-bins client "person" nil ["prefix" "age"] 10)
-    (let [expected {:payload {"fname" "John" "lname" "Baker"} :ttl 378691210 :gen 1}
+    (let [expected {:payload {"fname" "John" "lname" "Baker"} :ttl 378691210 :gen 3}
           actual   (pt/get-single client "person" nil)]
       (is (= @actual expected))))
+
+  (testing "deleting every bin deletes the record"
+    (pt/create client "person2" nil {"fname" "John"} 30)
+    @(pt/delete-bins client "person2" nil ["fname"] 60)
+    (is (nil? @(pt/get-single client "person2" nil))))
+
+  (testing "bin names the real client rejects are rejected, and the record is unchanged"
+    (pt/create client "person3" nil {"fname" "John"} 30)
+    (doseq [delete [#(pt/delete-bins client "person3" nil [:fname] 60)
+                    #(pt/delete-bins client "person3" nil ["abcdefghijklmno"] 60)
+                    #(pt/delete-bins client "person3" nil ["fname"] 60 {:transcoder (fn [_] (throw (Exception. "boom")))})]]
+      (is (thrown? ExecutionException @(delete))))
+    (is (= {"fname" "John"} (:payload @(pt/get-single client "person3" nil)))))
 
   (testing "it should throw an exception if key doesn't exist"
     (try
@@ -358,3 +371,65 @@
                       :ttl     378777600}
             actual   @(pt/get-single client the-key the-set)]
         (is (= expected actual))))))
+
+(deftest invalid-write-data-test
+  (testing "writes the real client rejects are rejected, and nothing is stored"
+    (doseq [write [#(pt/put client "foo" nil {"a" :x} 30)
+                   #(pt/put client "foo" nil nil 30)
+                   #(pt/put client "foo" nil {"a" nil} 30)
+                   #(pt/put client "foo" nil {:a 1} 30)
+                   #(pt/create client "foo" nil {"a" nil} 30)
+                   #(pt/set-single client "foo" nil #{1} 30)
+                   #(pt/replace-only client "foo" nil 1N 30)
+                   #(pt/put-multiple client ["foo" "bar"] [nil nil] [1 {"a" nil}] [30 30])
+                   #(pt/update client "foo" nil {"a" nil} 0 30)
+                   #(pt/add-bins client "foo" nil {:a 1} 30)]]
+      (is (thrown? ExecutionException @(write))))
+    (is (nil? @(pt/get-single client "foo" nil))))
+
+  (testing "a throwing transcoder is returned as a rejected promise"
+    (let [conf {:transcoder (fn [_] (throw (Exception. "boom")))}]
+      (doseq [write [#(pt/put client "foo" nil 1 30 conf)
+                     #(pt/create client "foo" nil 1 30 conf)
+                     #(pt/put-multiple client ["foo"] [nil] [1] [30] conf)
+                     #(pt/set-single client "foo" nil 1 30 conf)
+                     #(pt/replace-only client "foo" nil 1 30 conf)
+                     #(pt/update client "foo" nil 1 0 30 conf)
+                     #(pt/add-bins client "foo" nil {"a" 1} 30 conf)]]
+        (let [result (write)]
+          (is (thrown-with-msg? ExecutionException #"boom" @result))))))
+
+  (testing "the transcoder runs once per payload"
+    (let [calls (atom 0)
+          conf  {:transcoder (fn [data] (swap! calls inc) data)}]
+      @(pt/put-multiple client ["foo"] [nil] [{"a" 1}] [30] conf)
+      @(pt/set-single client "foo" nil {"a" 2} 30 conf)
+      @(pt/update client "foo" nil {"a" 3} 2 30 conf)
+      (is (= 3 @calls))))
+
+  (testing "nil bins aren't stored, like in the real client"
+    (is (true? @(pt/put client "foo" nil {"a" 1 "b" nil} 30)))
+    (is (= {"a" 1} @(pt/get-single-no-meta client "foo" nil)))
+    (is (true? @(pt/replace-only client "foo" nil {"a" 2 "c" nil} 30)))
+    (is (= {"a" 2} @(pt/get-single-no-meta client "foo" nil)))
+    (is (true? @(pt/create client "bar" nil {"a" 1 "b" nil} 30)))
+    (is (= {"a" 1} @(pt/get-single-no-meta client "bar" nil))))
+
+  (testing "a nil policy is UPDATE, so a nil bin removes only that bin"
+    @(pt/put client "foo" nil {"a" 1 "b" 2} 30)
+    (is (true? @(pt/put client "foo" nil {"b" nil} 30 {:policy nil})))
+    (is (= {"a" 1} @(pt/get-single-no-meta client "foo" nil))))
+
+  (testing "UPDATE writes remove nil bins, and the record when none are left"
+    @(pt/put client "foo" nil {"a" 1 "b" 2} 30)
+    (is (true? @(pt/add-bins client "foo" nil {"a" nil} 30)))
+    (is (= {"b" 2} @(pt/get-single-no-meta client "foo" nil)))
+    (is (true? @(pt/set-single client "foo" nil {"b" nil} 30)))
+    (is (nil? @(pt/get-single client "foo" nil)))
+    (is (thrown? ExecutionException @(pt/set-single client "missing" nil {"a" nil} 30))))
+
+  (testing "removing bins advances the generation, so a write with the old generation fails"
+    @(pt/put client "gen" nil {"a" 1 "b" 2} 30)
+    (is (true? @(pt/set-single client "gen" nil {"b" nil} 30)))
+    (is (= 2 (:gen @(pt/get-single client "gen" nil))))
+    (is (thrown? ExecutionException @(pt/update client "gen" nil {"a" 1 "b" 2} 1 30)))))

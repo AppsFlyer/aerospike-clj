@@ -5,6 +5,50 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.0] - 2026-10-07
+
+### Changed
+
+* **Breaking:** use `com.aerospike/aerospike-client-jdk8` 10.5.0 instead of `com.aerospike/aerospike-client` 6.1.10.
+  Still runs on JDK 8 and is compatible with Aerospike server 6.4.
+* **Breaking:** client 10.x has no Java serialization, so only values the client stores natively can be written:
+  `nil`, booleans, numbers that fit a `long` or `double`, strings, `byte[]`, and lists and maps of these. Keywords,
+  symbols, sets, `BigInt`, `Ratio` and other types are rejected: top-level values with `Unsupported type`, and nested
+  values with `Serialize error` when their record is sent.
+  * Top-level `UUID`, `Character`, `Enum` and `ByteBuffer` values are also accepted, and read back as `String`, `Long`,
+    `String` and `byte[]`. Nested `UUID` and `Enum` values are stored corrupted, as in 3.x.
+* **Breaking:** every value 3.x stored with Java serialization, top-level or nested, reads back as the raw serialized
+  `byte[]`, with no error.
+* **Breaking:** top-level `true`/`false` bin values are stored as native Aerospike booleans instead of Java-serialized
+  `:true`/`:false` keywords.
+* **Breaking:** a top-level `nil` bin value removes the bin instead of storing a Java-serialized `:nil` keyword.
+  * REPLACE writes (`put`, `put-multiple`, `update`, `replace-only`) leave `nil` bins out of the write, because the
+    server rejects bin deletes there.
+  * REPLACE and CREATE_ONLY (`create`) writes whose bins are all `nil` are rejected with `IllegalArgumentException`.
+  * UPDATE writes (`set-single`, `add-bins`) remove `nil` bins. If that leaves the record with no bins, the server
+    deletes the record.
+  * `nil` data (a record written as `nil`) is rejected for every write. Use `delete` instead.
+* Invalid write data (bin names, `nil` bins, unsupported values, transcoder exceptions) is returned as a rejected
+  promise and reported to `client-events` `on-failure`, instead of being thrown synchronously. This includes the bin
+  names given to `delete-bins`.
+  * `put-multiple` checks every payload's `nil` data, `nil` bins, bin names and top-level values before sending any of
+    them, and reports the first invalid payload with its index. A nested unsupported value fails only its own record,
+    and the other records are still written.
+* `aerospike-clj.mock-client` rejects the same write data as the real client, except nested unsupported values, as a
+  rejected promise. It stores records without `nil` bins, and an UPDATE write (`set-single`, `add-bins`, or `put` with
+  a `nil` policy) whose bins are all `nil` removes those bins, and the record when none are left. `delete-bins` also
+  deletes the record when no bins are left. Removing bins, including with `delete-bins`, advances the generation, as
+  the server does.
+* Run integration tests against Aerospike server `ee-6.4.0.7`.
+
+### Added
+
+* `aerospike-clj.bins/data->write-bins`, which builds the bins for a write with a given `RecordExistsAction`.
+
+### Removed
+
+* `aerospike-clj.utils/sanitize-bin-value` and `aerospike-clj.utils/desanitize-bin-value`.
+
 ### [3.1.0] - 2023-08-22
 
 #### Added
@@ -220,6 +264,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * License changed to Apache 2.
 
 [A complete list of all java client related changes](https://www.aerospike.com/download/client/java/notes.html)
+
+[4.0.0]: https://github.com/AppsFlyer/aerospike-clj/pull/76
 
 [3.1.0]: https://github.com/AppsFlyer/aerospike-clj/pull/69
 

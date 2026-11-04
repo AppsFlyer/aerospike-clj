@@ -8,7 +8,7 @@
   (format "%s:%s" (:host *container*) (get (:mapped-ports *container*) container-port)))
 
 (defn- start-container []
-  (->> {:image-name    "aerospike:ee-6.2.0.3"
+  (->> {:image-name    "aerospike:ee-6.4.0.7"
         :exposed-ports [container-port]
         :wait-for      {:wait-strategy   :log
                         :message         "objects: all 0 master 0 prole 0 non-replica 0"
